@@ -421,7 +421,7 @@ export default function Marketview() {
           <div className="flex-1" />
           <span className="text-[11px] text-text-tertiary">click → expand</span>
           <button
-            onClick={() => nav(`/order?strike=${activeSignal.strike}&action=${activeSignal.action}`)}
+            onClick={() => nav(`/order?strike=${activeSignal!.strike}&action=${activeSignal!.action}`)}
             className="text-[11px] font-medium text-info-text hover:underline"
           >
             place order →
