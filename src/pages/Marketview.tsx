@@ -365,14 +365,8 @@ export default function Marketview() {
     () => (gammaSeries.data ?? []).map((r: any) => r.spot).filter((v) => v != null) as number[],
     [gammaSeries.data],
   );
-  const straddleSpark = useMemo(
-    () => (gammaSeries.data ?? []).map((r: any) => r.straddle_atm).filter((v) => v != null) as number[],
-    [gammaSeries.data],
-  );
-  const straddleNow = straddleSpark.length ? straddleSpark[straddleSpark.length - 1] : null;
-  const straddleAvg = straddleSpark.length
-    ? Math.round(straddleSpark.reduce((s, v) => s + v, 0) / straddleSpark.length)
-    : null;
+
+
 
   const prevClose = (marker.data?.prev_close_spot ?? null) as number | null;
   const changePct = prevClose && spot ? ((spot - prevClose) / prevClose) * 100 : 0;
