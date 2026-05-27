@@ -657,21 +657,112 @@ export default function Marketview() {
   );
 }
 
-function StraddleSparkline({ data, avg }: { data: number[]; avg: number }) {
-  const w = 180;
-  const h = 42;
-  if (!data || data.length < 2) {
-    return <svg viewBox={`0 0 ${w} ${h}`} className="block h-auto w-full" />;
-  }
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(" ");
-  const avgY = h - ((avg - min) / range) * h;
+function StraddleIntradayChart({ buckets, daysUsed }: { buckets: StraddleBucket[]; daysUsed: number }) {
+  const W = 560;
+  const H = 180;
+  const padL = 36;
+  const padR = 10;
+  const padT = 24;
+  const padB = 22;
+  const cw = W - padL - padR;
+  const ch = H - padT - padB;
+
+  // Fixed x-domain 09:15–15:30 IST → minutes 555..930
+  const X_MIN = 555;
+  const X_MAX = 930;
+  const x = (mins: number) => padL + ((mins - X_MIN) / (X_MAX - X_MIN)) * cw;
+
+  const vals: number[] = [];
+  buckets.forEach((b) => {
+    if (b.today != null) vals.push(b.today);
+    if (b.avg != null) vals.push(b.avg);
+  });
+  const hasData = vals.length > 0;
+  const yMin = hasData ? Math.min(...vals) : 0;
+  const yMax = hasData ? Math.max(...vals) : 1;
+  const pad = (yMax - yMin) * 0.1 || 1;
+  const yLo = Math.max(0, yMin - pad);
+  const yHi = yMax + pad;
+  const y = (v: number) => padT + (1 - (v - yLo) / (yHi - yLo)) * ch;
+
+  // Build polylines, breaking on null
+  const toPath = (sel: (b: StraddleBucket) => number | null) => {
+    let d = "";
+    let pen = false;
+    buckets.forEach((b) => {
+      const v = sel(b);
+      if (v == null) {
+        pen = false;
+        return;
+      }
+      d += `${pen ? "L" : "M"}${x(b.bucket).toFixed(1)},${y(v).toFixed(1)} `;
+      pen = true;
+    });
+    return d.trim();
+  };
+  const todayPath = toPath((b) => b.today);
+  const avgPath = toPath((b) => b.avg);
+
+  const todayLast = [...buckets].reverse().find((b) => b.today != null);
+  const avgAtNow = todayLast ? buckets.find((b) => b.bucket === todayLast.bucket)?.avg ?? null : null;
+
+  const xTicks = [555, 615, 675, 735, 795, 855, 915]; // 9:15,10:15,...,15:15
+  const fmtTime = (m: number) => {
+    const hh = Math.floor(m / 60);
+    const mm = m % 60;
+    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  };
+  const yTicks = hasData ? [yLo, (yLo + yHi) / 2, yHi] : [];
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="block h-auto w-full">
-      <line x1={0} x2={w} y1={avgY} y2={avgY} stroke="var(--color-text-tertiary)" strokeWidth="0.5" strokeDasharray="2,2" />
-      <polyline points={pts} fill="none" stroke="var(--color-info-text)" strokeWidth="1.5" />
-    </svg>
+    <div>
+      <div className="mb-1 flex items-center gap-1.5">
+        <LineChartIcon size={13} className="text-text-secondary" />
+        <span className="text-[11px] font-medium">atm straddle · intraday</span>
+        <span className="ml-auto text-[10px] text-text-secondary">
+          {todayLast?.today != null ? <>₹{todayLast.today.toFixed(0)}</> : "—"}
+          <span className="text-text-tertiary"> · {daysUsed}d avg ₹{avgAtNow != null ? avgAtNow.toFixed(0) : "—"}</span>
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full">
+        {/* grid */}
+        {yTicks.map((v, i) => (
+          <g key={i}>
+            <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="var(--color-border-tertiary)" strokeWidth="0.5" />
+            <text x={padL - 4} y={y(v) + 3} textAnchor="end" fontSize="9" fill="var(--color-text-tertiary)">
+              ₹{Math.round(v)}
+            </text>
+          </g>
+        ))}
+        {xTicks.map((m) => (
+          <g key={m}>
+            <line x1={x(m)} x2={x(m)} y1={H - padB} y2={H - padB + 3} stroke="var(--color-text-tertiary)" strokeWidth="0.5" />
+            <text x={x(m)} y={H - 6} textAnchor="middle" fontSize="9" fill="var(--color-text-tertiary)">
+              {fmtTime(m)}
+            </text>
+          </g>
+        ))}
+        {/* avg dashed orange */}
+        {avgPath && (
+          <path d={avgPath} fill="none" stroke="#e07b3a" strokeWidth="1.25" strokeDasharray="4,3" />
+        )}
+        {/* today solid blue */}
+        {todayPath && <path d={todayPath} fill="none" stroke="#185fa5" strokeWidth="1.75" />}
+
+        {!hasData && (
+          <text x={W / 2} y={H / 2} textAnchor="middle" fontSize="11" fill="var(--color-text-tertiary)">
+            no straddle data
+          </text>
+        )}
+
+        {/* legend */}
+        <g transform={`translate(${padL}, ${padT - 12})`}>
+          <line x1={0} x2={14} y1={4} y2={4} stroke="#185fa5" strokeWidth="1.75" />
+          <text x={18} y={7} fontSize="9" fill="var(--color-text-secondary)">today</text>
+          <line x1={60} x2={74} y1={4} y2={4} stroke="#e07b3a" strokeWidth="1.25" strokeDasharray="4,3" />
+          <text x={78} y={7} fontSize="9" fill="var(--color-text-secondary)">{daysUsed || 5}d avg</text>
+        </g>
+      </svg>
+    </div>
   );
 }
