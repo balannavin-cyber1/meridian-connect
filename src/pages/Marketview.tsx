@@ -542,7 +542,12 @@ export default function Marketview() {
           pin={pin.data as any}
           accel={accel.data as any}
           ictZones={zones.data ?? []}
+          step={strikeStep}
+          resetKey={chartResetKey}
         />
+        <div className="mt-1 text-[9px] text-text-tertiary">
+          scroll to zoom · drag to pan · r to reset · ticks every {strikeStep}pt
+        </div>
       </div>
 
       {/* Dealer flow */}
