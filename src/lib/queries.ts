@@ -61,6 +61,75 @@ export function useGammaSeries(symbol: Symbol, limit = 60) {
   });
 }
 
+// Intraday straddle: today's series + per-bucket 5-day average.
+// Buckets are 5-minute intervals of IST minutes-of-day (e.g. 555 = 09:15).
+export type StraddleBucket = { bucket: number; today: number | null; avg: number | null };
+export function useStraddleIntraday(symbol: Symbol) {
+  return useQuery({
+    queryKey: ["straddleIntraday", symbol],
+    staleTime: MV_STALE,
+    queryFn: async (): Promise<{ buckets: StraddleBucket[]; daysUsed: number }> => {
+      const since = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+      const { data, error } = await supabase
+        .from("gamma_metrics")
+        .select("ts, straddle_atm")
+        .eq("symbol", symbol)
+        .gte("ts", since.toISOString())
+        .order("ts", { ascending: true });
+      if (error) throw error;
+      const rows = (data ?? []).filter((r: any) => r.straddle_atm != null);
+
+      const istParts = (iso: string) => {
+        const t = new Date(iso).getTime() + 5.5 * 60 * 60 * 1000;
+        const d = new Date(t);
+        const dateKey = d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+        const minOfDay = d.getUTCHours() * 60 + d.getUTCMinutes();
+        return { dateKey, minOfDay };
+      };
+      const todayKey = (() => {
+        const t = Date.now() + 5.5 * 60 * 60 * 1000;
+        const d = new Date(t);
+        return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+      })();
+
+      const BUCKET = 5;
+      const todayMap = new Map<number, number>();
+      const histAgg = new Map<number, { sum: number; n: number; days: Set<number> }>();
+      for (const r of rows as any[]) {
+        const { dateKey, minOfDay } = istParts(r.ts);
+        if (minOfDay < 555 || minOfDay > 930) continue;
+        const bucket = Math.floor(minOfDay / BUCKET) * BUCKET;
+        const v = Number(r.straddle_atm);
+        if (dateKey === todayKey) {
+          todayMap.set(bucket, v);
+        } else {
+          const a = histAgg.get(bucket) ?? { sum: 0, n: 0, days: new Set<number>() };
+          a.sum += v;
+          a.n += 1;
+          a.days.add(dateKey);
+          histAgg.set(bucket, a);
+        }
+      }
+
+      const allBuckets = new Set<number>([...todayMap.keys(), ...histAgg.keys()]);
+      const buckets: StraddleBucket[] = Array.from(allBuckets)
+        .sort((a, b) => a - b)
+        .map((bucket) => {
+          const a = histAgg.get(bucket);
+          return {
+            bucket,
+            today: todayMap.has(bucket) ? todayMap.get(bucket)! : null,
+            avg: a && a.n > 0 ? a.sum / a.n : null,
+          };
+        });
+
+      const daysUsed = new Set<number>();
+      histAgg.forEach((a) => a.days.forEach((d) => daysUsed.add(d)));
+      return { buckets, daysUsed: daysUsed.size };
+    },
+  });
+}
+
 export function useLatestSignal(symbol: Symbol) {
   return useQuery({
     queryKey: ["signalLatest", symbol],
@@ -241,6 +310,7 @@ export function useRefetchMarketview() {
           "accelZone",
           "ictZones",
           "dealerFlow",
+          "straddleIntraday",
         ].includes(k as string);
       },
     });

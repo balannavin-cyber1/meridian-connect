@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Target,
@@ -20,7 +20,9 @@ import {
   useIctZones,
   useDealerFlow,
   useRefetchMarketview,
+  useStraddleIntraday,
   type Symbol as MSymbol,
+  type StraddleBucket,
 } from "@/lib/queries";
 
 function Sparkline({ data, color = "currentColor", w = 42, h = 14 }: { data: number[]; color?: string; w?: number; h?: number }) {
@@ -91,12 +93,16 @@ function HeroChart({
   pin,
   accel,
   ictZones,
+  step,
+  resetKey,
 }: {
   spot: number;
   bars: { strike: number; gex_cr: number }[];
   pin: { pin_lower: number; pin_upper: number } | null;
   accel: { accel_lower: number; accel_upper: number } | null;
   ictZones: any[];
+  step: number;
+  resetKey: number;
 }) {
   const W = 660;
   const H = 320;
@@ -108,7 +114,37 @@ function HeroChart({
   const chartH = H - padT - padB;
   const midY = padT + chartH / 2;
 
-  if (!rawBars.length) {
+  // Default window = spot ±2% (fallback ±5%)
+  const defaultView = useMemo(() => {
+    if (!rawBars.length) return null;
+    if (spot > 0) {
+      const within = (pct: number) => {
+        const lo = spot * (1 - pct);
+        const hi = spot * (1 + pct);
+        const inRange = rawBars.filter((b) => b.strike >= lo && b.strike <= hi);
+        return { lo, hi, count: inRange.length };
+      };
+      let r = within(0.02);
+      if (r.count < 5) r = within(0.05);
+      if (r.count < 3) {
+        const ss = rawBars.map((b) => b.strike);
+        return { min: Math.min(...ss), max: Math.max(...ss) };
+      }
+      return { min: r.lo, max: r.hi };
+    }
+    const ss = rawBars.map((b) => b.strike);
+    return { min: Math.min(...ss), max: Math.max(...ss) };
+  }, [rawBars, spot]);
+
+  const [view, setView] = useState<{ min: number; max: number } | null>(null);
+  useEffect(() => {
+    setView(null);
+  }, [resetKey, defaultView?.min, defaultView?.max]);
+
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const dragRef = useRef<{ startX: number; startMin: number; startMax: number } | null>(null);
+
+  if (!rawBars.length || !defaultView) {
     return (
       <div className="flex h-[320px] items-center justify-center rounded-md border border-dashed border-border-secondary bg-bg-secondary text-[11px] text-text-tertiary">
         no GEX strike data
@@ -116,29 +152,29 @@ function HeroChart({
     );
   }
 
-  // Clip strike range to spot ±2% (fallback ±5% if too few bars)
-  let bars = rawBars;
-  if (spot > 0) {
-    const within = (pct: number) =>
-      rawBars.filter((b) => Math.abs(b.strike - spot) / spot <= pct);
-    bars = within(0.02);
-    if (bars.length < 5) bars = within(0.05);
-    if (bars.length < 3) bars = rawBars;
-  }
-
-  const strikes = bars.map((b) => b.strike);
-  const sMin = Math.min(...strikes, spot * 0.98);
-  const sMax = Math.max(...strikes, spot * 1.02);
+  const activeView = view ?? defaultView;
+  const sMin = activeView.min;
+  const sMax = activeView.max;
   const sRange = sMax - sMin || 1;
   const x = (s: number) => padL + ((s - sMin) / sRange) * chartW;
 
-  const maxAbs = Math.max(...bars.map((b) => Math.abs(b.gex_cr))) || 1;
+  const bars = rawBars.filter((b) => b.strike >= sMin && b.strike <= sMax);
+  const maxAbs = Math.max(...(bars.length ? bars.map((b) => Math.abs(b.gex_cr)) : [1])) || 1;
   const barH = (v: number) => (Math.abs(v) / maxAbs) * (chartH / 2);
-  const maxGamma = bars.reduce((m, b) => (Math.abs(b.gex_cr) > Math.abs(m.gex_cr) ? b : m)).strike;
+  const maxGamma = bars.length
+    ? bars.reduce((m, b) => (Math.abs(b.gex_cr) > Math.abs(m.gex_cr) ? b : m)).strike
+    : null;
 
-  const xAxisStrikes = [sMin, sMin + sRange * 0.25, sMin + sRange * 0.5, sMin + sRange * 0.75, sMax];
+  // Snapped strike ticks — every `step`, thinned to keep ~6-12 visible.
+  const tickStart = Math.ceil(sMin / step) * step;
+  const tickEnd = Math.floor(sMax / step) * step;
+  const rawTickCount = Math.max(0, Math.floor((tickEnd - tickStart) / step) + 1);
+  const thin = rawTickCount > 12 ? Math.ceil(rawTickCount / 10) : 1;
+  const ticks: number[] = [];
+  for (let t = tickStart, i = 0; t <= tickEnd; t += step, i++) {
+    if (i % thin === 0) ticks.push(t);
+  }
 
-  // ICT zones: nearest to spot, max 5, within strike range
   const visibleZones = (ictZones ?? [])
     .map((z) => {
       const lo = z.zone_low ?? z.range_low;
@@ -149,11 +185,62 @@ function HeroChart({
     .sort((a, b) => Math.abs((a.mid as number) - spot) - Math.abs((b.mid as number) - spot))
     .slice(0, 5);
 
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label="GEX-by-strike spatial chart">
-      <title>GEX-by-strike spatial chart</title>
+  // Convert client X to SVG-space strike value
+  const clientToStrike = (clientX: number) => {
+    const el = svgRef.current;
+    if (!el) return spot;
+    const rect = el.getBoundingClientRect();
+    const svgX = ((clientX - rect.left) / rect.width) * W;
+    const t = (svgX - padL) / chartW;
+    return sMin + Math.max(0, Math.min(1, t)) * sRange;
+  };
 
-      {/* PIN band + label inside band, top */}
+  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const anchor = clientToStrike(e.clientX);
+    const zoom = Math.exp(e.deltaY * 0.0015); // >1 = zoom out, <1 = zoom in
+    let newMin = anchor - (anchor - sMin) * zoom;
+    let newMax = anchor + (sMax - anchor) * zoom;
+    const minWidth = step * 4;
+    if (newMax - newMin < minWidth) {
+      const mid = (newMin + newMax) / 2;
+      newMin = mid - minWidth / 2;
+      newMax = mid + minWidth / 2;
+    }
+    setView({ min: newMin, max: newMax });
+  };
+  const onMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    dragRef.current = { startX: e.clientX, startMin: sMin, startMax: sMax };
+  };
+  const onMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const el = svgRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const dxStrike = ((e.clientX - d.startX) / rect.width) * W * (sRange / chartW);
+    setView({ min: d.startMin - dxStrike, max: d.startMax - dxStrike });
+  };
+  const endDrag = () => {
+    dragRef.current = null;
+  };
+
+  return (
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${W} ${H}`}
+      className="block h-auto w-full select-none"
+      style={{ cursor: dragRef.current ? "grabbing" : "grab", touchAction: "none" }}
+      role="img"
+      aria-label="GEX-by-strike spatial chart"
+      onWheel={onWheel}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={endDrag}
+      onMouseLeave={endDrag}
+    >
+      <title>GEX-by-strike spatial chart · scroll to zoom · drag to pan · r to reset</title>
+
       {pin && (
         <>
           <rect x={x(pin.pin_lower)} y={padT} width={x(pin.pin_upper) - x(pin.pin_lower)} height={chartH} fill="#639922" opacity="0.08" />
@@ -163,7 +250,6 @@ function HeroChart({
         </>
       )}
 
-      {/* ACCEL band + label staggered 16px below PIN */}
       {accel && (
         <>
           <rect x={x(accel.accel_lower)} y={padT} width={x(accel.accel_upper) - x(accel.accel_lower)} height={chartH} fill="#e24b4a" opacity="0.08" />
@@ -173,7 +259,6 @@ function HeroChart({
         </>
       )}
 
-      {/* ICT zones — bear above, bull below, staggered with 12px rows */}
       {visibleZones.map((r, i) => {
         const { z, lo, hi } = r;
         const ptype: string = z.pattern_type ?? z.type ?? "";
@@ -195,7 +280,7 @@ function HeroChart({
       <line x1={padL} x2={W - padR} y1={midY} y2={midY} stroke="var(--color-border-secondary)" strokeWidth="0.5" />
 
       {bars.map((b) => {
-        const bw = Math.max(3, (chartW / bars.length) * 0.6);
+        const bw = Math.max(3, (chartW / Math.max(bars.length, 1)) * 0.6);
         const bx = x(b.strike) - bw / 2;
         const h = barH(b.gex_cr);
         const pos = b.gex_cr >= 0;
@@ -205,11 +290,14 @@ function HeroChart({
         );
       })}
 
-      {/* max γ line + label staggered to midY */}
-      <line x1={x(maxGamma)} x2={x(maxGamma)} y1={padT} y2={H - padB} stroke="#7f77dd" strokeWidth="1" strokeDasharray="3,2" />
-      <text x={x(maxGamma) + 4} y={midY - 4} fontSize="9" fontWeight="500" fill="#7f77dd">
-        max γ {fmtNum(maxGamma)}
-      </text>
+      {maxGamma != null && (
+        <>
+          <line x1={x(maxGamma)} x2={x(maxGamma)} y1={padT} y2={H - padB} stroke="#7f77dd" strokeWidth="1" strokeDasharray="3,2" />
+          <text x={x(maxGamma) + 4} y={midY - 4} fontSize="9" fontWeight="500" fill="#7f77dd">
+            max γ {fmtNum(maxGamma)}
+          </text>
+        </>
+      )}
 
       {spot >= sMin && spot <= sMax && (
         <>
@@ -223,10 +311,13 @@ function HeroChart({
         </>
       )}
 
-      {xAxisStrikes.map((s) => (
-        <text key={s} x={x(s)} y={H - 4} textAnchor="middle" fontSize="9" fill="var(--color-text-tertiary)">
-          {fmtNum(Math.round(s))}
-        </text>
+      {ticks.map((s) => (
+        <g key={s}>
+          <line x1={x(s)} x2={x(s)} y1={H - padB} y2={H - padB + 3} stroke="var(--color-text-tertiary)" strokeWidth="0.5" />
+          <text x={x(s)} y={H - 4} textAnchor="middle" fontSize="9" fill="var(--color-text-tertiary)">
+            {fmtNum(s)}
+          </text>
+        </g>
       ))}
       <text x={padL - 4} y={padT + 6} textAnchor="end" fontSize="9" fill="var(--color-text-tertiary)">long γ</text>
       <text x={padL - 4} y={H - padB} textAnchor="end" fontSize="9" fill="var(--color-text-tertiary)">short γ</text>
@@ -265,20 +356,17 @@ export default function Marketview() {
   const accel = useAccelZone(symbol, expiry);
   const zones = useIctZones(symbol);
   const dealer = useDealerFlow(symbol, expiry);
+  const straddle = useStraddleIntraday(symbol);
+  const [chartResetKey, setChartResetKey] = useState(0);
+  const strikeStep = symbol === "NIFTY" ? 50 : 100;
 
   const spot = (gamma.data?.spot ?? spotFromMarker(marker.data) ?? 0) as number;
   const spotSpark = useMemo(
     () => (gammaSeries.data ?? []).map((r: any) => r.spot).filter((v) => v != null) as number[],
     [gammaSeries.data],
   );
-  const straddleSpark = useMemo(
-    () => (gammaSeries.data ?? []).map((r: any) => r.straddle_atm).filter((v) => v != null) as number[],
-    [gammaSeries.data],
-  );
-  const straddleNow = straddleSpark.length ? straddleSpark[straddleSpark.length - 1] : null;
-  const straddleAvg = straddleSpark.length
-    ? Math.round(straddleSpark.reduce((s, v) => s + v, 0) / straddleSpark.length)
-    : null;
+
+
 
   const prevClose = (marker.data?.prev_close_spot ?? null) as number | null;
   const changePct = prevClose && spot ? ((spot - prevClose) / prevClose) * 100 : 0;
@@ -314,7 +402,10 @@ export default function Marketview() {
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (e.key === "n" || e.key === "N") setSymbol("NIFTY");
       else if (e.key === "s" || e.key === "S") setSymbol("SENSEX");
-      else if (e.key === "r" || e.key === "R") refetchAll();
+      else if (e.key === "r" || e.key === "R") {
+        refetchAll();
+        setChartResetKey((k) => k + 1);
+      }
       else if (e.key === " ") {
         e.preventDefault();
         setFrozen((f) => !f);
@@ -445,7 +536,12 @@ export default function Marketview() {
           pin={pin.data as any}
           accel={accel.data as any}
           ictZones={zones.data ?? []}
+          step={strikeStep}
+          resetKey={chartResetKey}
         />
+        <div className="mt-1 text-[9px] text-text-tertiary">
+          scroll to zoom · drag to pan · r to reset · ticks every {strikeStep}pt
+        </div>
       </div>
 
       {/* Dealer flow */}
@@ -480,7 +576,7 @@ export default function Marketview() {
         <div className="mb-1.5 text-[10px] uppercase tracking-[1px] text-text-tertiary">
           secondary · context panels
         </div>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
           <div className="rounded-md border border-border-tertiary bg-bg-primary p-2.5">
             <div className="mb-1 flex items-center gap-1.5">
               <TargetArrow size={13} className="text-text-secondary" />
@@ -525,15 +621,11 @@ export default function Marketview() {
             <div className="mt-1.5 text-[9px] text-text-tertiary">j/k → step</div>
           </div>
 
-          <div className="rounded-md border border-border-tertiary bg-bg-primary p-2.5">
-            <div className="mb-1 flex items-center gap-1.5">
-              <LineChartIcon size={13} className="text-text-secondary" />
-              <span className="text-[11px] font-medium">atm straddle</span>
-            </div>
-            <StraddleSparkline data={straddleSpark} avg={straddleAvg ?? 0} />
-            <div className="mt-1 text-[10px] text-text-secondary">
-              {straddleNow != null ? <>₹{straddleNow.toFixed(0)}</> : "—"} · <span className="text-text-tertiary">avg ₹{straddleAvg ?? "—"}</span>
-            </div>
+          <div className="rounded-md border border-border-tertiary bg-bg-primary p-2.5 md:col-span-2">
+            <StraddleIntradayChart
+              buckets={straddle.data?.buckets ?? []}
+              daysUsed={straddle.data?.daysUsed ?? 0}
+            />
           </div>
         </div>
       </div>
@@ -559,21 +651,112 @@ export default function Marketview() {
   );
 }
 
-function StraddleSparkline({ data, avg }: { data: number[]; avg: number }) {
-  const w = 180;
-  const h = 42;
-  if (!data || data.length < 2) {
-    return <svg viewBox={`0 0 ${w} ${h}`} className="block h-auto w-full" />;
-  }
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(" ");
-  const avgY = h - ((avg - min) / range) * h;
+function StraddleIntradayChart({ buckets, daysUsed }: { buckets: StraddleBucket[]; daysUsed: number }) {
+  const W = 560;
+  const H = 180;
+  const padL = 36;
+  const padR = 10;
+  const padT = 24;
+  const padB = 22;
+  const cw = W - padL - padR;
+  const ch = H - padT - padB;
+
+  // Fixed x-domain 09:15–15:30 IST → minutes 555..930
+  const X_MIN = 555;
+  const X_MAX = 930;
+  const x = (mins: number) => padL + ((mins - X_MIN) / (X_MAX - X_MIN)) * cw;
+
+  const vals: number[] = [];
+  buckets.forEach((b) => {
+    if (b.today != null) vals.push(b.today);
+    if (b.avg != null) vals.push(b.avg);
+  });
+  const hasData = vals.length > 0;
+  const yMin = hasData ? Math.min(...vals) : 0;
+  const yMax = hasData ? Math.max(...vals) : 1;
+  const pad = (yMax - yMin) * 0.1 || 1;
+  const yLo = Math.max(0, yMin - pad);
+  const yHi = yMax + pad;
+  const y = (v: number) => padT + (1 - (v - yLo) / (yHi - yLo)) * ch;
+
+  // Build polylines, breaking on null
+  const toPath = (sel: (b: StraddleBucket) => number | null) => {
+    let d = "";
+    let pen = false;
+    buckets.forEach((b) => {
+      const v = sel(b);
+      if (v == null) {
+        pen = false;
+        return;
+      }
+      d += `${pen ? "L" : "M"}${x(b.bucket).toFixed(1)},${y(v).toFixed(1)} `;
+      pen = true;
+    });
+    return d.trim();
+  };
+  const todayPath = toPath((b) => b.today);
+  const avgPath = toPath((b) => b.avg);
+
+  const todayLast = [...buckets].reverse().find((b) => b.today != null);
+  const avgAtNow = todayLast ? buckets.find((b) => b.bucket === todayLast.bucket)?.avg ?? null : null;
+
+  const xTicks = [555, 615, 675, 735, 795, 855, 915]; // 9:15,10:15,...,15:15
+  const fmtTime = (m: number) => {
+    const hh = Math.floor(m / 60);
+    const mm = m % 60;
+    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  };
+  const yTicks = hasData ? [yLo, (yLo + yHi) / 2, yHi] : [];
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="block h-auto w-full">
-      <line x1={0} x2={w} y1={avgY} y2={avgY} stroke="var(--color-text-tertiary)" strokeWidth="0.5" strokeDasharray="2,2" />
-      <polyline points={pts} fill="none" stroke="var(--color-info-text)" strokeWidth="1.5" />
-    </svg>
+    <div>
+      <div className="mb-1 flex items-center gap-1.5">
+        <LineChartIcon size={13} className="text-text-secondary" />
+        <span className="text-[11px] font-medium">atm straddle · intraday</span>
+        <span className="ml-auto text-[10px] text-text-secondary">
+          {todayLast?.today != null ? <>₹{todayLast.today.toFixed(0)}</> : "—"}
+          <span className="text-text-tertiary"> · {daysUsed}d avg ₹{avgAtNow != null ? avgAtNow.toFixed(0) : "—"}</span>
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full">
+        {/* grid */}
+        {yTicks.map((v, i) => (
+          <g key={i}>
+            <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="var(--color-border-tertiary)" strokeWidth="0.5" />
+            <text x={padL - 4} y={y(v) + 3} textAnchor="end" fontSize="9" fill="var(--color-text-tertiary)">
+              ₹{Math.round(v)}
+            </text>
+          </g>
+        ))}
+        {xTicks.map((m) => (
+          <g key={m}>
+            <line x1={x(m)} x2={x(m)} y1={H - padB} y2={H - padB + 3} stroke="var(--color-text-tertiary)" strokeWidth="0.5" />
+            <text x={x(m)} y={H - 6} textAnchor="middle" fontSize="9" fill="var(--color-text-tertiary)">
+              {fmtTime(m)}
+            </text>
+          </g>
+        ))}
+        {/* avg dashed orange */}
+        {avgPath && (
+          <path d={avgPath} fill="none" stroke="#e07b3a" strokeWidth="1.25" strokeDasharray="4,3" />
+        )}
+        {/* today solid blue */}
+        {todayPath && <path d={todayPath} fill="none" stroke="#185fa5" strokeWidth="1.75" />}
+
+        {!hasData && (
+          <text x={W / 2} y={H / 2} textAnchor="middle" fontSize="11" fill="var(--color-text-tertiary)">
+            no straddle data
+          </text>
+        )}
+
+        {/* legend */}
+        <g transform={`translate(${padL}, ${padT - 12})`}>
+          <line x1={0} x2={14} y1={4} y2={4} stroke="#185fa5" strokeWidth="1.75" />
+          <text x={18} y={7} fontSize="9" fill="var(--color-text-secondary)">today</text>
+          <line x1={60} x2={74} y1={4} y2={4} stroke="#e07b3a" strokeWidth="1.25" strokeDasharray="4,3" />
+          <text x={78} y={7} fontSize="9" fill="var(--color-text-secondary)">{daysUsed || 5}d avg</text>
+        </g>
+      </svg>
+    </div>
   );
 }
