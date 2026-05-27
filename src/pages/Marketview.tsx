@@ -408,7 +408,10 @@ export default function Marketview() {
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (e.key === "n" || e.key === "N") setSymbol("NIFTY");
       else if (e.key === "s" || e.key === "S") setSymbol("SENSEX");
-      else if (e.key === "r" || e.key === "R") refetchAll();
+      else if (e.key === "r" || e.key === "R") {
+        refetchAll();
+        setChartResetKey((k) => k + 1);
+      }
       else if (e.key === " ") {
         e.preventDefault();
         setFrozen((f) => !f);
