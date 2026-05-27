@@ -582,7 +582,7 @@ export default function Marketview() {
         <div className="mb-1.5 text-[10px] uppercase tracking-[1px] text-text-tertiary">
           secondary · context panels
         </div>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
           <div className="rounded-md border border-border-tertiary bg-bg-primary p-2.5">
             <div className="mb-1 flex items-center gap-1.5">
               <TargetArrow size={13} className="text-text-secondary" />
@@ -627,15 +627,11 @@ export default function Marketview() {
             <div className="mt-1.5 text-[9px] text-text-tertiary">j/k → step</div>
           </div>
 
-          <div className="rounded-md border border-border-tertiary bg-bg-primary p-2.5">
-            <div className="mb-1 flex items-center gap-1.5">
-              <LineChartIcon size={13} className="text-text-secondary" />
-              <span className="text-[11px] font-medium">atm straddle</span>
-            </div>
-            <StraddleSparkline data={straddleSpark} avg={straddleAvg ?? 0} />
-            <div className="mt-1 text-[10px] text-text-secondary">
-              {straddleNow != null ? <>₹{straddleNow.toFixed(0)}</> : "—"} · <span className="text-text-tertiary">avg ₹{straddleAvg ?? "—"}</span>
-            </div>
+          <div className="rounded-md border border-border-tertiary bg-bg-primary p-2.5 md:col-span-2">
+            <StraddleIntradayChart
+              buckets={straddle.data?.buckets ?? []}
+              daysUsed={straddle.data?.daysUsed ?? 0}
+            />
           </div>
         </div>
       </div>
