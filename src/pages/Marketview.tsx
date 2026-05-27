@@ -87,7 +87,7 @@ function spotFromMarker(m: any): number | null {
 // ---------- Hero spatial chart ----------
 function HeroChart({
   spot,
-  bars,
+  bars: rawBars,
   pin,
   accel,
   ictZones,
@@ -108,7 +108,7 @@ function HeroChart({
   const chartH = H - padT - padB;
   const midY = padT + chartH / 2;
 
-  if (!bars.length) {
+  if (!rawBars.length) {
     return (
       <div className="flex h-[320px] items-center justify-center rounded-md border border-dashed border-border-secondary bg-bg-secondary text-[11px] text-text-tertiary">
         no GEX strike data
@@ -116,9 +116,19 @@ function HeroChart({
     );
   }
 
+  // Clip strike range to spot ±2% (fallback ±5% if too few bars)
+  let bars = rawBars;
+  if (spot > 0) {
+    const within = (pct: number) =>
+      rawBars.filter((b) => Math.abs(b.strike - spot) / spot <= pct);
+    bars = within(0.02);
+    if (bars.length < 5) bars = within(0.05);
+    if (bars.length < 3) bars = rawBars;
+  }
+
   const strikes = bars.map((b) => b.strike);
-  const sMin = Math.min(...strikes);
-  const sMax = Math.max(...strikes);
+  const sMin = Math.min(...strikes, spot * 0.98);
+  const sMax = Math.max(...strikes, spot * 1.02);
   const sRange = sMax - sMin || 1;
   const x = (s: number) => padL + ((s - sMin) / sRange) * chartW;
 
@@ -128,56 +138,54 @@ function HeroChart({
 
   const xAxisStrikes = [sMin, sMin + sRange * 0.25, sMin + sRange * 0.5, sMin + sRange * 0.75, sMax];
 
-  // ICT zones whose mid lies within strike range
+  // ICT zones: nearest to spot, max 5, within strike range
   const visibleZones = (ictZones ?? [])
-    .filter((z) => {
+    .map((z) => {
       const lo = z.zone_low ?? z.range_low;
       const hi = z.zone_high ?? z.range_high;
-      return lo != null && hi != null && hi >= sMin && lo <= sMax;
+      return { z, lo, hi, mid: lo != null && hi != null ? (lo + hi) / 2 : null };
     })
-    .slice(0, 4);
-
-  const confluence = pin
-    ? visibleZones.find((z) => {
-        const lo = z.zone_low ?? z.range_low;
-        const hi = z.zone_high ?? z.range_high;
-        return !(hi < pin.pin_lower || lo > pin.pin_upper);
-      })
-    : null;
+    .filter((r) => r.lo != null && r.hi != null && r.hi >= sMin && r.lo <= sMax)
+    .sort((a, b) => Math.abs((a.mid as number) - spot) - Math.abs((b.mid as number) - spot))
+    .slice(0, 5);
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label="GEX-by-strike spatial chart">
       <title>GEX-by-strike spatial chart</title>
 
+      {/* PIN band + label inside band, top */}
       {pin && (
         <>
           <rect x={x(pin.pin_lower)} y={padT} width={x(pin.pin_upper) - x(pin.pin_lower)} height={chartH} fill="#639922" opacity="0.08" />
-          <text x={(x(pin.pin_lower) + x(pin.pin_upper)) / 2} y={padT + 10} textAnchor="middle" fontSize="10" fontWeight="500" fill="var(--color-success-text)">
+          <text x={(x(pin.pin_lower) + x(pin.pin_upper)) / 2} y={padT + 12} textAnchor="middle" fontSize="10" fontWeight="500" fill="var(--color-success-text)">
             PIN {fmtNum(pin.pin_lower)}-{fmtNum(pin.pin_upper)}
           </text>
         </>
       )}
 
+      {/* ACCEL band + label staggered 16px below PIN */}
       {accel && (
         <>
           <rect x={x(accel.accel_lower)} y={padT} width={x(accel.accel_upper) - x(accel.accel_lower)} height={chartH} fill="#e24b4a" opacity="0.08" />
-          <text x={(x(accel.accel_lower) + x(accel.accel_upper)) / 2} y={padT + 10} textAnchor="middle" fontSize="10" fontWeight="500" fill="var(--color-danger-text)">
+          <text x={(x(accel.accel_lower) + x(accel.accel_upper)) / 2} y={padT + 28} textAnchor="middle" fontSize="10" fontWeight="500" fill="var(--color-danger-text)">
             ACCEL {fmtNum(accel.accel_lower)}-{fmtNum(accel.accel_upper)}
           </text>
         </>
       )}
 
-      {visibleZones.map((z, i) => {
-        const lo = z.zone_low ?? z.range_low;
-        const hi = z.zone_high ?? z.range_high;
+      {/* ICT zones — bear above, bull below, staggered with 12px rows */}
+      {visibleZones.map((r, i) => {
+        const { z, lo, hi } = r;
         const ptype: string = z.pattern_type ?? z.type ?? "";
         const isBear = ptype.startsWith("BEAR");
         const fill = isBear ? "#7a1f1d" : "#1f4d10";
-        const top = isBear ? padT + 14 + i * 12 : padT + chartH - 26 - i * 12;
+        const bearIdx = visibleZones.filter((v, j) => j <= i && (v.z.pattern_type ?? v.z.type ?? "").startsWith("BEAR")).length - 1;
+        const bullIdx = visibleZones.filter((v, j) => j <= i && !(v.z.pattern_type ?? v.z.type ?? "").startsWith("BEAR")).length - 1;
+        const top = isBear ? padT + 46 + bearIdx * 14 : padT + chartH - 28 - bullIdx * 14;
         return (
           <g key={i}>
-            <rect x={x(lo)} y={top} width={x(hi) - x(lo)} height={10} fill={fill} fillOpacity="0.55" stroke={fill} strokeWidth="0.5" />
-            <text x={x(lo) + 4} y={top + 7.5} fontSize="9" fill="rgba(245,245,245,0.85)">
+            <rect x={x(lo)} y={top} width={Math.max(2, x(hi) - x(lo))} height={11} fill={fill} fillOpacity="0.55" stroke={fill} strokeWidth="0.5" />
+            <text x={x(lo) + 4} y={top + 8.5} fontSize="9" fill="rgba(245,245,245,0.9)">
               {(z.ict_tier ?? z.tf ?? "")} {ptype}
             </text>
           </g>
@@ -197,28 +205,9 @@ function HeroChart({
         );
       })}
 
-      {confluence && pin && (
-        <g>
-          <rect
-            x={x(Math.max(pin.pin_lower, confluence.zone_low ?? confluence.range_low)) - 6}
-            y={padT + 22}
-            width={
-              x(Math.min(pin.pin_upper, confluence.zone_high ?? confluence.range_high)) -
-              x(Math.max(pin.pin_lower, confluence.zone_low ?? confluence.range_low)) +
-              12
-            }
-            height={chartH - 32}
-            fill="none"
-            stroke="#ef9f27"
-            strokeWidth="1.5"
-            strokeDasharray="3,2"
-            rx="3"
-          />
-        </g>
-      )}
-
+      {/* max γ line + label staggered to midY */}
       <line x1={x(maxGamma)} x2={x(maxGamma)} y1={padT} y2={H - padB} stroke="#7f77dd" strokeWidth="1" strokeDasharray="3,2" />
-      <text x={x(maxGamma) + 4} y={padT + 24} fontSize="9" fontWeight="500" fill="#7f77dd">
+      <text x={x(maxGamma) + 4} y={midY - 4} fontSize="9" fontWeight="500" fill="#7f77dd">
         max γ {fmtNum(maxGamma)}
       </text>
 
@@ -244,6 +233,18 @@ function HeroChart({
     </svg>
   );
 }
+
+const qualityTone = (q?: string | null): "success" | "info" | "warning" | "danger" | "muted" => {
+  switch ((q ?? "").toUpperCase()) {
+    case "A": return "success";
+    case "B": return "info";
+    case "C": return "warning";
+    case "D": return "danger";
+    case "SKIP":
+    case "NO_TRADE": return "muted";
+    default: return "muted";
+  }
+};
 
 // ---------- Page ----------
 export default function Marketview() {
