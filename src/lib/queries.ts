@@ -310,6 +310,7 @@ export function useRefetchMarketview() {
           "accelZone",
           "ictZones",
           "dealerFlow",
+          "straddleIntraday",
         ].includes(k as string);
       },
     });
