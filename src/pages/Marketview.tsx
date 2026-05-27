@@ -422,7 +422,10 @@ export default function Marketview() {
           </span>
           <span className="text-[11px] text-text-secondary">conf {activeSignal.confidence_score?.toFixed?.(0) ?? "—"}</span>
           <Chip tone={activeSignal.trade_allowed ? "success" : "danger"}>
-            {activeSignal.trade_allowed ? "allowed" : "blocked"} · {activeSignal.entry_quality ?? "—"}
+            {activeSignal.trade_allowed ? "allowed" : "blocked"}
+          </Chip>
+          <Chip tone={qualityTone(activeSignal.entry_quality)} title="entry quality">
+            quality {activeSignal.entry_quality ?? "—"}
           </Chip>
           <div className="flex-1" />
           <button
