@@ -512,9 +512,12 @@ export default function Marketview() {
                   <li
                     key={i}
                     onClick={() => setActiveSignalIdx(i)}
-                    className={`cursor-pointer hover:text-text-primary ${i === activeSignalIdx ? "text-text-primary" : ""}`}
+                    className={`flex cursor-pointer items-center gap-1.5 hover:text-text-primary ${i === activeSignalIdx ? "text-text-primary" : ""}`}
                   >
-                    {new Date(s.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} {s.action} {s.atm_strike ? fmtNum(s.atm_strike) : ""} · {s.entry_quality}
+                    <span>
+                      {new Date(s.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} {s.action} {s.atm_strike ? fmtNum(s.atm_strike) : ""}
+                    </span>
+                    <Chip tone={qualityTone(s.entry_quality)} className="ml-auto">{s.entry_quality ?? "—"}</Chip>
                   </li>
                 ))
               )}
