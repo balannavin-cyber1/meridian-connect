@@ -1,36 +1,12 @@
 import { useMemo, useState } from "react";
-import { Pencil, History } from "lucide-react";
-
-type Param = {
-  key: string;
-  value: string | number | boolean;
-  type: "number" | "boolean";
-  last_changed: string;
-  reason: string;
-  category: string;
-  min?: number;
-  max?: number;
-};
-
-const initialParams: Param[] = [
-  // PIN / ACCEL
-  { key: "pin.tau.NIFTY", value: 0.30, type: "number", last_changed: "2026-05-20 09:12", reason: "S35 calibration sweep", category: "pin_accel", min: 0.1, max: 0.6 },
-  { key: "pin.tau.SENSEX", value: 0.30, type: "number", last_changed: "2026-05-20 09:12", reason: "S35 calibration sweep", category: "pin_accel", min: 0.1, max: 0.6 },
-  { key: "accel.tau.NIFTY", value: 0.30, type: "number", last_changed: "2026-05-20 09:12", reason: "S35 calibration sweep", category: "pin_accel", min: 0.1, max: 0.6 },
-  { key: "accel.tau.SENSEX", value: 0.30, type: "number", last_changed: "2026-05-20 09:12", reason: "S35 calibration sweep", category: "pin_accel", min: 0.1, max: 0.6 },
-  // Signal gating
-  { key: "sl.buffer_pct", value: 0.005, type: "number", last_changed: "2026-04-30 17:30", reason: "ADR-012 bootstrap", category: "signal", min: 0, max: 0.05 },
-  { key: "retest.tolerance_pct", value: 0.001, type: "number", last_changed: "2026-04-30 17:30", reason: "ADR-004 §11 bootstrap", category: "signal", min: 0, max: 0.01 },
-  { key: "signal.morning_window_block", value: false, type: "boolean", last_changed: "2026-05-01 10:00", reason: "Default off", category: "signal" },
-  { key: "signal.afternoon_window_block", value: false, type: "boolean", last_changed: "2026-05-01 10:00", reason: "Default off", category: "signal" },
-  // Capital
-  { key: "capital.default_inr", value: 25000, type: "number", last_changed: "2026-05-10 08:00", reason: "Initial capital floor", category: "capital", min: 0, max: 1000000 },
-  { key: "capital.kelly_multiplier", value: 1.0, type: "number", last_changed: "2026-05-10 08:00", reason: "Initial Kelly mult", category: "capital", min: 0, max: 2 },
-  { key: "capital.max_position_inr", value: 50000, type: "number", last_changed: "2026-05-10 08:00", reason: "Initial cap", category: "capital", min: 0, max: 1000000 },
-  // ICT
-  { key: "ict.zone.h_valid_days", value: 7, type: "number", last_changed: "2026-05-12 11:00", reason: "Default H zone validity", category: "ict", min: 1, max: 30 },
-  { key: "ict.zone.dwm_breach_only", value: true, type: "boolean", last_changed: "2026-05-12 11:00", reason: "Default breach-only", category: "ict" },
-];
+import { Pencil, History, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useParameters,
+  useParameterAudit,
+  updateParameter,
+  type Parameter,
+} from "@/lib/queries";
 
 const categoryLabels: Record<string, string> = {
   pin_accel: "PIN / ACCEL thresholds",
@@ -39,71 +15,55 @@ const categoryLabels: Record<string, string> = {
   ict: "ICT zone params",
 };
 
+function paramDisplay(p: Parameter): string {
+  if (p.value_type === "numeric") return p.value_num != null ? String(p.value_num) : "—";
+  if (p.value_type === "boolean") return p.value_bool != null ? String(p.value_bool) : "—";
+  if (p.value_type === "text") return p.value_text ?? "—";
+  return JSON.stringify(p.value_jsonb);
+}
+
+function paramRawValue(p: Parameter): any {
+  if (p.value_type === "numeric") return p.value_num;
+  if (p.value_type === "boolean") return p.value_bool;
+  if (p.value_type === "text") return p.value_text ?? "";
+  return JSON.stringify(p.value_jsonb ?? "");
+}
+
 type Tab = "calibration" | "capital" | "display" | "connections" | "manual" | "about";
 
 export default function Settings() {
   const [tab, setTab] = useState<Tab>("calibration");
-  const [params, setParams] = useState<Param[]>(initialParams);
-  const [pending, setPending] = useState<Record<string, { value: any; reason: string }>>({});
-  const [editing, setEditing] = useState<Param | null>(null);
-
-  const pendingCount = Object.keys(pending).length;
+  const [editing, setEditing] = useState<Parameter | null>(null);
+  const [showAudit, setShowAudit] = useState(false);
+  const params = useParameters();
+  const qc = useQueryClient();
 
   const grouped = useMemo(() => {
-    const g: Record<string, Param[]> = {};
-    for (const p of params) {
+    const g: Record<string, Parameter[]> = {};
+    for (const p of params.data ?? []) {
       g[p.category] ??= [];
       g[p.category].push(p);
     }
     return g;
-  }, [params]);
+  }, [params.data]);
 
-  const saveAll = () => {
-    if (!confirm(`Save ${pendingCount} pending change${pendingCount > 1 ? "s" : ""}?`)) return;
-    const now = new Date().toISOString().slice(0, 16).replace("T", " ");
-    setParams((prev) =>
-      prev.map((p) => {
-        const pn = pending[p.key];
-        if (!pn) return p;
-        return { ...p, value: pn.value, reason: pn.reason, last_changed: now };
-      })
-    );
-    setPending({});
-  };
-
-  const discardAll = () => {
-    if (!confirm(`Discard ${pendingCount} pending change${pendingCount > 1 ? "s" : ""}?`)) return;
-    setPending({});
+  const handleSave = async (p: Parameter, value: any, reason: string) => {
+    await updateParameter(p.key, reason, value, p.value_type);
+    await qc.invalidateQueries({ queryKey: ["parameters"] });
+    await qc.invalidateQueries({ queryKey: ["parameterAudit"] });
+    setEditing(null);
   };
 
   return (
     <div className="min-h-full bg-bg-primary">
-      {/* Top bar */}
       <div className="flex items-center gap-3 border-b border-border-tertiary px-4 py-2.5">
         <span className="text-[14px] font-medium">Settings</span>
         <span className="text-[11px] text-text-tertiary">parameter changes &amp; system config</span>
         <div className="flex-1" />
-        {pendingCount > 0 && (
-          <>
-            <span className="rounded bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning-text">
-              {pendingCount} pending
-            </span>
-            <button onClick={discardAll} className="text-[11px] text-text-secondary hover:text-text-primary">
-              discard
-            </button>
-            <button
-              onClick={saveAll}
-              className="rounded bg-info-bg px-2.5 py-1 text-[11px] font-medium text-info-text hover:bg-info hover:text-white"
-            >
-              save changes
-            </button>
-          </>
-        )}
+        {params.isFetching && <span className="text-[11px] text-text-tertiary">syncing…</span>}
       </div>
 
-      {/* Body */}
       <div className="flex min-h-[480px]">
-        {/* Sub-nav */}
         <nav className="w-[150px] shrink-0 border-r border-border-tertiary py-2">
           {(
             [
@@ -129,18 +89,22 @@ export default function Settings() {
           ))}
         </nav>
 
-        {/* Main */}
         <div className="flex-1 px-4 py-3.5">
           {tab === "calibration" && (
             <div>
-              <div className="text-[11px] text-text-tertiary">
-                ENH-83 parameter console · ADR-016 audit pattern
-              </div>
+              <div className="text-[11px] text-text-tertiary">ENH-83 parameter console · ADR-016 audit pattern</div>
               <div className="mt-1 text-[11px] text-text-secondary">
                 every change requires{" "}
                 <code className="mono rounded bg-bg-secondary px-1 py-px text-[10px]">change_reason</code>{" "}
                 · temporal-immutable history
               </div>
+
+              {params.isLoading && <div className="mt-4 text-[11px] text-text-tertiary">loading parameters…</div>}
+              {params.error && (
+                <div className="mt-4 rounded border border-danger bg-danger-bg px-3 py-2 text-[11px] text-danger-text">
+                  {(params.error as Error).message}
+                </div>
+              )}
 
               {Object.entries(grouped).map(([cat, rows]) => (
                 <section key={cat} className="mt-4">
@@ -155,57 +119,44 @@ export default function Settings() {
                       <div>Reason</div>
                       <div />
                     </div>
-                    {rows.map((p, i) => {
-                      const pend = pending[p.key];
-                      const displayValue = pend ? pend.value : p.value;
-                      return (
-                        <div
-                          key={p.key}
-                          className={`grid grid-cols-[2fr_0.8fr_1.2fr_1.2fr_0.4fr] items-center px-3 py-2 ${
-                            i < rows.length - 1 ? "border-b border-border-tertiary" : ""
-                          } ${pend ? "bg-warning-bg/30" : ""}`}
-                        >
-                          <div className="mono text-[11px] text-info-text">{p.key}</div>
-                          <div
-                            className={`mono text-[11px] font-medium ${pend ? "text-warning-text" : "text-text-primary"}`}
-                          >
-                            {String(displayValue)}
-                            {pend ? " *" : ""}
-                          </div>
-                          <div className="text-[11px] text-text-secondary">{p.last_changed}</div>
-                          <div className="truncate text-[11px] text-text-secondary" title={pend?.reason ?? p.reason}>
-                            {pend?.reason ?? p.reason}
-                          </div>
-                          <button
-                            onClick={() => setEditing(p)}
-                            className="justify-self-end text-text-tertiary hover:text-text-primary"
-                          >
-                            <Pencil size={13} />
-                          </button>
+                    {rows.map((p, i) => (
+                      <div
+                        key={p.id}
+                        className={`grid grid-cols-[2fr_0.8fr_1.2fr_1.2fr_0.4fr] items-center px-3 py-2 ${
+                          i < rows.length - 1 ? "border-b border-border-tertiary" : ""
+                        }`}
+                      >
+                        <div className="mono text-[11px] text-info-text" title={p.description ?? ""}>{p.key}</div>
+                        <div className="mono text-[11px] font-medium text-text-primary">{paramDisplay(p)}</div>
+                        <div className="text-[11px] text-text-secondary">
+                          {new Date(p.valid_from).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
                         </div>
-                      );
-                    })}
+                        <div className="truncate text-[11px] text-text-secondary" title={p.change_reason ?? ""}>
+                          {p.change_reason ?? "—"}
+                        </div>
+                        <button onClick={() => setEditing(p)} className="justify-self-end text-text-tertiary hover:text-text-primary">
+                          <Pencil size={13} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </section>
               ))}
 
-              <button className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-text-tertiary hover:text-text-secondary">
+              <button
+                onClick={() => setShowAudit(true)}
+                className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-text-tertiary hover:text-text-secondary"
+              >
                 <History size={13} />
                 view full audit log →
               </button>
             </div>
           )}
 
-          {tab === "capital" && (
-            <PlaceholderTab title="Capital & sizing" body="Per-symbol caps, sizing rules, risk limits (mock placeholders). Uses same edit-modal pattern as Calibration with mandatory change_reason." />
-          )}
-
+          {tab === "capital" && <PlaceholderTab title="Capital & sizing" body="Per-symbol caps, sizing rules, risk limits (mock placeholders)." />}
           {tab === "display" && <DisplayTab />}
-
           {tab === "connections" && <ConnectionsTab />}
-
           {tab === "manual" && <ManualTab />}
-
           {tab === "about" && <AboutTab />}
         </div>
       </div>
@@ -213,61 +164,74 @@ export default function Settings() {
       {editing && (
         <EditModal
           param={editing}
-          currentPending={pending[editing.key]}
           onClose={() => setEditing(null)}
-          onSave={(value, reason) => {
-            setPending((p) => ({ ...p, [editing.key]: { value, reason } }));
-            setEditing(null);
-          }}
+          onSave={(value, reason) => handleSave(editing, value, reason)}
         />
       )}
+      {showAudit && <AuditModal onClose={() => setShowAudit(false)} />}
     </div>
   );
 }
 
 function EditModal({
   param,
-  currentPending,
   onClose,
   onSave,
 }: {
-  param: Param;
-  currentPending?: { value: any; reason: string };
+  param: Parameter;
   onClose: () => void;
-  onSave: (value: any, reason: string) => void;
+  onSave: (value: any, reason: string) => Promise<void> | void;
 }) {
-  const [value, setValue] = useState<string>(String(currentPending?.value ?? param.value));
-  const [reason, setReason] = useState<string>(currentPending?.reason ?? "");
-  const [effective, setEffective] = useState<"now" | "next_cycle">("now");
+  const [value, setValue] = useState<string>(String(paramRawValue(param) ?? ""));
+  const [reason, setReason] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  const parsed = param.type === "boolean" ? value === "true" : Number(value);
+  const parsed =
+    param.value_type === "boolean"
+      ? value === "true"
+      : param.value_type === "numeric"
+      ? Number(value)
+      : value;
+
   const valid =
     reason.trim().length > 0 &&
-    (param.type === "boolean" ||
+    (param.value_type !== "numeric" ||
       (!Number.isNaN(parsed) &&
-        (param.min === undefined || (parsed as number) >= param.min) &&
-        (param.max === undefined || (parsed as number) <= param.max)));
+        (param.min_value == null || (parsed as number) >= param.min_value) &&
+        (param.max_value == null || (parsed as number) <= param.max_value)));
+
+  const submit = async () => {
+    setSaving(true);
+    setErr(null);
+    try {
+      await onSave(parsed, reason.trim());
+    } catch (e: any) {
+      setErr(e?.message ?? String(e));
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-md rounded-md border border-border-primary bg-bg-secondary p-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="w-full max-w-md rounded-md border border-border-primary bg-bg-secondary p-4" onClick={(e) => e.stopPropagation()}>
         <div className="mono mb-3 text-[12px] text-info-text">Edit parameter: {param.key}</div>
+
+        {param.description && (
+          <div className="mb-3 text-[11px] text-text-secondary">{param.description}</div>
+        )}
 
         <label className="mb-2 block">
           <div className="mb-1 text-[10px] uppercase tracking-[0.5px] text-text-tertiary">Current value</div>
-          <div className="mono rounded bg-bg-primary px-2 py-1.5 text-[12px] text-text-secondary">
-            {String(param.value)}
-          </div>
+          <div className="mono rounded bg-bg-primary px-2 py-1.5 text-[12px] text-text-secondary">{paramDisplay(param)}</div>
         </label>
 
         <label className="mb-2 block">
           <div className="mb-1 text-[10px] uppercase tracking-[0.5px] text-text-tertiary">
-            New value{param.min !== undefined && ` · range ${param.min}–${param.max}`}
+            New value
+            {param.value_type === "numeric" && param.min_value != null && ` · range ${param.min_value}–${param.max_value}`}
           </div>
-          {param.type === "boolean" ? (
+          {param.value_type === "boolean" ? (
             <select
               value={value}
               onChange={(e) => setValue(e.target.value)}
@@ -285,18 +249,6 @@ function EditModal({
           )}
         </label>
 
-        <div className="mb-2">
-          <div className="mb-1 text-[10px] uppercase tracking-[0.5px] text-text-tertiary">Effective from</div>
-          <div className="flex gap-3 text-[12px]">
-            {(["now", "next_cycle"] as const).map((e) => (
-              <label key={e} className="flex items-center gap-1.5">
-                <input type="radio" checked={effective === e} onChange={() => setEffective(e)} />
-                {e === "now" ? "now" : "next cycle"}
-              </label>
-            ))}
-          </div>
-        </div>
-
         <label className="mb-3 block">
           <div className="mb-1 text-[10px] uppercase tracking-[0.5px] text-text-tertiary">
             Change reason <span className="text-danger-text">(required)</span>
@@ -310,20 +262,64 @@ function EditModal({
           />
         </label>
 
+        {err && (
+          <div className="mb-2 rounded border border-danger bg-danger-bg px-2 py-1.5 text-[11px] text-danger-text">{err}</div>
+        )}
+
         <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded px-3 py-1.5 text-[12px] text-text-secondary hover:bg-bg-tertiary"
-          >
+          <button onClick={onClose} className="rounded px-3 py-1.5 text-[12px] text-text-secondary hover:bg-bg-tertiary">
             Cancel
           </button>
           <button
-            onClick={() => onSave(parsed, reason.trim())}
-            disabled={!valid}
+            onClick={submit}
+            disabled={!valid || saving}
             className="rounded bg-info-bg px-3 py-1.5 text-[12px] font-medium text-info-text hover:bg-info hover:text-white disabled:opacity-40"
           >
-            Save
+            {saving ? "Saving…" : "Save"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuditModal({ onClose }: { onClose: () => void }) {
+  const audit = useParameterAudit();
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-3xl rounded-md border border-border-primary bg-bg-secondary p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="mono text-[12px] text-info-text">Parameter audit · most recent 50</div>
+          <button onClick={onClose} className="text-text-tertiary hover:text-text-primary"><X size={16} /></button>
+        </div>
+        <div className="max-h-[60vh] overflow-auto rounded border border-border-tertiary">
+          <table className="w-full text-[11px]">
+            <thead className="sticky top-0 bg-bg-primary text-text-tertiary">
+              <tr>
+                <th className="px-2 py-1 text-left">When</th>
+                <th className="px-2 py-1 text-left">Key</th>
+                <th className="px-2 py-1 text-left">Value</th>
+                <th className="px-2 py-1 text-left">By</th>
+                <th className="px-2 py-1 text-left">Reason</th>
+                <th className="px-2 py-1 text-left">State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {audit.isLoading && (
+                <tr><td colSpan={6} className="px-2 py-3 text-center text-text-tertiary">loading…</td></tr>
+              )}
+              {(audit.data ?? []).map((r: any) => (
+                <tr key={r.id} className="border-t border-border-tertiary">
+                  <td className="px-2 py-1 text-text-secondary">{new Date(r.created_at).toLocaleString("en-IN")}</td>
+                  <td className="mono px-2 py-1 text-info-text">{r.key}</td>
+                  <td className="mono px-2 py-1">{r.value_display}</td>
+                  <td className="px-2 py-1 text-text-secondary">{r.changed_by}</td>
+                  <td className="px-2 py-1 text-text-secondary">{r.change_reason}</td>
+                  <td className="px-2 py-1 text-text-tertiary">{r.lifecycle}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -349,12 +345,7 @@ function DisplayTab() {
   const [conflOn, setConflOn] = useState(true);
   const [staleTh, setStaleTh] = useState("60s");
 
-  const radio = (
-    name: string,
-    val: string,
-    set: (v: string) => void,
-    opts: string[]
-  ) => (
+  const radio = (name: string, val: string, set: (v: string) => void, opts: string[]) => (
     <div className="mb-3">
       <div className="mb-1 text-[10px] uppercase tracking-[0.5px] text-text-tertiary">{name}</div>
       <div className="flex gap-3 text-[12px]">
@@ -385,16 +376,14 @@ function DisplayTab() {
       {radio("Stale threshold", staleTh, setStaleTh, ["60s", "120s", "300s"])}
 
       <div className="mt-5 rounded-md border border-border-tertiary bg-bg-secondary p-3">
-        <div className="mb-2 text-[10px] uppercase tracking-[0.5px] text-text-tertiary">
-          Keyboard shortcuts
-        </div>
+        <div className="mb-2 text-[10px] uppercase tracking-[0.5px] text-text-tertiary">Keyboard shortcuts</div>
         <ul className="space-y-0.5 text-[11px] text-text-secondary">
           <li><span className="mono text-info-text">N/S</span> — toggle symbol</li>
+          <li><span className="mono text-info-text">R</span> — refetch all marketview</li>
           <li><span className="mono text-info-text">Space</span> — freeze refresh</li>
           <li><span className="mono text-info-text">E</span> — focus order placer</li>
           <li><span className="mono text-info-text">J/K</span> — step signals</li>
           <li><span className="mono text-info-text">A</span> — annotate</li>
-          <li><span className="mono text-info-text">/</span> — strike search</li>
         </ul>
       </div>
     </div>
@@ -417,25 +406,14 @@ function ConnectionsTab() {
         {connections.map((c, i) => (
           <div
             key={c.name}
-            className={`flex items-center gap-3 px-3 py-2 ${
-              i < connections.length - 1 ? "border-b border-border-tertiary" : ""
-            }`}
+            className={`flex items-center gap-3 px-3 py-2 ${i < connections.length - 1 ? "border-b border-border-tertiary" : ""}`}
           >
             <span className="text-[12px] font-medium">{c.name}</span>
             {c.status === "stale" && (
               <span className="rounded bg-warning-bg px-1.5 py-0.5 text-[10px] text-warning-text">stale</span>
             )}
-            {c.status === "down" && (
-              <span className="rounded bg-danger-bg px-1.5 py-0.5 text-[10px] text-danger-text">down</span>
-            )}
             <div className="flex-1" />
             <span className="text-[11px] text-text-secondary">refreshed {c.refreshed}</span>
-            <button
-              onClick={() => confirm(`Refresh ${c.name} now?`)}
-              className="rounded px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-tertiary"
-            >
-              refresh now
-            </button>
           </div>
         ))}
       </div>
@@ -455,10 +433,7 @@ function ManualTab() {
       <div className="mb-3 text-[10px] uppercase tracking-[1px] text-text-tertiary">Manual actions</div>
       <div className="space-y-2">
         {manualActions.map((a) => (
-          <div
-            key={a.name}
-            className="flex items-center gap-3 rounded-md border border-border-tertiary bg-bg-primary px-3 py-2.5"
-          >
+          <div key={a.name} className="flex items-center gap-3 rounded-md border border-border-tertiary bg-bg-primary px-3 py-2.5">
             <div className="flex-1">
               <div className="text-[12px] font-medium">{a.name}</div>
               <div className="text-[10px] text-text-tertiary">{a.desc}</div>
@@ -482,7 +457,7 @@ function AboutTab() {
     ["Last deployment", "2026-05-26 09:02 IST"],
     ["Git commit", "a7c9f3e"],
     ["Active ADRs", "ADR-002, ADR-011, ADR-012, ADR-015, ADR-016, ADR-017"],
-    ["Session count", "38"],
+    ["Session count", "39"],
     ["Built by", "Navin"],
   ];
   return (
@@ -492,9 +467,7 @@ function AboutTab() {
         {rows.map(([k, v], i) => (
           <div
             key={k}
-            className={`grid grid-cols-[160px_1fr] px-3 py-2 text-[12px] ${
-              i < rows.length - 1 ? "border-b border-border-tertiary" : ""
-            }`}
+            className={`grid grid-cols-[160px_1fr] px-3 py-2 text-[12px] ${i < rows.length - 1 ? "border-b border-border-tertiary" : ""}`}
           >
             <div className="text-text-tertiary">{k}</div>
             <div className="text-text-primary">{v}</div>
