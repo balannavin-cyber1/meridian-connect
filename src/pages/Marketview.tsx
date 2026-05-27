@@ -356,6 +356,9 @@ export default function Marketview() {
   const accel = useAccelZone(symbol, expiry);
   const zones = useIctZones(symbol);
   const dealer = useDealerFlow(symbol, expiry);
+  const straddle = useStraddleIntraday(symbol);
+  const [chartResetKey, setChartResetKey] = useState(0);
+  const strikeStep = symbol === "NIFTY" ? 50 : 100;
 
   const spot = (gamma.data?.spot ?? spotFromMarker(marker.data) ?? 0) as number;
   const spotSpark = useMemo(
