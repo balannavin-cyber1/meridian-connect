@@ -484,7 +484,7 @@ export default function Marketview() {
           <div className="rounded-md border border-border-tertiary bg-bg-primary p-2.5">
             <div className="mb-1 flex items-center gap-1.5">
               <TargetArrow size={13} className="text-text-secondary" />
-              <span className="text-[11px] font-medium">ICT zones ±2%</span>
+              <span className="text-[11px] font-medium">ICT zones · nearest 10</span>
             </div>
             <ul className="space-y-0.5 text-[10px] leading-snug text-text-secondary">
               {zonesNearSpot.length === 0 ? (
