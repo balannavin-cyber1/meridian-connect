@@ -104,19 +104,31 @@ export function useTodaysSignals(symbol: Symbol) {
 export function useGexStrikes(symbol: Symbol, expiry: string | null | undefined) {
   return useQuery({
     queryKey: ["gexStrikes", symbol, expiry],
-    enabled: !!expiry,
     staleTime: MV_STALE,
     queryFn: async () => {
-      // Find latest run_id for that symbol+expiry, then fetch all strikes for that run.
-      const { data: latest, error: e1 } = await supabase
-        .from("gex_strike_snapshots")
-        .select("run_id, ts")
-        .eq("symbol", symbol)
-        .eq("expiry_date", expiry!)
-        .order("ts", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (e1) throw e1;
+      // Find the latest run for this symbol — try expiry filter first, then fall back to symbol-only.
+      let latest: { run_id: string } | null = null;
+      if (expiry) {
+        const { data } = await supabase
+          .from("gex_strike_snapshots")
+          .select("run_id, ts")
+          .eq("symbol", symbol)
+          .eq("expiry_date", expiry)
+          .order("ts", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        latest = (data as any) ?? null;
+      }
+      if (!latest) {
+        const { data } = await supabase
+          .from("gex_strike_snapshots")
+          .select("run_id, ts")
+          .eq("symbol", symbol)
+          .order("ts", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        latest = (data as any) ?? null;
+      }
       if (!latest) return [];
       const { data, error } = await supabase
         .from("gex_strike_snapshots")
