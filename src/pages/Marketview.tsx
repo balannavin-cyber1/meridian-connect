@@ -333,16 +333,19 @@ export default function Marketview() {
     regime === "LONG_GAMMA" ? "success" : regime === "SHORT_GAMMA" ? "danger" : "warning";
   const changeColor = changePct >= 0 ? "var(--color-success)" : "var(--color-danger)";
 
-  const zonesNearSpot = useMemo(
-    () =>
-      (zones.data ?? []).filter((z: any) => {
+  const zonesNearSpot = useMemo(() => {
+    if (!spot) return [];
+    return (zones.data ?? [])
+      .map((z: any) => {
         const lo = z.zone_low ?? z.range_low;
         const hi = z.zone_high ?? z.range_high;
-        if (lo == null || hi == null || !spot) return false;
-        return Math.abs((lo + hi) / 2 - spot) / spot < 0.02;
-      }),
-    [zones.data, spot],
-  );
+        return { z, lo, hi, mid: lo != null && hi != null ? (lo + hi) / 2 : null };
+      })
+      .filter((r) => r.mid != null)
+      .sort((a, b) => Math.abs((a.mid as number) - spot) - Math.abs((b.mid as number) - spot))
+      .slice(0, 10)
+      .map((r) => r.z);
+  }, [zones.data, spot]);
 
   const activeSignal = signal.data;
   const isLoading = marker.isLoading || gamma.isLoading;
