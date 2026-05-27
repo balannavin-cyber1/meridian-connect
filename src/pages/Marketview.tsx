@@ -405,7 +405,7 @@ export default function Marketview() {
           </span>
         )}
         {frozen && <Chip tone="warning">frozen</Chip>}
-        {staleSeconds != null && staleSeconds > 60 && (
+        {staleSeconds != null && staleSeconds > STALE_THRESHOLD && (
           <Chip tone="danger" onClick={() => nav("/health")}>
             stale {staleSeconds}s
           </Chip>
