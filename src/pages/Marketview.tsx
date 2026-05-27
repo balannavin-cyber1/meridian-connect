@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Target,
@@ -20,7 +20,9 @@ import {
   useIctZones,
   useDealerFlow,
   useRefetchMarketview,
+  useStraddleIntraday,
   type Symbol as MSymbol,
+  type StraddleBucket,
 } from "@/lib/queries";
 
 function Sparkline({ data, color = "currentColor", w = 42, h = 14 }: { data: number[]; color?: string; w?: number; h?: number }) {
