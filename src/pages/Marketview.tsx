@@ -302,9 +302,10 @@ export default function Marketview() {
     return "postmarket";
   }, [gamma.dataUpdatedAt]);
 
-  // stale seconds
-  const lastTs = gamma.data?.ts ? new Date(gamma.data.ts).getTime() : null;
-  const staleSeconds = lastTs ? Math.max(0, Math.floor((Date.now() - lastTs) / 1000)) : null;
+  // stale seconds — canonical clock is signal_snapshots.ts, threshold 5min
+  const signalTs = signal.data?.ts ? new Date(signal.data.ts).getTime() : null;
+  const staleSeconds = signalTs ? Math.max(0, Math.floor((Date.now() - signalTs) / 1000)) : null;
+  const STALE_THRESHOLD = 300;
 
   // Keyboard shortcuts
   useEffect(() => {
