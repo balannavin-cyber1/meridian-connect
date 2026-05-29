@@ -387,7 +387,7 @@ export function useIvSmile(symbol: Symbol, spot: number | null | undefined, step
             atmPe = v.pe && v.pe > 0 ? v.pe : null;
           }
         });
-      return { atm, points, atmCe, atmPe };
+      return { atm, points, atmCe: atmCe as number | null, atmPe: atmPe as number | null };
     },
   });
 }
