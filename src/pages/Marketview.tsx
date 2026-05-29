@@ -791,18 +791,19 @@ export default function Marketview() {
       >
         {/* Tabs */}
         <div className="flex items-center gap-1">
-          {(["NIFTY", "SENSEX", "BANKNIFTY"] as MSymbol[]).map((s) => {
-            const active = symbol === s;
+          {(["NIFTY", "SENSEX", "BANKNIFTY"] as const).map((s) => {
+            const active = (symbol as string) === s;
+            const disabled = s === "BANKNIFTY";
             return (
               <button
                 key={s}
-                onClick={() => s !== "BANKNIFTY" && setSymbol(s)}
-                disabled={s === "BANKNIFTY"}
+                onClick={() => !disabled && setSymbol(s as MSymbol)}
+                disabled={disabled}
                 className="rounded px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors"
                 style={{
                   background: active ? MV.strong : "transparent",
-                  color: active ? "white" : s === "BANKNIFTY" ? MV.vweak : MV.mid,
-                  cursor: s === "BANKNIFTY" ? "not-allowed" : "pointer",
+                  color: active ? "white" : disabled ? MV.vweak : MV.mid,
+                  cursor: disabled ? "not-allowed" : "pointer",
                 }}
               >
                 {s}
@@ -810,6 +811,7 @@ export default function Marketview() {
             );
           })}
         </div>
+
 
         <div className="flex-1" />
 
