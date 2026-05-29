@@ -1166,7 +1166,21 @@ export default function Marketview() {
             {/* IV Skew */}
             <Card>
               <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>IV Skew</div>
-              <Unavailable label="coming soon · needs ce_iv/pe_iv" />
+              {ivSmile.data && ivSkewPct != null ? (
+                <>
+                  <div className="mt-1 text-[26px] font-bold leading-none" style={{ fontFamily: MV.mono, color: Math.abs(ivSkewPct) < 1 ? MV.mid : ivSkewPct > 0 ? MV.red : MV.green }}>
+                    {Math.abs(ivSkewPct) < 1 ? "flat" : `${ivSkewPct > 0 ? "+" : ""}${ivSkewPct.toFixed(1)}% ${ivSkewPct > 0 ? "PE" : "CE"}`}
+                  </div>
+                  <div className="mt-1 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+                    ATM {fmtNum(ivSmile.data.atm, { maximumFractionDigits: 0 })} · CE {ivSmile.data.atmCe?.toFixed(1)} / PE {ivSmile.data.atmPe?.toFixed(1)}
+                  </div>
+                  <div className="mt-2">
+                    <IVSmile points={ivSmile.data.points} atm={ivSmile.data.atm} />
+                  </div>
+                </>
+              ) : (
+                <Unavailable label="iv not populated" />
+              )}
             </Card>
           </div>
         </div>
