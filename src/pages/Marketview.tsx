@@ -1034,36 +1034,19 @@ export default function Marketview() {
 
             <Card>
               <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Pin Probability</div>
-              {pinProb && typeof pinProb === "number" ? (
+              {pinProbability != null ? (
                 <>
                   <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: MV.purple, fontFamily: MV.mono }}>
-                    {pinProb.toFixed(1)}%
+                    {pinProbability.toFixed(1)}%
                   </div>
                   <div className="mt-2 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
-                    expiry within ±100pt of {fmtNum(maxGammaStrike, { maximumFractionDigits: 0 })}
+                    complement of expansion ({expansionProb != null ? expansionProb.toFixed(1) + "%" : "—"})
+                    {maxGammaStrike != null ? ` · near ${fmtNum(maxGammaStrike, { maximumFractionDigits: 0 })}` : ""}
                   </div>
-                  <div className="mt-3"><Gauge value={pinProb} color={MV.purple} /></div>
-                </>
-              ) : Array.isArray(pinProb) && pinProb.length ? (
-                <>
-                  <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: MV.purple, fontFamily: MV.mono }}>
-                    {(pinProb[0].prob * 100).toFixed(1)}%
-                  </div>
-                  <div className="mt-2 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
-                    expiry within ±100pt of {fmtNum(pinProb[0].strike, { maximumFractionDigits: 0 })}
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {pinProb.slice(0, 3).map((p: any, i: number) => (
-                      <div key={i} className="flex items-center gap-2 text-[10px]" style={{ fontFamily: MV.mono }}>
-                        <span className="w-14 text-right" style={{ color: MV.mid }}>{fmtNum(p.strike, { maximumFractionDigits: 0 })}</span>
-                        <Gauge value={p.prob * 100} color={i === 0 ? MV.purple : MV.vweak} />
-                        <span className="w-10" style={{ color: MV.weak }}>{(p.prob * 100).toFixed(1)}%</span>
-                      </div>
-                    ))}
-                  </div>
+                  <div className="mt-3"><Gauge value={pinProbability} color={MV.purple} /></div>
                 </>
               ) : (
-                <Unavailable label="pin_probability not exposed" />
+                <Unavailable label="expansion_probability not exposed" />
               )}
             </Card>
 
