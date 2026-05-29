@@ -716,18 +716,49 @@ export default function Marketview() {
   const changePct = prevClose && spot ? ((spot - prevClose) / prevClose) * 100 : 0;
 
   const regime = (g.regime ?? null) as string | null;
-  const netDealerGamma = (g.net_dealer_gamma_cr ?? g.net_dealer_gamma ?? null) as number | null;
-  const sigmaPct = (g.sigma_pct_to_expiry ?? g.sigma_pct ?? null) as number | null;
+  const gammaZone = (g.gamma_zone ?? null) as string | null;
+  // net_gex is already in Cr units
+  const netDealerGamma = (g.net_gex ?? null) as number | null;
+  // flip_distance_pct used as σ proxy until sigma_pct_to_expiry is shipped
+  const sigmaPct = (g.flip_distance_pct ?? null) as number | null;
   const flipLevel = (g.flip_level ?? null) as number | null;
-  const maxGammaStrike = (g.max_gamma_strike ?? null) as number | null;
-  const peakGammaCr = (g.peak_gamma_cr ?? null) as number | null;
+  // pin_risk_score not yet exposed by writer
   const pinRiskScore = (g.pin_risk_score ?? null) as number | null;
-  const pinProb = (g.pin_probability ?? g.pin_probability_top ?? null) as any;
-  const atmStraddle = (g.atm_straddle_premium ?? g.atm_straddle ?? null) as number | null;
-  const vix = (g.india_vix ?? g.vix ?? null) as number | null;
-  const dampenTotal = (g.dampen_total ?? null) as number | null;
-  const amplifyTotal = (g.amplify_total ?? null) as number | null;
+  const expansionProb = (g.expansion_probability ?? null) as number | null;
+  const pinProbability = expansionProb != null ? Math.max(0, Math.min(100, 100 - expansionProb)) : null;
+  // straddle_atm is the ATM straddle premium
+  const atmStraddle = (g.straddle_atm ?? null) as number | null;
+  const vix = (g.vix ?? null) as number | null;
+  const dteDays = (g.dte ?? null) as number | null;
   const breadthRegime = (g.breadth_regime ?? null) as string | null;
+
+  // Max γ strike / peak γ / dampen-amplify totals derived from gex_strike_snapshots
+  const strikeAgg = useMemo(() => {
+    const rows = (strikes.data ?? []) as any[];
+    if (!rows.length) {
+      return { maxGammaStrike: null as number | null, peakGammaCr: null as number | null, strongestAmplifyStrike: null as number | null, dampenTotal: null as number | null, amplifyTotal: null as number | null };
+    }
+    const pos = rows.filter((s) => (s.gex_cr ?? 0) > 0);
+    const neg = rows.filter((s) => (s.gex_cr ?? 0) < 0);
+    const maxRow = pos.length ? pos.reduce((m, s) => (s.gex_cr > m.gex_cr ? s : m)) : null;
+    const minRow = neg.length ? neg.reduce((m, s) => (s.gex_cr < m.gex_cr ? s : m)) : null;
+    const dampenTotal = pos.reduce((a, s) => a + (s.gex_cr ?? 0), 0);
+    const amplifyTotal = neg.reduce((a, s) => a + (s.gex_cr ?? 0), 0);
+    return {
+      maxGammaStrike: maxRow?.strike ?? null,
+      peakGammaCr: maxRow?.gex_cr ?? null,
+      strongestAmplifyStrike: minRow?.strike ?? null,
+      dampenTotal: pos.length ? dampenTotal : null,
+      amplifyTotal: neg.length ? amplifyTotal : null,
+    };
+  }, [strikes.data]);
+  const { maxGammaStrike, peakGammaCr, strongestAmplifyStrike, dampenTotal, amplifyTotal } = strikeAgg;
+
+  // IV Smile from option_chain_snapshots
+  const ivSmile = useIvSmile(symbol, spot, strikeStep);
+  const ivSkewPct = ivSmile.data && ivSmile.data.atmCe && ivSmile.data.atmPe
+    ? (ivSmile.data.atmPe / ivSmile.data.atmCe - 1) * 100
+    : null;
 
   // Live stale
   const signalTs = signal.data?.ts ? new Date(signal.data.ts).getTime() : (g.ts ? new Date(g.ts).getTime() : null);
@@ -750,18 +781,15 @@ export default function Marketview() {
     return () => window.removeEventListener("keydown", onKey);
   }, [refetchAll]);
 
-  // Regime pill
-  const regimeUpper = (regime ?? "").toUpperCase();
-  const regimePill =
-    regimeUpper.includes("POSITIVE") || regimeUpper === "LONG_GAMMA"
-      ? { text: "POSITIVE_γ", bg: MV.greenBg, fg: MV.green, sub: "long dealer γ · mean-reverting" }
-      : regimeUpper.includes("NEGATIVE") || regimeUpper === "SHORT_GAMMA"
-        ? { text: "NEGATIVE_γ", bg: MV.redBg, fg: MV.red, sub: "short dealer γ · trending" }
-        : regime
-          ? { text: regimeUpper, bg: MV.blueBg, fg: MV.blue, sub: "" }
-          : null;
+  // Regime pill (mapped from LONG_GAMMA / SHORT_GAMMA / NO_FLIP)
+  const regimeMapped = regime ? REGIME_DISPLAY[regime] : null;
+  const regimePill = regimeMapped
+    ? { text: regimeMapped.label, bg: regimeMapped.bg, fg: regimeMapped.fg, sub: gammaZone ? `${regimeMapped.desc} · ${gammaZone}` : regimeMapped.desc }
+    : regime
+      ? { text: regime, bg: MV.blueBg, fg: MV.blue, sub: gammaZone ?? "" }
+      : null;
 
-  const dte = formatDTE(expiry);
+  const dte = formatDTE(expiry, dteDays);
 
   // ICT zones near spot
   const zonesNearSpot = useMemo(() => {
