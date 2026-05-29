@@ -965,7 +965,7 @@ export default function Marketview() {
               <Scalar label="Σ dampen" value={dampenTotal != null ? `${fmtSigned(dampenTotal)} Cr` : "—"} color={MV.green} />
               <Scalar label="Σ amplify" value={amplifyTotal != null ? `${fmtSigned(amplifyTotal)} Cr` : "—"} color={MV.red} />
               <Scalar label="strongest dampen" value={fmtNum(maxGammaStrike, { maximumFractionDigits: 0 })} />
-              <Scalar label="strongest amplify" value={flipLevel != null ? fmtNum(flipLevel, { maximumFractionDigits: 0 }) : "—"} />
+              <Scalar label="strongest amplify" value={strongestAmplifyStrike != null ? fmtNum(strongestAmplifyStrike, { maximumFractionDigits: 0 }) : "—"} color={MV.red} />
               <Scalar label="Σ to expiry" value={sigmaPct != null ? fmtPct(sigmaPct) : "—"} color={MV.blue} />
             </div>
             <HeroChart
