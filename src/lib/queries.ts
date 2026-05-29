@@ -314,6 +314,7 @@ export function useRefetchMarketview() {
           "straddleIntraday",
           "maxPainByStrike",
           "breadthIntraday",
+          "ivSmile",
         ].includes(k as string);
       },
     });
