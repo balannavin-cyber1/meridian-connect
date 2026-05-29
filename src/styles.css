@@ -56,6 +56,25 @@
 }
 
 :root {
+  /* Marketview v4 tokens */
+  --mv-bg: #fafafa;
+  --mv-card-bg: #ffffff;
+  --mv-border: #e5e7eb;
+  --mv-border-strong: #d1d5db;
+  --mv-text-strong: #111827;
+  --mv-text-mid: #4b5563;
+  --mv-text-weak: #9ca3af;
+  --mv-text-vweak: #d1d5db;
+  --mv-green: #059669;  --mv-green-bg: #ecfdf5;  --mv-green-line: #10b981;
+  --mv-red: #dc2626;    --mv-red-bg: #fef2f2;    --mv-red-line: #ef4444;
+  --mv-pink: #ec4899;
+  --mv-blue: #2563eb;   --mv-blue-bg: #eff6ff;   --mv-blue-line: #3b82f6;
+  --mv-amber: #d97706;  --mv-amber-bg: #fffbeb;
+  --mv-purple: #7c3aed; --mv-purple-bg: #f5f3ff;
+  --mv-indigo: #4f46e5;
+  --mv-font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  --mv-font-sans: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+
   --radius: 0.5rem;
 
   --bg-primary: oklch(0.99 0.001 250);
