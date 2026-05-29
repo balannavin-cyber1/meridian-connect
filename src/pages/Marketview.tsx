@@ -16,6 +16,7 @@ import {
   useStraddleIntraday,
   useMaxPainByStrike,
   useBreadthIntraday,
+  useIvSmile,
   type Symbol as MSymbol,
   type StraddleBucket,
 } from "@/lib/queries";
@@ -85,14 +86,24 @@ function spotFromMarker(m: any): number | null {
   );
 }
 
-function formatDTE(expiryISO: string | null | undefined): string {
+function formatDTE(expiryISO: string | null | undefined, dteDays?: number | null): string {
   if (!expiryISO) return "—";
-  const hours = (new Date(expiryISO).getTime() - Date.now()) / 3.6e6;
-  if (!Number.isFinite(hours)) return "—";
-  const d = Math.max(0, Math.floor(hours / 24));
-  const h = Math.max(0, Math.round(hours - d * 24));
+  const totalHours = (new Date(expiryISO).getTime() - Date.now()) / 3.6e6;
+  if (!Number.isFinite(totalHours)) return "—";
+  const d = dteDays != null && Number.isFinite(dteDays)
+    ? Math.max(0, Math.floor(dteDays))
+    : Math.max(0, Math.floor(totalHours / 24));
+  let h = Math.round(totalHours - d * 24);
+  if (h >= 24) return `${d + 1}d 0h`;
+  if (h < 0) h = 0;
   return `${d}d ${h}h`;
 }
+
+const REGIME_DISPLAY: Record<string, { label: string; bg: string; fg: string; desc: string }> = {
+  LONG_GAMMA: { label: "POSITIVE_γ", bg: "var(--mv-green-bg)", fg: "var(--mv-green)", desc: "long dealer γ · mean-reverting" },
+  SHORT_GAMMA: { label: "NEGATIVE_γ", bg: "var(--mv-red-bg)", fg: "var(--mv-red)", desc: "short dealer γ · trend-amplifying" },
+  NO_FLIP: { label: "NO_FLIP", bg: "var(--mv-blue-bg)", fg: "var(--mv-blue)", desc: "no flip in window" },
+};
 
 const qualityTone = (q?: string | null) => {
   switch ((q ?? "").toUpperCase()) {
@@ -705,18 +716,49 @@ export default function Marketview() {
   const changePct = prevClose && spot ? ((spot - prevClose) / prevClose) * 100 : 0;
 
   const regime = (g.regime ?? null) as string | null;
-  const netDealerGamma = (g.net_dealer_gamma_cr ?? g.net_dealer_gamma ?? null) as number | null;
-  const sigmaPct = (g.sigma_pct_to_expiry ?? g.sigma_pct ?? null) as number | null;
+  const gammaZone = (g.gamma_zone ?? null) as string | null;
+  // net_gex is already in Cr units
+  const netDealerGamma = (g.net_gex ?? null) as number | null;
+  // flip_distance_pct used as σ proxy until sigma_pct_to_expiry is shipped
+  const sigmaPct = (g.flip_distance_pct ?? null) as number | null;
   const flipLevel = (g.flip_level ?? null) as number | null;
-  const maxGammaStrike = (g.max_gamma_strike ?? null) as number | null;
-  const peakGammaCr = (g.peak_gamma_cr ?? null) as number | null;
+  // pin_risk_score not yet exposed by writer
   const pinRiskScore = (g.pin_risk_score ?? null) as number | null;
-  const pinProb = (g.pin_probability ?? g.pin_probability_top ?? null) as any;
-  const atmStraddle = (g.atm_straddle_premium ?? g.atm_straddle ?? null) as number | null;
-  const vix = (g.india_vix ?? g.vix ?? null) as number | null;
-  const dampenTotal = (g.dampen_total ?? null) as number | null;
-  const amplifyTotal = (g.amplify_total ?? null) as number | null;
+  const expansionProb = (g.expansion_probability ?? null) as number | null;
+  const pinProbability = expansionProb != null ? Math.max(0, Math.min(100, 100 - expansionProb)) : null;
+  // straddle_atm is the ATM straddle premium
+  const atmStraddle = (g.straddle_atm ?? null) as number | null;
+  const vix = (g.vix ?? null) as number | null;
+  const dteDays = (g.dte ?? null) as number | null;
   const breadthRegime = (g.breadth_regime ?? null) as string | null;
+
+  // Max γ strike / peak γ / dampen-amplify totals derived from gex_strike_snapshots
+  const strikeAgg = useMemo(() => {
+    const rows = (strikes.data ?? []) as any[];
+    if (!rows.length) {
+      return { maxGammaStrike: null as number | null, peakGammaCr: null as number | null, strongestAmplifyStrike: null as number | null, dampenTotal: null as number | null, amplifyTotal: null as number | null };
+    }
+    const pos = rows.filter((s) => (s.gex_cr ?? 0) > 0);
+    const neg = rows.filter((s) => (s.gex_cr ?? 0) < 0);
+    const maxRow = pos.length ? pos.reduce((m, s) => (s.gex_cr > m.gex_cr ? s : m)) : null;
+    const minRow = neg.length ? neg.reduce((m, s) => (s.gex_cr < m.gex_cr ? s : m)) : null;
+    const dampenTotal = pos.reduce((a, s) => a + (s.gex_cr ?? 0), 0);
+    const amplifyTotal = neg.reduce((a, s) => a + (s.gex_cr ?? 0), 0);
+    return {
+      maxGammaStrike: maxRow?.strike ?? null,
+      peakGammaCr: maxRow?.gex_cr ?? null,
+      strongestAmplifyStrike: minRow?.strike ?? null,
+      dampenTotal: pos.length ? dampenTotal : null,
+      amplifyTotal: neg.length ? amplifyTotal : null,
+    };
+  }, [strikes.data]);
+  const { maxGammaStrike, peakGammaCr, strongestAmplifyStrike, dampenTotal, amplifyTotal } = strikeAgg;
+
+  // IV Smile from option_chain_snapshots
+  const ivSmile = useIvSmile(symbol, spot, strikeStep);
+  const ivSkewPct = ivSmile.data && ivSmile.data.atmCe && ivSmile.data.atmPe
+    ? (ivSmile.data.atmPe / ivSmile.data.atmCe - 1) * 100
+    : null;
 
   // Live stale
   const signalTs = signal.data?.ts ? new Date(signal.data.ts).getTime() : (g.ts ? new Date(g.ts).getTime() : null);
@@ -739,18 +781,15 @@ export default function Marketview() {
     return () => window.removeEventListener("keydown", onKey);
   }, [refetchAll]);
 
-  // Regime pill
-  const regimeUpper = (regime ?? "").toUpperCase();
-  const regimePill =
-    regimeUpper.includes("POSITIVE") || regimeUpper === "LONG_GAMMA"
-      ? { text: "POSITIVE_γ", bg: MV.greenBg, fg: MV.green, sub: "long dealer γ · mean-reverting" }
-      : regimeUpper.includes("NEGATIVE") || regimeUpper === "SHORT_GAMMA"
-        ? { text: "NEGATIVE_γ", bg: MV.redBg, fg: MV.red, sub: "short dealer γ · trending" }
-        : regime
-          ? { text: regimeUpper, bg: MV.blueBg, fg: MV.blue, sub: "" }
-          : null;
+  // Regime pill (mapped from LONG_GAMMA / SHORT_GAMMA / NO_FLIP)
+  const regimeMapped = regime ? REGIME_DISPLAY[regime] : null;
+  const regimePill = regimeMapped
+    ? { text: regimeMapped.label, bg: regimeMapped.bg, fg: regimeMapped.fg, sub: gammaZone ? `${regimeMapped.desc} · ${gammaZone}` : regimeMapped.desc }
+    : regime
+      ? { text: regime, bg: MV.blueBg, fg: MV.blue, sub: gammaZone ?? "" }
+      : null;
 
-  const dte = formatDTE(expiry);
+  const dte = formatDTE(expiry, dteDays);
 
   // ICT zones near spot
   const zonesNearSpot = useMemo(() => {
@@ -926,7 +965,7 @@ export default function Marketview() {
               <Scalar label="Σ dampen" value={dampenTotal != null ? `${fmtSigned(dampenTotal)} Cr` : "—"} color={MV.green} />
               <Scalar label="Σ amplify" value={amplifyTotal != null ? `${fmtSigned(amplifyTotal)} Cr` : "—"} color={MV.red} />
               <Scalar label="strongest dampen" value={fmtNum(maxGammaStrike, { maximumFractionDigits: 0 })} />
-              <Scalar label="strongest amplify" value={flipLevel != null ? fmtNum(flipLevel, { maximumFractionDigits: 0 }) : "—"} />
+              <Scalar label="strongest amplify" value={strongestAmplifyStrike != null ? fmtNum(strongestAmplifyStrike, { maximumFractionDigits: 0 }) : "—"} color={MV.red} />
               <Scalar label="Σ to expiry" value={sigmaPct != null ? fmtPct(sigmaPct) : "—"} color={MV.blue} />
             </div>
             <HeroChart
@@ -995,36 +1034,19 @@ export default function Marketview() {
 
             <Card>
               <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Pin Probability</div>
-              {pinProb && typeof pinProb === "number" ? (
+              {pinProbability != null ? (
                 <>
                   <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: MV.purple, fontFamily: MV.mono }}>
-                    {pinProb.toFixed(1)}%
+                    {pinProbability.toFixed(1)}%
                   </div>
                   <div className="mt-2 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
-                    expiry within ±100pt of {fmtNum(maxGammaStrike, { maximumFractionDigits: 0 })}
+                    complement of expansion ({expansionProb != null ? expansionProb.toFixed(1) + "%" : "—"})
+                    {maxGammaStrike != null ? ` · near ${fmtNum(maxGammaStrike, { maximumFractionDigits: 0 })}` : ""}
                   </div>
-                  <div className="mt-3"><Gauge value={pinProb} color={MV.purple} /></div>
-                </>
-              ) : Array.isArray(pinProb) && pinProb.length ? (
-                <>
-                  <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: MV.purple, fontFamily: MV.mono }}>
-                    {(pinProb[0].prob * 100).toFixed(1)}%
-                  </div>
-                  <div className="mt-2 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
-                    expiry within ±100pt of {fmtNum(pinProb[0].strike, { maximumFractionDigits: 0 })}
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {pinProb.slice(0, 3).map((p: any, i: number) => (
-                      <div key={i} className="flex items-center gap-2 text-[10px]" style={{ fontFamily: MV.mono }}>
-                        <span className="w-14 text-right" style={{ color: MV.mid }}>{fmtNum(p.strike, { maximumFractionDigits: 0 })}</span>
-                        <Gauge value={p.prob * 100} color={i === 0 ? MV.purple : MV.vweak} />
-                        <span className="w-10" style={{ color: MV.weak }}>{(p.prob * 100).toFixed(1)}%</span>
-                      </div>
-                    ))}
-                  </div>
+                  <div className="mt-3"><Gauge value={pinProbability} color={MV.purple} /></div>
                 </>
               ) : (
-                <Unavailable label="pin_probability not exposed" />
+                <Unavailable label="expansion_probability not exposed" />
               )}
             </Card>
 
@@ -1144,7 +1166,21 @@ export default function Marketview() {
             {/* IV Skew */}
             <Card>
               <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>IV Skew</div>
-              <Unavailable label="coming soon · needs ce_iv/pe_iv" />
+              {ivSmile.data && ivSkewPct != null ? (
+                <>
+                  <div className="mt-1 text-[26px] font-bold leading-none" style={{ fontFamily: MV.mono, color: Math.abs(ivSkewPct) < 1 ? MV.mid : ivSkewPct > 0 ? MV.red : MV.green }}>
+                    {Math.abs(ivSkewPct) < 1 ? "flat" : `${ivSkewPct > 0 ? "+" : ""}${ivSkewPct.toFixed(1)}% ${ivSkewPct > 0 ? "PE" : "CE"}`}
+                  </div>
+                  <div className="mt-1 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+                    ATM {fmtNum(ivSmile.data.atm, { maximumFractionDigits: 0 })} · CE {ivSmile.data.atmCe?.toFixed(1)} / PE {ivSmile.data.atmPe?.toFixed(1)}
+                  </div>
+                  <div className="mt-2">
+                    <IVSmile points={ivSmile.data.points} atm={ivSmile.data.atm} />
+                  </div>
+                </>
+              ) : (
+                <Unavailable label="iv not populated" />
+              )}
             </Card>
           </div>
         </div>
