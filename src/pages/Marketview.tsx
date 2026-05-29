@@ -16,6 +16,7 @@ import {
   useStraddleIntraday,
   useMaxPainByStrike,
   useBreadthIntraday,
+  useIvSmile,
   type Symbol as MSymbol,
   type StraddleBucket,
 } from "@/lib/queries";
