@@ -1,78 +1,77 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Target,
-  History,
-  LineChart as LineChartIcon,
-  TargetIcon as TargetArrow,
-  Plus,
-  RefreshCw,
-} from "lucide-react";
+import { LineChart as LineChartIcon, RefreshCw, Plus } from "lucide-react";
 import {
   useSpotMarker,
   useGammaLatest,
   useGammaSeries,
+  useGammaToday,
   useLatestSignal,
   useTodaysSignals,
   useGexStrikes,
   usePinZone,
   useAccelZone,
   useIctZones,
-  useDealerFlow,
   useRefetchMarketview,
   useStraddleIntraday,
+  useMaxPainByStrike,
+  useBreadthIntraday,
   type Symbol as MSymbol,
   type StraddleBucket,
 } from "@/lib/queries";
+import { Sparkline } from "@/components/primitives/Sparkline";
+import { Gauge } from "@/components/primitives/Gauge";
+import { IVSmile } from "@/components/primitives/IVSmile";
+import { NarrativeModal } from "@/components/NarrativeModal";
 
-function Sparkline({ data, color = "currentColor", w = 42, h = 14 }: { data: number[]; color?: string; w?: number; h?: number }) {
-  if (!data || data.length < 2) return <svg width={w} height={h} />;
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const pts = data
-    .map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`)
-    .join(" ");
-  return (
-    <svg width={w} height={h} className="inline-block align-middle">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.25} />
-    </svg>
-  );
-}
+// ============================================================
+// Helpers
+// ============================================================
+const MV = {
+  bg: "var(--mv-bg)",
+  card: "var(--mv-card-bg)",
+  border: "var(--mv-border)",
+  borderStrong: "var(--mv-border-strong)",
+  strong: "var(--mv-text-strong)",
+  mid: "var(--mv-text-mid)",
+  weak: "var(--mv-text-weak)",
+  vweak: "var(--mv-text-vweak)",
+  green: "var(--mv-green)",
+  greenBg: "var(--mv-green-bg)",
+  greenLine: "var(--mv-green-line)",
+  red: "var(--mv-red)",
+  redBg: "var(--mv-red-bg)",
+  redLine: "var(--mv-red-line)",
+  pink: "var(--mv-pink)",
+  blue: "var(--mv-blue)",
+  blueBg: "var(--mv-blue-bg)",
+  blueLine: "var(--mv-blue-line)",
+  amber: "var(--mv-amber)",
+  amberBg: "var(--mv-amber-bg)",
+  purple: "var(--mv-purple)",
+  purpleBg: "var(--mv-purple-bg)",
+  indigo: "var(--mv-indigo)",
+  mono: "var(--mv-font-mono)",
+};
 
-function Chip({
-  children,
-  tone = "default",
-  className = "",
-  onClick,
-  title,
-}: {
-  children: React.ReactNode;
-  tone?: "default" | "success" | "danger" | "warning" | "info" | "muted";
-  className?: string;
-  onClick?: () => void;
-  title?: string;
-}) {
-  const tones: Record<string, string> = {
-    default: "bg-bg-tertiary text-text-secondary",
-    success: "bg-success-bg text-success-text",
-    danger: "bg-danger-bg text-danger-text",
-    warning: "bg-warning-bg text-warning-text",
-    info: "bg-info-bg text-info-text",
-    muted: "bg-bg-secondary text-text-tertiary",
-  };
-  return (
-    <span
-      onClick={onClick}
-      title={title}
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium leading-none ${tones[tone]} ${onClick ? "cursor-pointer" : ""} ${className}`}
-    >
-      {children}
-    </span>
-  );
-}
+const fmtNum = (n: number | null | undefined, opts?: Intl.NumberFormatOptions) =>
+  n == null || !Number.isFinite(n) ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: 2, ...opts });
 
-const fmtNum = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+const fmtSigned = (n: number | null | undefined, opts?: Intl.NumberFormatOptions) => {
+  if (n == null || !Number.isFinite(n)) return "—";
+  const s = n.toLocaleString("en-IN", { maximumFractionDigits: 2, ...opts });
+  return n > 0 ? `+${s}` : s;
+};
+
+const fmtPct = (n: number | null | undefined, digits = 2) =>
+  n == null || !Number.isFinite(n) ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(digits)}%`;
+
+const fmtBillion = (n: number) => {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(0)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(0)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(0)}K`;
+  return `${n.toFixed(0)}`;
+};
 
 function spotFromMarker(m: any): number | null {
   if (!m) return null;
@@ -86,37 +85,179 @@ function spotFromMarker(m: any): number | null {
   );
 }
 
-// ---------- Hero spatial chart ----------
+function formatDTE(expiryISO: string | null | undefined): string {
+  if (!expiryISO) return "—";
+  const hours = (new Date(expiryISO).getTime() - Date.now()) / 3.6e6;
+  if (!Number.isFinite(hours)) return "—";
+  const d = Math.max(0, Math.floor(hours / 24));
+  const h = Math.max(0, Math.round(hours - d * 24));
+  return `${d}d ${h}h`;
+}
+
+const qualityTone = (q?: string | null) => {
+  switch ((q ?? "").toUpperCase()) {
+    case "A": return { bg: MV.greenBg, fg: MV.green };
+    case "B": return { bg: MV.blueBg, fg: MV.blue };
+    case "C": return { bg: MV.amberBg, fg: MV.amber };
+    case "D": return { bg: MV.redBg, fg: MV.red };
+    default: return { bg: "#f3f4f6", fg: "#6b7280" };
+  }
+};
+
+// ============================================================
+// Small UI atoms
+// ============================================================
+function Card({
+  children,
+  title,
+  subtitle,
+  className = "",
+  bodyClass = "",
+}: {
+  children: React.ReactNode;
+  title?: React.ReactNode;
+  subtitle?: React.ReactNode;
+  className?: string;
+  bodyClass?: string;
+}) {
+  return (
+    <div
+      className={`rounded-lg ${className}`}
+      style={{ background: MV.card, border: `1px solid ${MV.border}`, padding: "20px 22px" }}
+    >
+      {(title || subtitle) && (
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          {title && (
+            <div
+              className="text-[10px] font-semibold uppercase tracking-[0.1em]"
+              style={{ color: MV.weak }}
+            >
+              {title}
+            </div>
+          )}
+          {subtitle && (
+            <div className="text-[11px]" style={{ color: MV.weak }}>{subtitle}</div>
+          )}
+        </div>
+      )}
+      <div className={bodyClass}>{children}</div>
+    </div>
+  );
+}
+
+function Tile({
+  label,
+  value,
+  sub,
+  valueColor,
+  pill,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  valueColor?: string;
+  pill?: { text: string; bg: string; fg: string } | null;
+}) {
+  return (
+    <div
+      className="flex-1 rounded-lg"
+      style={{
+        background: MV.card,
+        border: `1px solid ${MV.border}`,
+        padding: "12px 14px",
+        minWidth: 160,
+      }}
+    >
+      <div
+        className="text-[9px] font-semibold uppercase tracking-[0.1em]"
+        style={{ color: MV.weak }}
+      >
+        {label}
+      </div>
+      <div className="mt-1.5">
+        {pill ? (
+          <span
+            className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold"
+            style={{ background: pill.bg, color: pill.fg, fontFamily: MV.mono }}
+          >
+            {pill.text}
+          </span>
+        ) : (
+          <div
+            className="text-[19px] font-bold leading-tight tabular-nums"
+            style={{ color: valueColor ?? MV.strong, fontFamily: MV.mono }}
+          >
+            {value}
+          </div>
+        )}
+      </div>
+      {sub != null && (
+        <div className="mt-1 text-[10px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em]"
+      style={{ color: MV.weak }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Unavailable({ label = "data unavailable" }: { label?: string }) {
+  return (
+    <div className="flex items-center justify-center py-6 text-[11px]" style={{ color: MV.weak }}>
+      {label}
+    </div>
+  );
+}
+
+// ============================================================
+// Hero (Positioning Landscape) chart — preserved from earlier
+// ============================================================
 function HeroChart({
   spot,
   bars: rawBars,
   pin,
   accel,
-  ictZones,
   step,
   resetKey,
+  sigmaPct,
+  maxGammaStrike,
+  flipLevel,
 }: {
   spot: number;
   bars: { strike: number; gex_cr: number }[];
   pin: { pin_lower: number; pin_upper: number } | null;
   accel: { accel_lower: number; accel_upper: number } | null;
-  ictZones: any[];
   step: number;
   resetKey: number;
+  sigmaPct: number | null;
+  maxGammaStrike: number | null;
+  flipLevel: number | null;
 }) {
-  const W = 660;
+  const W = 1200;
   const H = 320;
-  const padL = 40;
-  const padR = 14;
-  const padT = 42;
-  const padB = 36;
+  const padL = 30;
+  const padR = 30;
+  const padT = 36;
+  const padB = 28;
   const chartW = W - padL - padR;
   const chartH = H - padT - padB;
   const midY = padT + chartH / 2;
 
-  // Default window = spot ±2% (fallback ±5%)
   const defaultView = useMemo(() => {
-    if (!rawBars.length) return null;
+    if (!rawBars.length) {
+      if (spot > 0) return { min: spot * 0.96, max: spot * 1.04 };
+      return null;
+    }
     if (spot > 0) {
       const within = (pct: number) => {
         const lo = spot * (1 - pct);
@@ -144,12 +285,8 @@ function HeroChart({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ startX: number; startMin: number; startMax: number } | null>(null);
 
-  if (!rawBars.length || !defaultView) {
-    return (
-      <div className="flex h-[320px] items-center justify-center rounded-md border border-dashed border-border-secondary bg-bg-secondary text-[11px] text-text-tertiary">
-        no GEX strike data
-      </div>
-    );
+  if (!defaultView) {
+    return <Unavailable label="no GEX strike data" />;
   }
 
   const activeView = view ?? defaultView;
@@ -161,11 +298,8 @@ function HeroChart({
   const bars = rawBars.filter((b) => b.strike >= sMin && b.strike <= sMax);
   const maxAbs = Math.max(...(bars.length ? bars.map((b) => Math.abs(b.gex_cr)) : [1])) || 1;
   const barH = (v: number) => (Math.abs(v) / maxAbs) * (chartH / 2);
-  const maxGamma = bars.length
-    ? bars.reduce((m, b) => (Math.abs(b.gex_cr) > Math.abs(m.gex_cr) ? b : m)).strike
-    : null;
 
-  // Snapped strike ticks — every `step`, thinned to keep ~6-12 visible.
+  // Snapped strike ticks
   const tickStart = Math.ceil(sMin / step) * step;
   const tickEnd = Math.floor(sMax / step) * step;
   const rawTickCount = Math.max(0, Math.floor((tickEnd - tickStart) / step) + 1);
@@ -175,17 +309,9 @@ function HeroChart({
     if (i % thin === 0) ticks.push(t);
   }
 
-  const visibleZones = (ictZones ?? [])
-    .map((z) => {
-      const lo = z.zone_low ?? z.range_low;
-      const hi = z.zone_high ?? z.range_high;
-      return { z, lo, hi, mid: lo != null && hi != null ? (lo + hi) / 2 : null };
-    })
-    .filter((r) => r.lo != null && r.hi != null && r.hi >= sMin && r.lo <= sMax)
-    .sort((a, b) => Math.abs((a.mid as number) - spot) - Math.abs((b.mid as number) - spot))
-    .slice(0, 5);
+  // Sigma bands
+  const sigma = sigmaPct != null && spot ? spot * (sigmaPct / 100) : null;
 
-  // Convert client X to SVG-space strike value
   const clientToStrike = (clientX: number) => {
     const el = svgRef.current;
     if (!el) return spot;
@@ -194,11 +320,10 @@ function HeroChart({
     const t = (svgX - padL) / chartW;
     return sMin + Math.max(0, Math.min(1, t)) * sRange;
   };
-
   const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
     e.preventDefault();
     const anchor = clientToStrike(e.clientX);
-    const zoom = Math.exp(e.deltaY * 0.0015); // >1 = zoom out, <1 = zoom in
+    const zoom = Math.exp(e.deltaY * 0.0015);
     let newMin = anchor - (anchor - sMin) * zoom;
     let newMax = anchor + (sMax - anchor) * zoom;
     const minWidth = step * 4;
@@ -221,9 +346,7 @@ function HeroChart({
     const dxStrike = ((e.clientX - d.startX) / rect.width) * W * (sRange / chartW);
     setView({ min: d.startMin - dxStrike, max: d.startMax - dxStrike });
   };
-  const endDrag = () => {
-    dragRef.current = null;
-  };
+  const endDrag = () => { dragRef.current = null; };
 
   return (
     <svg
@@ -231,441 +354,281 @@ function HeroChart({
       viewBox={`0 0 ${W} ${H}`}
       className="block h-auto w-full select-none"
       style={{ cursor: dragRef.current ? "grabbing" : "grab", touchAction: "none" }}
-      role="img"
-      aria-label="GEX-by-strike spatial chart"
       onWheel={onWheel}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
     >
-      <title>GEX-by-strike spatial chart · scroll to zoom · drag to pan · r to reset</title>
+      {/* sigma bands */}
+      {sigma && spot > 0 && (
+        <>
+          {[2, 1].map((mult) => {
+            const lo = spot - mult * sigma;
+            const hi = spot + mult * sigma;
+            return (
+              <rect
+                key={mult}
+                x={x(lo)}
+                y={padT}
+                width={Math.max(0, x(hi) - x(lo))}
+                height={chartH}
+                fill={MV.blueBg}
+                opacity={mult === 1 ? 0.7 : 0.35}
+              />
+            );
+          })}
+          {[-2, -1, 1, 2].map((m) => {
+            const v = spot + m * sigma;
+            if (v < sMin || v > sMax) return null;
+            return (
+              <g key={m}>
+                <line x1={x(v)} x2={x(v)} y1={padT} y2={H - padB} stroke={MV.borderStrong} strokeDasharray="2,3" strokeWidth="0.5" />
+                <text x={x(v)} y={padT - 4} textAnchor="middle" fontSize="9" fill={MV.weak}>
+                  {m > 0 ? `+${m}σ` : `${m}σ`}
+                </text>
+              </g>
+            );
+          })}
+        </>
+      )}
 
+      {/* pin */}
       {pin && (
-        <>
-          <rect x={x(pin.pin_lower)} y={padT} width={x(pin.pin_upper) - x(pin.pin_lower)} height={chartH} fill="#639922" opacity="0.08" />
-          <text x={(x(pin.pin_lower) + x(pin.pin_upper)) / 2} y={padT + 12} textAnchor="middle" fontSize="10" fontWeight="500" fill="var(--color-success-text)">
-            PIN {fmtNum(pin.pin_lower)}-{fmtNum(pin.pin_upper)}
-          </text>
-        </>
+        <rect x={x(pin.pin_lower)} y={padT} width={Math.max(2, x(pin.pin_upper) - x(pin.pin_lower))} height={chartH} fill={MV.greenLine} opacity={0.07} />
       )}
-
+      {/* accel */}
       {accel && (
-        <>
-          <rect x={x(accel.accel_lower)} y={padT} width={x(accel.accel_upper) - x(accel.accel_lower)} height={chartH} fill="#e24b4a" opacity="0.08" />
-          <text x={(x(accel.accel_lower) + x(accel.accel_upper)) / 2} y={padT + 28} textAnchor="middle" fontSize="10" fontWeight="500" fill="var(--color-danger-text)">
-            ACCEL {fmtNum(accel.accel_lower)}-{fmtNum(accel.accel_upper)}
-          </text>
-        </>
+        <rect x={x(accel.accel_lower)} y={padT} width={Math.max(2, x(accel.accel_upper) - x(accel.accel_lower))} height={chartH} fill={MV.redLine} opacity={0.07} />
       )}
 
-      {visibleZones.map((r, i) => {
-        const { z, lo, hi } = r;
-        const ptype: string = z.pattern_type ?? z.type ?? "";
-        const isBear = ptype.startsWith("BEAR");
-        const fill = isBear ? "#7a1f1d" : "#1f4d10";
-        const bearIdx = visibleZones.filter((v, j) => j <= i && (v.z.pattern_type ?? v.z.type ?? "").startsWith("BEAR")).length - 1;
-        const bullIdx = visibleZones.filter((v, j) => j <= i && !(v.z.pattern_type ?? v.z.type ?? "").startsWith("BEAR")).length - 1;
-        const top = isBear ? padT + 46 + bearIdx * 14 : padT + chartH - 28 - bullIdx * 14;
-        return (
-          <g key={i}>
-            <rect x={x(lo)} y={top} width={Math.max(2, x(hi) - x(lo))} height={11} fill={fill} fillOpacity="0.55" stroke={fill} strokeWidth="0.5" />
-            <text x={x(lo) + 4} y={top + 8.5} fontSize="9" fill="rgba(245,245,245,0.9)">
-              {(z.ict_tier ?? z.tf ?? "")} {ptype}
-            </text>
-          </g>
-        );
-      })}
-
-      <line x1={padL} x2={W - padR} y1={midY} y2={midY} stroke="var(--color-border-secondary)" strokeWidth="0.5" />
+      <line x1={padL} x2={W - padR} y1={midY} y2={midY} stroke={MV.border} strokeWidth="0.5" />
 
       {bars.map((b) => {
-        const bw = Math.max(3, (chartW / Math.max(bars.length, 1)) * 0.6);
+        const bw = Math.max(3, (chartW / Math.max(bars.length, 1)) * 0.7);
         const bx = x(b.strike) - bw / 2;
         const h = barH(b.gex_cr);
         const pos = b.gex_cr >= 0;
-        const op = 0.35 + 0.6 * (Math.abs(b.gex_cr) / maxAbs);
         return (
-          <rect key={b.strike} x={bx} y={pos ? midY - h : midY} width={bw} height={h} fill={pos ? "#639922" : "#e24b4a"} opacity={op} />
+          <rect key={b.strike} x={bx} y={pos ? midY - h : midY} width={bw} height={h} fill={pos ? MV.greenLine : MV.redLine} opacity={0.85} />
         );
       })}
 
-      {maxGamma != null && (
+      {maxGammaStrike != null && maxGammaStrike >= sMin && maxGammaStrike <= sMax && (
         <>
-          <line x1={x(maxGamma)} x2={x(maxGamma)} y1={padT} y2={H - padB} stroke="#7f77dd" strokeWidth="1" strokeDasharray="3,2" />
-          <text x={x(maxGamma) + 4} y={midY - 4} fontSize="9" fontWeight="500" fill="#7f77dd">
-            max γ {fmtNum(maxGamma)}
+          <line x1={x(maxGammaStrike)} x2={x(maxGammaStrike)} y1={padT} y2={H - padB} stroke={MV.purple} strokeWidth="1" strokeDasharray="3,2" />
+          <text x={x(maxGammaStrike) + 4} y={padT + 22} fontSize="10" fontWeight="600" fill={MV.purple}>
+            max γ {fmtNum(maxGammaStrike)}
+          </text>
+        </>
+      )}
+
+      {flipLevel != null && flipLevel >= sMin && flipLevel <= sMax && (
+        <>
+          <line x1={x(flipLevel)} x2={x(flipLevel)} y1={padT} y2={H - padB} stroke={MV.amber} strokeWidth="1" strokeDasharray="3,2" />
+          <text x={x(flipLevel) + 4} y={padT + 36} fontSize="10" fontWeight="600" fill={MV.amber}>
+            flip {fmtNum(flipLevel)}
           </text>
         </>
       )}
 
       {spot >= sMin && spot <= sMax && (
         <>
-          <line x1={x(spot)} x2={x(spot)} y1={padT} y2={H - padB} stroke="#185fa5" strokeWidth="1.5" />
-          <g>
-            <rect x={x(spot) - 28} y={H - padB + 4} width="56" height="16" rx="2" fill="#185fa5" />
-            <text x={x(spot)} y={H - padB + 15} textAnchor="middle" fontSize="10" fontWeight="500" fill="#fff" fontFamily="ui-monospace, monospace">
-              {fmtNum(spot)}
-            </text>
-          </g>
+          <line x1={x(spot)} x2={x(spot)} y1={padT - 8} y2={H - padB} stroke={MV.blue} strokeWidth="1.5" />
+          <text x={x(spot)} y={padT - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill={MV.blue} style={{ fontFamily: MV.mono }}>
+            ▼ SPOT {fmtNum(spot)}
+          </text>
         </>
       )}
 
       {ticks.map((s) => (
         <g key={s}>
-          <line x1={x(s)} x2={x(s)} y1={H - padB} y2={H - padB + 3} stroke="var(--color-text-tertiary)" strokeWidth="0.5" />
-          <text x={x(s)} y={H - 4} textAnchor="middle" fontSize="9" fill="var(--color-text-tertiary)">
-            {fmtNum(s)}
+          <line x1={x(s)} x2={x(s)} y1={H - padB} y2={H - padB + 3} stroke={MV.weak} strokeWidth="0.5" />
+          <text x={x(s)} y={H - 6} textAnchor="middle" fontSize="9" fill={MV.weak} style={{ fontFamily: MV.mono }}>
+            {fmtNum(s, { maximumFractionDigits: 0 })}
           </text>
         </g>
       ))}
-      <text x={padL - 4} y={padT + 6} textAnchor="end" fontSize="9" fill="var(--color-text-tertiary)">long γ</text>
-      <text x={padL - 4} y={H - padB} textAnchor="end" fontSize="9" fill="var(--color-text-tertiary)">short γ</text>
     </svg>
   );
 }
 
-const qualityTone = (q?: string | null): "success" | "info" | "warning" | "danger" | "muted" => {
-  switch ((q ?? "").toUpperCase()) {
-    case "A": return "success";
-    case "B": return "info";
-    case "C": return "warning";
-    case "D": return "danger";
-    case "SKIP":
-    case "NO_TRADE": return "muted";
-    default: return "muted";
+// ============================================================
+// Max Pain chart
+// ============================================================
+function MaxPainChart({
+  rows,
+  spot,
+  step,
+}: {
+  rows: Array<{ candidate_strike: number; total_pain: number; max_pain_strike: number; side: string }>;
+  spot: number;
+  step: number;
+}) {
+  if (!rows?.length) return <Unavailable label="max pain view not available" />;
+  const W = 1200;
+  const H = 280;
+  const padL = 40;
+  const padR = 30;
+  const padT = 24;
+  const padB = 28;
+  const cw = W - padL - padR;
+  const ch = H - padT - padB;
+  const maxPain = rows[0].max_pain_strike;
+
+  const sMin = Math.min(...rows.map((r) => r.candidate_strike));
+  const sMax = Math.max(...rows.map((r) => r.candidate_strike));
+  const sRange = sMax - sMin || 1;
+  const x = (s: number) => padL + ((s - sMin) / sRange) * cw;
+  const yMax = Math.max(...rows.map((r) => r.total_pain)) || 1;
+  const y = (v: number) => padT + ch - (v / yMax) * ch;
+  const bw = Math.max(2, (cw / rows.length) * 0.75);
+
+  const tickStart = Math.ceil(sMin / step) * step;
+  const tickEnd = Math.floor(sMax / step) * step;
+  const rawTickCount = Math.max(0, Math.floor((tickEnd - tickStart) / step) + 1);
+  const thin = rawTickCount > 12 ? Math.ceil(rawTickCount / 10) : 1;
+  const ticks: number[] = [];
+  for (let t = tickStart, i = 0; t <= tickEnd; t += step, i++) {
+    if (i % thin === 0) ticks.push(t);
   }
-};
-
-// ---------- Page ----------
-export default function Marketview() {
-  const [symbol, setSymbol] = useState<MSymbol>("NIFTY");
-  const [frozen, setFrozen] = useState(false);
-  const [activeSignalIdx, setActiveSignalIdx] = useState(0);
-  const nav = useNavigate();
-  const refetchAll = useRefetchMarketview();
-
-  const marker = useSpotMarker(symbol);
-  const gamma = useGammaLatest(symbol);
-  const gammaSeries = useGammaSeries(symbol);
-  const signal = useLatestSignal(symbol);
-  const signals = useTodaysSignals(symbol);
-  const expiry = gamma.data?.expiry_date as string | undefined;
-  const strikes = useGexStrikes(symbol, expiry);
-  const pin = usePinZone(symbol, expiry);
-  const accel = useAccelZone(symbol, expiry);
-  const zones = useIctZones(symbol);
-  const dealer = useDealerFlow(symbol, expiry);
-  const straddle = useStraddleIntraday(symbol);
-  const [chartResetKey, setChartResetKey] = useState(0);
-  const strikeStep = symbol === "NIFTY" ? 50 : 100;
-
-  const spot = (gamma.data?.spot ?? spotFromMarker(marker.data) ?? 0) as number;
-  const spotSpark = useMemo(
-    () => (gammaSeries.data ?? []).map((r: any) => r.spot).filter((v) => v != null) as number[],
-    [gammaSeries.data],
-  );
-
-
-
-  const prevClose = (marker.data?.prev_close_spot ?? null) as number | null;
-  const changePct = prevClose && spot ? ((spot - prevClose) / prevClose) * 100 : 0;
-  const gapPct = (marker.data?.gap_open_pct ?? marker.data?.premarket_move_pct ?? 0) as number;
-  const vix = (gamma.data?.vix ?? signal.data?.india_vix ?? null) as number | null;
-  const breadthScore = (signal.data?.breadth_score ?? null) as number | null;
-  const regime = (gamma.data?.regime ?? signal.data?.gamma_regime ?? "—") as string;
-  const breadthRegime = (gamma.data?.breadth_regime ?? signal.data?.breadth_regime ?? null) as string | null;
-
-  // dte from gamma_metrics.dte
-  const dteHours = (gamma.data?.dte ?? 0) * 24;
-
-  // session phase heuristic: morning/mid/afternoon based on IST hour
-  const sessionPhase = useMemo(() => {
-    const h = new Date().getUTCHours() + 5.5;
-    const hr = ((h % 24) + 24) % 24;
-    if (hr < 9.25) return "premarket";
-    if (hr < 11) return "morning";
-    if (hr < 13.5) return "midday";
-    if (hr < 15.5) return "afternoon";
-    return "postmarket";
-  }, [gamma.dataUpdatedAt]);
-
-  // stale seconds — canonical clock is signal_snapshots.ts, threshold 5min
-  const signalTs = signal.data?.ts ? new Date(signal.data.ts).getTime() : null;
-  const staleSeconds = signalTs ? Math.max(0, Math.floor((Date.now() - signalTs) / 1000)) : null;
-  const STALE_THRESHOLD = 300;
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === "n" || e.key === "N") setSymbol("NIFTY");
-      else if (e.key === "s" || e.key === "S") setSymbol("SENSEX");
-      else if (e.key === "r" || e.key === "R") {
-        refetchAll();
-        setChartResetKey((k) => k + 1);
-      }
-      else if (e.key === " ") {
-        e.preventDefault();
-        setFrozen((f) => !f);
-      } else if (e.key === "e" || e.key === "E") nav("/order");
-      else if (e.key === "j" || e.key === "J")
-        setActiveSignalIdx((i) => Math.min(i + 1, (signals.data?.length ?? 1) - 1));
-      else if (e.key === "k" || e.key === "K") setActiveSignalIdx((i) => Math.max(i - 1, 0));
-      else if (e.key === "a" || e.key === "A") alert("Journal annotation modal (Phase 2)");
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [nav, refetchAll, signals.data?.length]);
-
-  const dteTone = dteHours === 0 ? "danger" : dteHours < 24 ? "warning" : "muted";
-  const regimeTone =
-    regime === "LONG_GAMMA" ? "success" : regime === "SHORT_GAMMA" ? "danger" : "warning";
-  const changeColor = changePct >= 0 ? "var(--color-success)" : "var(--color-danger)";
-
-  const zonesNearSpot = useMemo(() => {
-    if (!spot) return [];
-    return (zones.data ?? [])
-      .map((z: any) => {
-        const lo = z.zone_low ?? z.range_low;
-        const hi = z.zone_high ?? z.range_high;
-        return { z, lo, hi, mid: lo != null && hi != null ? (lo + hi) / 2 : null };
-      })
-      .filter((r) => r.mid != null)
-      .sort((a, b) => Math.abs((a.mid as number) - spot) - Math.abs((b.mid as number) - spot))
-      .slice(0, 10)
-      .map((r) => r.z);
-  }, [zones.data, spot]);
-
-  const activeSignal = signal.data;
-  const isLoading = marker.isLoading || gamma.isLoading;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((p) => p * yMax);
 
   return (
-    <div className="relative min-h-full bg-bg-primary text-text-primary">
-      {/* Header strip */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-border-tertiary px-4 py-2.5">
-        <div className="inline-flex items-center gap-1 rounded bg-bg-secondary p-0.5">
-          {(["NIFTY", "SENSEX"] as MSymbol[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setSymbol(s)}
-              className={`rounded px-2 py-0.5 text-[11px] font-medium leading-none transition-colors ${
-                symbol === s ? "bg-bg-primary border border-border-tertiary text-text-primary" : "text-text-secondary"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-
-        <span className="mono text-[18px] font-medium tabular-nums">{spot ? fmtNum(spot) : "—"}</span>
-        <span className="text-[11px] font-medium" style={{ color: changeColor }}>
-          {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
-        </span>
-        <Sparkline data={spotSpark} color={changeColor} />
-
-        <span className="text-[11px] font-medium" style={{ color: gapPct >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
-          gap {gapPct >= 0 ? "+" : ""}{gapPct.toFixed(2)}%
-        </span>
-
-        <Chip tone={dteTone as any} title={`${dteHours}h to expiry`}>dte {dteHours}h</Chip>
-        <Chip tone={regimeTone as any}>{regime.toLowerCase().replace("_", " ")}</Chip>
-        {breadthRegime && <Chip tone="muted">{breadthRegime.toLowerCase()}</Chip>}
-        <Chip tone="info">{sessionPhase}</Chip>
-        {vix != null && (
-          <span className="text-[11px]">
-            <span className="text-text-tertiary">vix </span>
-            <span className="text-text-primary">{vix.toFixed(1)}</span>
-          </span>
-        )}
-
-        <div className="flex-1" />
-
-        <button
-          onClick={() => refetchAll()}
-          title="Refetch all (R)"
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-text-secondary hover:bg-bg-secondary"
-        >
-          <RefreshCw size={12} /> r
-        </button>
-
-        {breadthScore != null && (
-          <span className="text-[11px]" style={{ color: breadthScore >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
-            breadth {breadthScore >= 0 ? "+" : ""}{breadthScore.toFixed(0)}
-          </span>
-        )}
-        {frozen && <Chip tone="warning">frozen</Chip>}
-        {staleSeconds != null && staleSeconds > STALE_THRESHOLD && (
-          <Chip tone="danger" onClick={() => nav("/health")}>
-            stale {staleSeconds}s
-          </Chip>
-        )}
-        {isLoading && <Chip tone="muted">loading…</Chip>}
-      </div>
-
-      {/* Signal row */}
-      {activeSignal && (
-        <div className="flex items-center gap-2.5 border-b border-border-tertiary bg-bg-secondary px-4 py-2.5">
-          <Target size={14} className="text-text-secondary" />
-          <span className="text-[13px] font-medium">
-            {(activeSignal.action ?? "").replace("_", " ")} {activeSignal.atm_strike ? fmtNum(activeSignal.atm_strike) : ""}
-          </span>
-          <span className="text-[11px] text-text-secondary">conf {activeSignal.confidence_score?.toFixed?.(0) ?? "—"}</span>
-          <Chip tone={activeSignal.trade_allowed ? "success" : "danger"}>
-            {activeSignal.trade_allowed ? "allowed" : "blocked"}
-          </Chip>
-          <Chip tone={qualityTone(activeSignal.entry_quality)} title="entry quality">
-            quality {activeSignal.entry_quality ?? "—"}
-          </Chip>
-          <div className="flex-1" />
-          <button
-            onClick={() => nav(`/order?strike=${activeSignal.atm_strike}&action=${activeSignal.action}`)}
-            className="text-[11px] font-medium text-info-text hover:underline"
-          >
-            place order →
-          </button>
-        </div>
+    <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full">
+      {yTicks.map((v, i) => (
+        <g key={i}>
+          <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke={MV.border} strokeWidth="0.5" />
+          <text x={padL - 4} y={y(v) + 3} textAnchor="end" fontSize="9" fill={MV.weak} style={{ fontFamily: MV.mono }}>
+            {fmtBillion(v)}
+          </text>
+        </g>
+      ))}
+      {rows.map((r) => {
+        const color = r.side === "MAX_PAIN" ? MV.amber : r.side === "PE_SIDE" ? MV.pink : MV.blueLine;
+        return (
+          <rect
+            key={r.candidate_strike}
+            x={x(r.candidate_strike) - bw / 2}
+            y={y(r.total_pain)}
+            width={bw}
+            height={Math.max(1, padT + ch - y(r.total_pain))}
+            fill={color}
+            opacity={0.85}
+          />
+        );
+      })}
+      {spot >= sMin && spot <= sMax && (
+        <>
+          <line x1={x(spot)} x2={x(spot)} y1={padT - 8} y2={H - padB} stroke={MV.blue} strokeWidth="1.5" />
+          <text x={x(spot)} y={padT - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill={MV.blue} style={{ fontFamily: MV.mono }}>
+            ▼ SPOT {fmtNum(spot)}
+          </text>
+        </>
       )}
-
-      {/* Hero chart */}
-      <div className="px-4 pb-3 pt-4">
-        <HeroChart
-          spot={spot}
-          bars={(strikes.data ?? []) as any}
-          pin={pin.data as any}
-          accel={accel.data as any}
-          ictZones={zones.data ?? []}
-          step={strikeStep}
-          resetKey={chartResetKey}
-        />
-        <div className="mt-1 text-[9px] text-text-tertiary">
-          scroll to zoom · drag to pan · r to reset · ticks every {strikeStep}pt
-        </div>
-      </div>
-
-      {/* Dealer flow */}
-      <div className="border-y border-border-tertiary px-4 py-3">
-        <div className="mb-1.5 text-[10px] uppercase tracking-[1px] text-text-tertiary">
-          dealer flow · {dealer.data?.length ?? 0} scenarios
-        </div>
-        <div className="grid grid-cols-6 gap-1">
-          {(dealer.data ?? []).slice(0, 6).map((c: any) => {
-            const pct = (c.spot_pct ?? 0) * 100;
-            const cr = c.flow_cr ?? 0;
-            const big = Math.abs(cr) > 100;
-            return (
-              <div key={c.scenario ?? pct} className="rounded bg-bg-secondary px-1 py-1.5 text-center">
-                <div className="text-[9px] text-text-tertiary">
-                  {pct > 0 ? "+" : ""}{pct.toFixed(1)}%
-                </div>
-                <div className="mono text-[11px] font-medium" style={{ color: big ? "var(--color-danger-text)" : "var(--color-warning-text)" }}>
-                  {cr >= 0 ? "+" : ""}{cr.toFixed(0)} Cr
-                </div>
-              </div>
-            );
-          })}
-          {!dealer.data?.length && (
-            <div className="col-span-6 text-center text-[10px] text-text-tertiary">no dealer flow data</div>
-          )}
-        </div>
-      </div>
-
-      {/* Secondary row */}
-      <div className="border-b border-border-tertiary px-4 py-3">
-        <div className="mb-1.5 text-[10px] uppercase tracking-[1px] text-text-tertiary">
-          secondary · context panels
-        </div>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-          <div className="rounded-md border border-border-tertiary bg-bg-primary p-2.5">
-            <div className="mb-1 flex items-center gap-1.5">
-              <TargetArrow size={13} className="text-text-secondary" />
-              <span className="text-[11px] font-medium">ICT zones · nearest 10</span>
-            </div>
-            <ul className="space-y-0.5 text-[10px] leading-snug text-text-secondary">
-              {zonesNearSpot.length === 0 ? (
-                <li className="text-text-tertiary">— none near spot —</li>
-              ) : (
-                zonesNearSpot.map((z: any, i: number) => (
-                  <li key={i} className="cursor-pointer hover:text-text-primary">
-                    {(z.ict_tier ?? z.tf ?? "")} {z.pattern_type ?? z.type} · {fmtNum(z.zone_low ?? z.range_low)}-{fmtNum(z.zone_high ?? z.range_high)}
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-
-          <div className="rounded-md border border-border-tertiary bg-bg-primary p-2.5">
-            <div className="mb-1 flex items-center gap-1.5">
-              <History size={13} className="text-text-secondary" />
-              <span className="text-[11px] font-medium">today's signals</span>
-            </div>
-            <ul className="space-y-0.5 text-[10px] leading-snug text-text-secondary">
-              {(signals.data ?? []).length === 0 ? (
-                <li className="text-text-tertiary">— no actionables yet —</li>
-              ) : (
-                (signals.data ?? []).slice(0, 8).map((s: any, i: number) => (
-                  <li
-                    key={i}
-                    onClick={() => setActiveSignalIdx(i)}
-                    className={`flex cursor-pointer items-center gap-1.5 hover:text-text-primary ${i === activeSignalIdx ? "text-text-primary" : ""}`}
-                  >
-                    <span>
-                      {new Date(s.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} {s.action} {s.atm_strike ? fmtNum(s.atm_strike) : ""}
-                    </span>
-                    <Chip tone={qualityTone(s.entry_quality)} className="ml-auto">{s.entry_quality ?? "—"}</Chip>
-                  </li>
-                ))
-              )}
-            </ul>
-            <div className="mt-1.5 text-[9px] text-text-tertiary">j/k → step</div>
-          </div>
-
-          <div className="rounded-md border border-border-tertiary bg-bg-primary p-2.5 md:col-span-2">
-            <StraddleIntradayChart
-              buckets={straddle.data?.buckets ?? []}
-              daysUsed={straddle.data?.daysUsed ?? 0}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* IV Skew placeholder */}
-      <div className="px-4 py-3" style={{ opacity: 0.55 }}>
-        <div className="mb-1.5 text-[10px] uppercase tracking-[1px] text-text-tertiary">
-          iv skew · phase 2 (enh-84)
-        </div>
-        <div className="rounded-md border border-dashed border-border-secondary bg-bg-secondary px-3 py-3.5 text-center text-[10px] text-text-tertiary">
-          smile from gamma_call/gamma_put across strike grid · ships with enh-84
-        </div>
-      </div>
-
-      <button
-        onClick={() => alert("Journal capture modal (Phase 2)")}
-        className="fixed bottom-5 right-5 flex h-9 w-9 items-center justify-center rounded-full border border-info bg-info-bg text-info-text hover:bg-info hover:text-white"
-        title="Annotate (A)"
-      >
-        <Plus size={18} />
-      </button>
-    </div>
+      {maxPain >= sMin && maxPain <= sMax && (
+        <>
+          <line x1={x(maxPain)} x2={x(maxPain)} y1={padT} y2={H - padB} stroke={MV.amber} strokeWidth="1" strokeDasharray="3,2" />
+          <text x={x(maxPain) + 4} y={padT + 12} fontSize="10" fontWeight="600" fill={MV.amber}>
+            max pain {fmtNum(maxPain)}
+          </text>
+        </>
+      )}
+      {ticks.map((s) => (
+        <g key={s}>
+          <line x1={x(s)} x2={x(s)} y1={H - padB} y2={H - padB + 3} stroke={MV.weak} strokeWidth="0.5" />
+          <text x={x(s)} y={H - 8} textAnchor="middle" fontSize="9" fill={MV.weak} style={{ fontFamily: MV.mono }}>
+            {fmtNum(s, { maximumFractionDigits: 0 })}
+          </text>
+        </g>
+      ))}
+    </svg>
   );
 }
 
-function StraddleIntradayChart({ buckets, daysUsed }: { buckets: StraddleBucket[]; daysUsed: number }) {
-  const W = 560;
-  const H = 180;
-  const padL = 36;
-  const padR = 10;
-  const padT = 24;
-  const padB = 22;
+// ============================================================
+// Pin Risk Timeline (twin axis)
+// ============================================================
+function PinRiskTimeline({ rows }: { rows: Array<{ ts: string; spot: number | null; pin_risk_score: number | null }> }) {
+  if (!rows?.length) return <Unavailable label="no intraday pin-risk data yet" />;
+  const W = 1200;
+  const H = 220;
+  const padL = 40;
+  const padR = 50;
+  const padT = 18;
+  const padB = 28;
   const cw = W - padL - padR;
   const ch = H - padT - padB;
 
-  // Fixed x-domain 09:15–15:30 IST → minutes 555..930
-  const X_MIN = 555;
-  const X_MAX = 930;
-  const x = (mins: number) => padL + ((mins - X_MIN) / (X_MAX - X_MIN)) * cw;
+  const ist = (iso: string) => {
+    const t = new Date(iso).getTime() + 5.5 * 3600 * 1000;
+    const d = new Date(t);
+    return d.getUTCHours() * 60 + d.getUTCMinutes();
+  };
+  const X_MIN = 555, X_MAX = 930;
+  const x = (m: number) => padL + ((m - X_MIN) / (X_MAX - X_MIN)) * cw;
 
+  const yLeft = (v: number) => padT + ch - (v / 100) * ch;
+
+  const spots = rows.map((r) => r.spot).filter((v): v is number => v != null);
+  const sLo = spots.length ? Math.min(...spots) : 0;
+  const sHi = spots.length ? Math.max(...spots) : 1;
+  const sPad = (sHi - sLo) * 0.1 || 1;
+  const sLo2 = sLo - sPad, sHi2 = sHi + sPad;
+  const yRight = (v: number) => padT + ch - ((v - sLo2) / (sHi2 - sLo2)) * ch;
+
+  const scorePath = rows
+    .filter((r) => r.pin_risk_score != null)
+    .map((r, i) => `${i === 0 ? "M" : "L"}${x(ist(r.ts)).toFixed(1)},${yLeft(r.pin_risk_score!).toFixed(1)}`)
+    .join(" ");
+  const spotPath = rows
+    .filter((r) => r.spot != null)
+    .map((r, i) => `${i === 0 ? "M" : "L"}${x(ist(r.ts)).toFixed(1)},${yRight(r.spot!).toFixed(1)}`)
+    .join(" ");
+  const scoreArea = scorePath
+    ? `${scorePath} L${x(ist(rows[rows.length - 1].ts)).toFixed(1)},${(padT + ch).toFixed(1)} L${x(ist(rows[0].ts)).toFixed(1)},${(padT + ch).toFixed(1)} Z`
+    : "";
+
+  const xTicks = [555, 615, 675, 735, 795, 855, 915];
+  const fmtTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full">
+      {[
+        { v: 75, c: MV.green, l: "75 strong" },
+        { v: 50, c: MV.amber, l: "50 moderate" },
+        { v: 25, c: MV.weak, l: "25 weak" },
+      ].map((t) => (
+        <g key={t.v}>
+          <line x1={padL} x2={W - padR} y1={yLeft(t.v)} y2={yLeft(t.v)} stroke={t.c} strokeDasharray="3,4" strokeWidth="0.6" opacity={0.6} />
+          <text x={padL + 4} y={yLeft(t.v) - 3} fontSize="9" fill={t.c}>{t.l}</text>
+        </g>
+      ))}
+      {scoreArea && <path d={scoreArea} fill={MV.purple} opacity={0.12} />}
+      {scorePath && <path d={scorePath} fill="none" stroke={MV.purple} strokeWidth="1.6" />}
+      {spotPath && <path d={spotPath} fill="none" stroke={MV.blueLine} strokeWidth="1.5" opacity={0.85} />}
+      {xTicks.map((m) => (
+        <g key={m}>
+          <line x1={x(m)} x2={x(m)} y1={H - padB} y2={H - padB + 3} stroke={MV.weak} strokeWidth="0.5" />
+          <text x={x(m)} y={H - 8} textAnchor="middle" fontSize="9" fill={MV.weak} style={{ fontFamily: MV.mono }}>
+            {fmtTime(m)}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// ============================================================
+// Straddle intraday (preserved)
+// ============================================================
+function StraddleIntradayChart({ buckets, daysUsed }: { buckets: StraddleBucket[]; daysUsed: number }) {
+  const W = 560, H = 60;
+  const padL = 4, padR = 4, padT = 4, padB = 14;
+  const cw = W - padL - padR;
+  const ch = H - padT - padB;
+  const X_MIN = 555, X_MAX = 930;
+  const x = (m: number) => padL + ((m - X_MIN) / (X_MAX - X_MIN)) * cw;
   const vals: number[] = [];
   buckets.forEach((b) => {
     if (b.today != null) vals.push(b.today);
@@ -678,85 +641,625 @@ function StraddleIntradayChart({ buckets, daysUsed }: { buckets: StraddleBucket[
   const yLo = Math.max(0, yMin - pad);
   const yHi = yMax + pad;
   const y = (v: number) => padT + (1 - (v - yLo) / (yHi - yLo)) * ch;
-
-  // Build polylines, breaking on null
   const toPath = (sel: (b: StraddleBucket) => number | null) => {
     let d = "";
     let pen = false;
     buckets.forEach((b) => {
       const v = sel(b);
-      if (v == null) {
-        pen = false;
-        return;
-      }
+      if (v == null) { pen = false; return; }
       d += `${pen ? "L" : "M"}${x(b.bucket).toFixed(1)},${y(v).toFixed(1)} `;
       pen = true;
     });
     return d.trim();
   };
-  const todayPath = toPath((b) => b.today);
-  const avgPath = toPath((b) => b.avg);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block w-full" style={{ height: 56 }}>
+      {hasData && (
+        <>
+          <path d={toPath((b) => b.avg)} fill="none" stroke={MV.amber} strokeWidth="1" strokeDasharray="3,3" />
+          <path d={toPath((b) => b.today)} fill="none" stroke={MV.blueLine} strokeWidth="1.6" />
+        </>
+      )}
+      {!hasData && <text x={W / 2} y={H / 2} textAnchor="middle" fontSize="10" fill={MV.weak}>no straddle data</text>}
+    </svg>
+  );
+}
 
-  const todayLast = [...buckets].reverse().find((b) => b.today != null);
-  const avgAtNow = todayLast ? buckets.find((b) => b.bucket === todayLast.bucket)?.avg ?? null : null;
+// ============================================================
+// Page
+// ============================================================
+export default function Marketview() {
+  const [symbol, setSymbol] = useState<MSymbol>("NIFTY");
+  const [narrativeOpen, setNarrativeOpen] = useState(false);
+  const [tick, setTick] = useState(0);
+  const [chartResetKey, setChartResetKey] = useState(0);
+  const nav = useNavigate();
+  const refetchAll = useRefetchMarketview();
 
-  const xTicks = [555, 615, 675, 735, 795, 855, 915]; // 9:15,10:15,...,15:15
-  const fmtTime = (m: number) => {
-    const hh = Math.floor(m / 60);
-    const mm = m % 60;
-    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-  };
-  const yTicks = hasData ? [yLo, (yLo + yHi) / 2, yHi] : [];
+  // Live clock
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const marker = useSpotMarker(symbol);
+  const gamma = useGammaLatest(symbol);
+  const gammaSeries = useGammaSeries(symbol);
+  const gammaToday = useGammaToday(symbol);
+  const signal = useLatestSignal(symbol);
+  const signals = useTodaysSignals(symbol);
+  const expiry = (gamma.data?.expiry_date ?? gamma.data?.expiry) as string | undefined;
+  const strikes = useGexStrikes(symbol, expiry);
+  const pin = usePinZone(symbol, expiry);
+  const accel = useAccelZone(symbol, expiry);
+  const zones = useIctZones(symbol);
+  const straddle = useStraddleIntraday(symbol);
+  const maxPain = useMaxPainByStrike(symbol);
+  const breadth = useBreadthIntraday(symbol);
+
+  const strikeStep = symbol === "NIFTY" ? 50 : 100;
+  const g = gamma.data ?? ({} as any);
+  const spot = (g.spot ?? spotFromMarker(marker.data) ?? 0) as number;
+  const prevClose = (marker.data?.prev_close_spot ?? null) as number | null;
+  const changeAbs = prevClose && spot ? spot - prevClose : 0;
+  const changePct = prevClose && spot ? ((spot - prevClose) / prevClose) * 100 : 0;
+
+  const regime = (g.regime ?? null) as string | null;
+  const netDealerGamma = (g.net_dealer_gamma_cr ?? g.net_dealer_gamma ?? null) as number | null;
+  const sigmaPct = (g.sigma_pct_to_expiry ?? g.sigma_pct ?? null) as number | null;
+  const flipLevel = (g.flip_level ?? null) as number | null;
+  const maxGammaStrike = (g.max_gamma_strike ?? null) as number | null;
+  const peakGammaCr = (g.peak_gamma_cr ?? null) as number | null;
+  const pinRiskScore = (g.pin_risk_score ?? null) as number | null;
+  const pinProb = (g.pin_probability ?? g.pin_probability_top ?? null) as any;
+  const atmStraddle = (g.atm_straddle_premium ?? g.atm_straddle ?? null) as number | null;
+  const vix = (g.india_vix ?? g.vix ?? null) as number | null;
+  const dampenTotal = (g.dampen_total ?? null) as number | null;
+  const amplifyTotal = (g.amplify_total ?? null) as number | null;
+  const breadthRegime = (g.breadth_regime ?? null) as string | null;
+
+  // Live stale
+  const signalTs = signal.data?.ts ? new Date(signal.data.ts).getTime() : (g.ts ? new Date(g.ts).getTime() : null);
+  const staleSeconds = signalTs ? Math.max(0, Math.floor((Date.now() - signalTs) / 1000)) : null;
+  const dotColor = staleSeconds == null
+    ? MV.weak
+    : staleSeconds < 60 ? MV.green : staleSeconds < 300 ? MV.amber : MV.red;
+
+  // Keyboard
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "n" || e.key === "N") setSymbol("NIFTY");
+      else if (e.key === "s" || e.key === "S") setSymbol("SENSEX");
+      else if (e.key === "r" || e.key === "R") { refetchAll(); setChartResetKey((k) => k + 1); }
+      else if (e.key === "Escape") setNarrativeOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [refetchAll]);
+
+  // Regime pill
+  const regimeUpper = (regime ?? "").toUpperCase();
+  const regimePill =
+    regimeUpper.includes("POSITIVE") || regimeUpper === "LONG_GAMMA"
+      ? { text: "POSITIVE_γ", bg: MV.greenBg, fg: MV.green, sub: "long dealer γ · mean-reverting" }
+      : regimeUpper.includes("NEGATIVE") || regimeUpper === "SHORT_GAMMA"
+        ? { text: "NEGATIVE_γ", bg: MV.redBg, fg: MV.red, sub: "short dealer γ · trending" }
+        : regime
+          ? { text: regimeUpper, bg: MV.blueBg, fg: MV.blue, sub: "" }
+          : null;
+
+  const dte = formatDTE(expiry);
+
+  // ICT zones near spot
+  const zonesNearSpot = useMemo(() => {
+    if (!spot) return [];
+    return (zones.data ?? [])
+      .map((z: any) => {
+        const lo = z.zone_low ?? z.range_low;
+        const hi = z.zone_high ?? z.range_high;
+        return { z, lo, hi, mid: lo != null && hi != null ? (lo + hi) / 2 : null };
+      })
+      .filter((r) => r.mid != null)
+      .sort((a, b) => Math.abs((a.mid as number) - spot) - Math.abs((b.mid as number) - spot))
+      .slice(0, 10);
+  }, [zones.data, spot]);
+
+  // Pain insights
+  const maxPainStrike = maxPain.data?.[0]?.max_pain_strike ?? null;
+  const painSpotDistPct = maxPainStrike && spot ? ((spot - maxPainStrike) / maxPainStrike) * 100 : null;
+  const gammaPainGap = maxPainStrike && maxGammaStrike ? Math.abs(maxGammaStrike - maxPainStrike) : null;
+  const pinBias =
+    gammaPainGap == null ? null :
+    gammaPainGap < 200 ? { text: "CONVERGENT", color: MV.green } :
+    gammaPainGap <= 500 ? { text: "DIVERGENT", color: MV.amber } :
+    { text: "WIDE", color: MV.red };
+
+  const istNow = useMemo(() => {
+    void tick;
+    const d = new Date(Date.now() + 5.5 * 3600 * 1000);
+    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}:${String(d.getUTCSeconds()).padStart(2, "0")}`;
+  }, [tick]);
 
   return (
-    <div>
-      <div className="mb-1 flex items-center gap-1.5">
-        <LineChartIcon size={13} className="text-text-secondary" />
-        <span className="text-[11px] font-medium">atm straddle · intraday</span>
-        <span className="ml-auto text-[10px] text-text-secondary">
-          {todayLast?.today != null ? <>₹{todayLast.today.toFixed(0)}</> : "—"}
-          <span className="text-text-tertiary"> · {daysUsed}d avg ₹{avgAtNow != null ? avgAtNow.toFixed(0) : "—"}</span>
-        </span>
+    <div className="min-h-full" style={{ background: MV.bg, color: MV.strong, fontFamily: "var(--mv-font-sans)" }}>
+      {/* ============== HEADER ============== */}
+      <div
+        className="sticky top-0 z-20 flex items-center gap-6 px-7 py-3"
+        style={{ background: MV.card, borderBottom: `1px solid ${MV.border}` }}
+      >
+        {/* Tabs */}
+        <div className="flex items-center gap-1">
+          {(["NIFTY", "SENSEX", "BANKNIFTY"] as const).map((s) => {
+            const active = (symbol as string) === s;
+            const disabled = s === "BANKNIFTY";
+            return (
+              <button
+                key={s}
+                onClick={() => !disabled && setSymbol(s as MSymbol)}
+                disabled={disabled}
+                className="rounded px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors"
+                style={{
+                  background: active ? MV.strong : "transparent",
+                  color: active ? "white" : disabled ? MV.vweak : MV.mid,
+                  cursor: disabled ? "not-allowed" : "pointer",
+                }}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
+
+
+        <div className="flex-1" />
+
+        {/* SPOT */}
+        <div className="text-center">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>SPOT</div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-[22px] font-bold tabular-nums" style={{ fontFamily: MV.mono }}>{spot ? fmtNum(spot) : "—"}</span>
+            <span className="text-[13px] font-semibold tabular-nums" style={{ color: changePct >= 0 ? MV.green : MV.red, fontFamily: MV.mono }}>
+              {fmtSigned(changeAbs)} ({fmtPct(changePct)})
+            </span>
+          </div>
+        </div>
+
+        {/* EXPIRY */}
+        <div className="text-center">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>EXPIRY</div>
+          <div className="text-[14px] font-bold" style={{ fontFamily: MV.mono }}>
+            {expiry ? new Date(expiry).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+          </div>
+          <div className="text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+            {dte} to expiry
+          </div>
+        </div>
+
+        <div className="flex-1" />
+
+        {/* LIVE + Narrative */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-[11px]" style={{ color: MV.mid, fontFamily: MV.mono }}>
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full" style={{ background: dotColor }} />
+            LIVE · {istNow}
+          </div>
+          <button
+            onClick={() => refetchAll()}
+            title="Refetch (R)"
+            className="rounded p-1 hover:bg-gray-100"
+            style={{ color: MV.weak }}
+          >
+            <RefreshCw size={13} />
+          </button>
+          <button
+            onClick={() => setNarrativeOpen(true)}
+            className="rounded border px-3 py-1.5 text-[11px] font-semibold tracking-wide transition-colors hover:bg-gray-900 hover:text-white"
+            style={{ borderColor: MV.border, color: MV.strong }}
+          >
+            Narrative →
+          </button>
+        </div>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full">
-        {/* grid */}
-        {yTicks.map((v, i) => (
-          <g key={i}>
-            <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="var(--color-border-tertiary)" strokeWidth="0.5" />
-            <text x={padL - 4} y={y(v) + 3} textAnchor="end" fontSize="9" fill="var(--color-text-tertiary)">
-              ₹{Math.round(v)}
-            </text>
-          </g>
-        ))}
-        {xTicks.map((m) => (
-          <g key={m}>
-            <line x1={x(m)} x2={x(m)} y1={H - padB} y2={H - padB + 3} stroke="var(--color-text-tertiary)" strokeWidth="0.5" />
-            <text x={x(m)} y={H - 6} textAnchor="middle" fontSize="9" fill="var(--color-text-tertiary)">
-              {fmtTime(m)}
-            </text>
-          </g>
-        ))}
-        {/* avg dashed orange */}
-        {avgPath && (
-          <path d={avgPath} fill="none" stroke="#e07b3a" strokeWidth="1.25" strokeDasharray="4,3" />
-        )}
-        {/* today solid blue */}
-        {todayPath && <path d={todayPath} fill="none" stroke="#185fa5" strokeWidth="1.75" />}
 
-        {!hasData && (
-          <text x={W / 2} y={H / 2} textAnchor="middle" fontSize="11" fill="var(--color-text-tertiary)">
-            no straddle data
-          </text>
-        )}
+      {/* Content */}
+      <div className="mx-auto max-w-[1440px] px-7 py-5 space-y-5">
 
-        {/* legend */}
-        <g transform={`translate(${padL}, ${padT - 12})`}>
-          <line x1={0} x2={14} y1={4} y2={4} stroke="#185fa5" strokeWidth="1.75" />
-          <text x={18} y={7} fontSize="9" fill="var(--color-text-secondary)">today</text>
-          <line x1={60} x2={74} y1={4} y2={4} stroke="#e07b3a" strokeWidth="1.25" strokeDasharray="4,3" />
-          <text x={78} y={7} fontSize="9" fill="var(--color-text-secondary)">{daysUsed || 5}d avg</text>
-        </g>
-      </svg>
+        {/* ============== SECTION 1: Key Parameters ============== */}
+        <div>
+          <SectionLabel>Key Parameters</SectionLabel>
+          <div className="flex flex-wrap gap-3">
+            <Tile
+              label="Regime"
+              value=""
+              pill={regimePill}
+              sub={regimePill?.sub}
+            />
+            <Tile
+              label="Net Dealer γ"
+              value={netDealerGamma != null ? `${fmtSigned(netDealerGamma)} Cr` : "—"}
+              valueColor={(netDealerGamma ?? 0) >= 0 ? MV.green : MV.red}
+              sub={dampenTotal != null || amplifyTotal != null
+                ? `Σdmp ${fmtNum(dampenTotal)}k · Σamp ${fmtNum(amplifyTotal)}`
+                : "no flow breakdown"}
+            />
+            <Tile
+              label="Spot Context"
+              value={sigmaPct != null ? `±${sigmaPct.toFixed(2)}%` : "—"}
+              sub={sigmaPct != null && spot ? `σ ${fmtNum(spot * (1 - sigmaPct / 100), { maximumFractionDigits: 0 })}–${fmtNum(spot * (1 + sigmaPct / 100), { maximumFractionDigits: 0 })} · ${dte}` : dte}
+            />
+            <Tile
+              label="Flip Level"
+              value={flipLevel != null ? fmtNum(flipLevel) : "—"}
+              sub={flipLevel != null && spot ? `${fmtPct(((flipLevel - spot) / spot) * 100)} from spot` : "no flip in window"}
+            />
+            <Tile
+              label="Max γ Strike"
+              value={maxGammaStrike != null ? fmtNum(maxGammaStrike) : "—"}
+              sub={maxGammaStrike && spot
+                ? `${fmtPct(((maxGammaStrike - spot) / spot) * 100)} from spot${peakGammaCr != null ? ` · pk ${fmtSigned(peakGammaCr)} Cr` : ""}`
+                : "—"}
+            />
+            <Tile
+              label="Pin Zone"
+              value={pin.data ? `${fmtNum(pin.data.pin_lower, { maximumFractionDigits: 0 })}–${fmtNum(pin.data.pin_upper, { maximumFractionDigits: 0 })}` : "—"}
+              sub={pin.data ? `pk ${fmtNum(pin.data.peak_pin_strike ?? pin.data.pin_strike, { maximumFractionDigits: 0 })}${pin.data.n_strikes != null ? ` · n=${pin.data.n_strikes}` : ""}${pin.data.tau_used != null ? ` · τ${pin.data.tau_used}` : ""}` : "—"}
+            />
+            <Tile
+              label="Accel Zone"
+              value={accel.data ? `${fmtNum(accel.data.accel_lower, { maximumFractionDigits: 0 })}–${fmtNum(accel.data.accel_upper, { maximumFractionDigits: 0 })}` : "—"}
+              sub={accel.data ? "active in window" : "none in window"}
+            />
+          </div>
+        </div>
+
+        {/* ============== SECTION 2: Positioning Landscape ============== */}
+        <div>
+          <SectionLabel>Positioning Landscape — Dealer γ by Strike</SectionLabel>
+          <Card
+            title="Dealer γ by Strike"
+            subtitle={`dampening (long γ) vs amplifying (short γ) · σ-band to expiry · ${strikes.data?.length ?? 0} strikes`}
+          >
+            <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-[11px]" style={{ fontFamily: MV.mono }}>
+              <Scalar label="net γ in window" value={netDealerGamma != null ? `${fmtSigned(netDealerGamma)} Cr` : "—"} color={(netDealerGamma ?? 0) >= 0 ? MV.green : MV.red} />
+              <Scalar label="Σ dampen" value={dampenTotal != null ? `${fmtSigned(dampenTotal)} Cr` : "—"} color={MV.green} />
+              <Scalar label="Σ amplify" value={amplifyTotal != null ? `${fmtSigned(amplifyTotal)} Cr` : "—"} color={MV.red} />
+              <Scalar label="strongest dampen" value={fmtNum(maxGammaStrike, { maximumFractionDigits: 0 })} />
+              <Scalar label="strongest amplify" value={flipLevel != null ? fmtNum(flipLevel, { maximumFractionDigits: 0 }) : "—"} />
+              <Scalar label="Σ to expiry" value={sigmaPct != null ? fmtPct(sigmaPct) : "—"} color={MV.blue} />
+            </div>
+            <HeroChart
+              spot={spot}
+              bars={(strikes.data ?? []) as any}
+              pin={pin.data as any}
+              accel={accel.data as any}
+              step={strikeStep}
+              resetKey={chartResetKey}
+              sigmaPct={sigmaPct}
+              maxGammaStrike={maxGammaStrike}
+              flipLevel={flipLevel}
+            />
+            <div className="mt-1 text-[9px]" style={{ color: MV.weak }}>scroll to zoom · drag to pan · r to reset</div>
+          </Card>
+        </div>
+
+        {/* ============== SECTION 3: Max Pain ============== */}
+        <div>
+          <SectionLabel>Max Pain — Total Option Pain by Strike</SectionLabel>
+          <Card
+            title="Max Pain by Strike"
+            subtitle="CE+PE writer pain · trough = max-pain magnet · pink PE-side / blue CE-side"
+          >
+            <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-[11px]" style={{ fontFamily: MV.mono }}>
+              <Scalar label="max pain" value={fmtNum(maxPainStrike, { maximumFractionDigits: 0 })} color={MV.amber} />
+              <Scalar label="dist from spot" value={fmtPct(painSpotDistPct)} color={(painSpotDistPct ?? 0) >= 0 ? MV.green : MV.red} />
+              <Scalar label="max γ" value={fmtNum(maxGammaStrike, { maximumFractionDigits: 0 })} color={MV.purple} />
+              <Scalar label="γ vs pain gap" value={gammaPainGap != null ? `${gammaPainGap} pts` : "—"} />
+              <Scalar label="pin bias" value={pinBias?.text ?? "—"} color={pinBias?.color} />
+            </div>
+            <MaxPainChart rows={(maxPain.data ?? []) as any} spot={spot} step={strikeStep} />
+            {maxPainStrike != null && (
+              <p className="mt-2 text-[11px] leading-relaxed" style={{ color: MV.mid }}>
+                Spot near max-pain magnet ({fmtNum(maxPainStrike, { maximumFractionDigits: 0 })}, {fmtPct(painSpotDistPct)}).
+                {maxGammaStrike != null && gammaPainGap != null && (
+                  <> Max γ ({fmtNum(maxGammaStrike, { maximumFractionDigits: 0 })}) and max pain only {gammaPainGap} pts apart — <span style={{ color: pinBias?.color, fontWeight: 600 }}>{pinBias?.text.toLowerCase()} pin pressure</span>.</>
+                )}
+              </p>
+            )}
+          </Card>
+        </div>
+
+        {/* ============== SECTION 4: Pin Risk Row ============== */}
+        <div>
+          <SectionLabel>Pin Risk & ATM</SectionLabel>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Card>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Pin Risk Score</div>
+              <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: MV.purple, fontFamily: MV.mono }}>
+                {pinRiskScore != null ? Math.round(pinRiskScore) : "—"}
+                <span className="text-[14px]" style={{ color: MV.weak }}>{pinRiskScore != null ? " /100" : ""}</span>
+              </div>
+              <div className="mt-2 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+                {pinRiskScore != null
+                  ? pinRiskScore >= 75 ? "strong pin · 75 threshold exceeded"
+                    : pinRiskScore >= 50 ? "moderate pin"
+                    : "weak pin"
+                  : "no pin-risk data"}
+              </div>
+              <div className="mt-3"><Gauge value={pinRiskScore ?? 0} color={MV.purple} /></div>
+              <div className="mt-1.5 flex justify-between text-[9px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+                <span>0</span><span>25 weak</span><span>50</span><span>75 strong</span><span>100</span>
+              </div>
+            </Card>
+
+            <Card>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Pin Probability</div>
+              {pinProb && typeof pinProb === "number" ? (
+                <>
+                  <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: MV.purple, fontFamily: MV.mono }}>
+                    {pinProb.toFixed(1)}%
+                  </div>
+                  <div className="mt-2 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+                    expiry within ±100pt of {fmtNum(maxGammaStrike, { maximumFractionDigits: 0 })}
+                  </div>
+                  <div className="mt-3"><Gauge value={pinProb} color={MV.purple} /></div>
+                </>
+              ) : Array.isArray(pinProb) && pinProb.length ? (
+                <>
+                  <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: MV.purple, fontFamily: MV.mono }}>
+                    {(pinProb[0].prob * 100).toFixed(1)}%
+                  </div>
+                  <div className="mt-2 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+                    expiry within ±100pt of {fmtNum(pinProb[0].strike, { maximumFractionDigits: 0 })}
+                  </div>
+                  <div className="mt-3 space-y-1.5">
+                    {pinProb.slice(0, 3).map((p: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-[10px]" style={{ fontFamily: MV.mono }}>
+                        <span className="w-14 text-right" style={{ color: MV.mid }}>{fmtNum(p.strike, { maximumFractionDigits: 0 })}</span>
+                        <Gauge value={p.prob * 100} color={i === 0 ? MV.purple : MV.vweak} />
+                        <span className="w-10" style={{ color: MV.weak }}>{(p.prob * 100).toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <Unavailable label="pin_probability not exposed" />
+              )}
+            </Card>
+
+            <Card>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>ATM Straddle</div>
+                  <div className="mt-1 text-[30px] font-bold leading-none" style={{ fontFamily: MV.mono }}>
+                    ₹{atmStraddle != null ? Math.round(atmStraddle) : "—"}
+                    <span className="ml-1 text-[12px] font-normal" style={{ color: MV.weak }}>today</span>
+                  </div>
+                </div>
+                {(() => {
+                  const last = [...(straddle.data?.buckets ?? [])].reverse().find((b) => b.today != null);
+                  const avg = last ? straddle.data!.buckets.find((b) => b.bucket === last.bucket)?.avg ?? null : null;
+                  if (last?.today == null || avg == null) return null;
+                  const diffPct = ((last.today - avg) / avg) * 100;
+                  return (
+                    <div className="text-[11px] font-medium" style={{ color: diffPct >= 0 ? MV.green : MV.red, fontFamily: MV.mono }}>
+                      {fmtPct(diffPct, 1)} vs avg
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="mt-3">
+                <StraddleIntradayChart
+                  buckets={straddle.data?.buckets ?? []}
+                  daysUsed={straddle.data?.daysUsed ?? 0}
+                />
+              </div>
+              <div className="mt-1 flex justify-between text-[9px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+                <span>09:15 intraday</span>
+                <span>{straddle.data?.daysUsed ?? 5}d avg</span>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* ============== SECTION 5: Pin Risk Timeline ============== */}
+        <div>
+          <SectionLabel>Pin Risk Timeline</SectionLabel>
+          <Card
+            title="Pin Risk Timeline"
+            subtitle="intraday pin-score (purple, L axis) vs spot (blue, R axis) · today's session"
+          >
+            <PinRiskTimeline rows={(gammaToday.data ?? []) as any} />
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[10px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+              <span><span style={{ color: MV.purple }}>●</span> pin score {pinRiskScore != null ? Math.round(pinRiskScore) : "—"} / 100</span>
+              <span><span style={{ color: MV.blueLine }}>—</span> spot {fmtNum(spot, { maximumFractionDigits: 0 })}</span>
+              <span>{(gammaToday.data ?? []).length} samples</span>
+            </div>
+          </Card>
+        </div>
+
+        {/* ============== SECTION 6: Breadth & Volatility ============== */}
+        <div>
+          <SectionLabel>Breadth & Volatility</SectionLabel>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {/* WCB */}
+            <Card>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>WCB</div>
+              {breadth.data?.wcb != null ? (
+                <>
+                  <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: breadth.data.wcb >= 0 ? MV.green : MV.red, fontFamily: MV.mono }}>
+                    {fmtSigned(breadth.data.wcb)}
+                  </div>
+                  <div className="mt-3">
+                    <Sparkline data={[breadth.data.wcb]} color={breadth.data.wcb >= 0 ? MV.greenLine : MV.redLine} />
+                  </div>
+                </>
+              ) : <Unavailable />}
+            </Card>
+
+            {/* Market Breadth split bar */}
+            <Card>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Market Breadth</div>
+              {breadth.data?.advances != null && breadth.data?.declines != null ? (() => {
+                const a = breadth.data.advances, d = breadth.data.declines;
+                const tot = a + d || 1;
+                const adv = (a / tot) * 100;
+                return (
+                  <>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className="text-[30px] font-bold leading-none" style={{ fontFamily: MV.mono }}>{adv.toFixed(0)}%</span>
+                      <span className="text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>adv</span>
+                      <span className="ml-auto text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>A/D {(a / Math.max(d, 1)).toFixed(2)}</span>
+                    </div>
+                    <div className="mt-4 flex h-7 w-full overflow-hidden rounded">
+                      <div className="flex items-center justify-start pl-2 text-[10px] font-semibold text-white" style={{ width: `${adv}%`, background: MV.greenLine, fontFamily: MV.mono }}>
+                        ↑ {a}
+                      </div>
+                      <div className="flex items-center justify-end pr-2 text-[10px] font-semibold text-white" style={{ width: `${100 - adv}%`, background: MV.redLine, fontFamily: MV.mono }}>
+                        {d} ↓
+                      </div>
+                    </div>
+                    <div className="mt-1 flex justify-between text-[9px]" style={{ color: MV.weak }}>
+                      <span>advancing</span><span>declining</span>
+                    </div>
+                  </>
+                );
+              })() : <Unavailable />}
+            </Card>
+
+            {/* VIX */}
+            <Card>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>India VIX</div>
+              {vix != null ? (
+                <>
+                  <div className="mt-1 text-[30px] font-bold leading-none" style={{ fontFamily: MV.mono }}>{vix.toFixed(2)}</div>
+                  <div className="mt-3">
+                    <Sparkline data={[vix]} color={MV.amber} />
+                  </div>
+                </>
+              ) : <Unavailable label="VIX not exposed" />}
+            </Card>
+
+            {/* IV Skew */}
+            <Card>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>IV Skew</div>
+              <Unavailable label="coming soon · needs ce_iv/pe_iv" />
+            </Card>
+          </div>
+        </div>
+
+        {/* ============== SECTION 7: ICT Zones ============== */}
+        <div>
+          <SectionLabel>ICT Zones — Nearest to Spot</SectionLabel>
+          <Card title="Active Zones" subtitle={`${zonesNearSpot.length} of ${zones.data?.length ?? 0} · sorted by distance to spot`}>
+            {zonesNearSpot.length === 0 ? (
+              <Unavailable label="no zones near spot" />
+            ) : (
+              <ul className="divide-y" style={{ borderColor: MV.border }}>
+                {zonesNearSpot.map((row: any, i: number) => {
+                  const { z, lo, hi, mid } = row;
+                  const tier = z.ict_tier ?? z.tier ?? "";
+                  const pat = z.pattern_type ?? z.type ?? "";
+                  const tf = z.tf ?? z.timeframe ?? "";
+                  const distPct = mid != null && spot ? ((mid - spot) / spot) * 100 : 0;
+                  const above = distPct >= 0;
+                  const tierColor = String(tier).includes("1") ? { bg: MV.greenBg, fg: MV.green }
+                    : String(tier).includes("2") ? { bg: MV.amberBg, fg: MV.amber }
+                    : { bg: "#f3f4f6", fg: MV.weak };
+                  return (
+                    <li key={i} className="flex items-center justify-between py-2 text-[11px]">
+                      <div className="flex items-center gap-2" style={{ fontFamily: MV.mono }}>
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: tierColor.bg, color: tierColor.fg }}>
+                          {tier || "—"}
+                        </span>
+                        <span className="font-semibold" style={{ color: MV.strong }}>{pat}</span>
+                        <span style={{ color: MV.weak }}>· {tf}</span>
+                        {z.detected_at_ts && <span style={{ color: MV.weak }}>· src {new Date(z.detected_at_ts).toISOString().slice(0, 10)}</span>}
+                      </div>
+                      <div className="flex items-center gap-2" style={{ fontFamily: MV.mono }}>
+                        <span style={{ color: MV.mid }}>{fmtNum(lo, { maximumFractionDigits: 0 })} — {fmtNum(hi, { maximumFractionDigits: 0 })}</span>
+                        <span style={{ color: above ? MV.red : MV.green, fontWeight: 600 }}>
+                          {fmtPct(distPct)} {above ? "above" : "below"}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+        </div>
+
+        {/* ============== SECTION 8: Signals stream ============== */}
+        <div>
+          <SectionLabel>Today's Signals — Stream</SectionLabel>
+          <Card title="Live Signal Stream" subtitle="most recent first">
+            {(signals.data ?? []).length === 0 ? (
+              <Unavailable label="no signals yet today" />
+            ) : (
+              <ul className="divide-y" style={{ borderColor: MV.border }}>
+                {(signals.data ?? []).slice(0, 15).map((s: any, i: number) => {
+                  const tone = qualityTone(s.entry_quality);
+                  const time = new Date(s.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
+                  const action = (s.action ?? "").toUpperCase();
+                  return (
+                    <li key={i} className="flex items-center justify-between py-2 text-[11px]" style={{ fontFamily: MV.mono }}>
+                      <div className="flex items-center gap-3">
+                        <span style={{ color: MV.weak }}>{time}</span>
+                        <span className="font-semibold" style={{ color: MV.strong }}>{s.atm_strike ? fmtNum(s.atm_strike, { maximumFractionDigits: 0 }) : "—"}</span>
+                        {s.entry_quality === "SKIP" && <span style={{ color: MV.weak }}>· gate</span>}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: tone.bg, color: tone.fg }}>
+                          {(s.entry_quality ?? "—").toUpperCase()}
+                        </span>
+                        <span className="font-semibold tracking-wider" style={{ color: action.includes("CE") ? MV.green : action.includes("PE") ? MV.red : MV.weak }}>
+                          {action || "DO_NOTHING"}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+        </div>
+      </div>
+
+      {/* Floating annotate */}
+      <button
+        onClick={() => alert("Journal capture modal (Phase 2)")}
+        className="fixed bottom-5 right-5 flex h-10 w-10 items-center justify-center rounded-full shadow-lg"
+        style={{ background: MV.blue, color: "white" }}
+        title="Annotate"
+      >
+        <Plus size={18} />
+      </button>
+
+      <NarrativeModal
+        open={narrativeOpen}
+        onClose={() => setNarrativeOpen(false)}
+        symbol={symbol}
+        expiry={expiry ? new Date(expiry).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+        state={{
+          regime,
+          netDealerGamma,
+          maxGammaStrike,
+          maxPainStrike,
+          pinScore: pinRiskScore,
+          vix,
+        }}
+      />
+    </div>
+  );
+}
+
+function Scalar({ label, value, color }: { label: string; value: React.ReactNode; color?: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>{label}</span>
+      <span className="text-[13px] font-bold tabular-nums" style={{ color: color ?? MV.strong, fontFamily: MV.mono }}>{value}</span>
     </div>
   );
 }

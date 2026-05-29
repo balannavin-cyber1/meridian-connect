@@ -303,6 +303,7 @@ export function useRefetchMarketview() {
           "spotMarker",
           "gammaLatest",
           "gammaSeries",
+          "gammaToday",
           "signalLatest",
           "signalsToday",
           "gexStrikes",
@@ -311,11 +312,71 @@ export function useRefetchMarketview() {
           "ictZones",
           "dealerFlow",
           "straddleIntraday",
+          "maxPainByStrike",
+          "breadthIntraday",
         ].includes(k as string);
       },
     });
   };
 }
+
+// Today's gamma_metrics rows (for Pin Risk Timeline)
+export function useGammaToday(symbol: Symbol) {
+  return useQuery({
+    queryKey: ["gammaToday", symbol],
+    staleTime: MV_STALE,
+    queryFn: async () => {
+      const startIst = new Date();
+      startIst.setUTCHours(3, 45, 0, 0); // 09:15 IST = 03:45 UTC
+      const { data, error } = await supabase
+        .from("gamma_metrics")
+        .select("ts, spot, pin_risk_score")
+        .eq("symbol", symbol)
+        .gte("ts", startIst.toISOString())
+        .order("ts", { ascending: true });
+      if (error) return [];
+      return data ?? [];
+    },
+  });
+}
+
+// Max pain (defensive: view may not exist yet)
+export function useMaxPainByStrike(symbol: Symbol) {
+  return useQuery({
+    queryKey: ["maxPainByStrike", symbol],
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_max_pain_by_strike")
+        .select("candidate_strike, total_pain, max_pain_strike, side")
+        .eq("symbol", symbol)
+        .order("candidate_strike", { ascending: true });
+      if (error) return null;
+      return data;
+    },
+  });
+}
+
+// Market breadth (defensive: table may not exist)
+export function useBreadthIntraday(symbol: Symbol) {
+  return useQuery({
+    queryKey: ["breadthIntraday", symbol],
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("market_breadth_intraday")
+        .select("*")
+        .order("ts", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+  });
+}
+
 
 // ---------- Settings ----------
 
