@@ -320,7 +320,7 @@ export function useRefetchMarketview() {
   };
 }
 
-// Today's gamma_metrics rows (for Pin Risk Timeline)
+// Today's gamma_metrics rows (for Pin Risk Timeline + ATM straddle today series)
 export function useGammaToday(symbol: Symbol) {
   return useQuery({
     queryKey: ["gammaToday", symbol],
@@ -330,12 +330,63 @@ export function useGammaToday(symbol: Symbol) {
       startIst.setUTCHours(3, 45, 0, 0); // 09:15 IST = 03:45 UTC
       const { data, error } = await supabase
         .from("gamma_metrics")
-        .select("ts, spot, pin_risk_score")
+        .select("ts, spot, pin_risk_score, straddle_atm, expansion_probability")
         .eq("symbol", symbol)
         .gte("ts", startIst.toISOString())
         .order("ts", { ascending: true });
       if (error) return [];
       return data ?? [];
+    },
+  });
+}
+
+// IV smile from option_chain_snapshots (long format: one row per (strike, option_type))
+export function useIvSmile(symbol: Symbol, spot: number | null | undefined, step: number) {
+  return useQuery({
+    queryKey: ["ivSmile", symbol, spot, step],
+    enabled: !!spot && spot > 0,
+    staleTime: MV_STALE,
+    retry: false,
+    queryFn: async () => {
+      const atm = Math.round((spot as number) / step) * step;
+      const lo = atm - step * 5;
+      const hi = atm + step * 5;
+      const { data, error } = await supabase
+        .from("option_chain_snapshots")
+        .select("ts, strike, option_type, iv")
+        .eq("symbol", symbol)
+        .gte("strike", lo)
+        .lte("strike", hi)
+        .order("ts", { ascending: false })
+        .limit(2000);
+      if (error) return null;
+      const rows = (data ?? []) as any[];
+      if (!rows.length) return null;
+      // Filter to most recent ts only
+      const maxTs = rows[0].ts;
+      const latest = rows.filter((r) => r.ts === maxTs);
+      // Average CE+PE IV per strike for the smile curve
+      const byStrike = new Map<number, { ce: number | null; pe: number | null }>();
+      for (const r of latest) {
+        const entry = byStrike.get(r.strike) ?? { ce: null, pe: null };
+        if (r.option_type === "CE") entry.ce = r.iv;
+        else if (r.option_type === "PE") entry.pe = r.iv;
+        byStrike.set(r.strike, entry);
+      }
+      const points: { strike: number; iv: number }[] = [];
+      let atmCe: number | null = null;
+      let atmPe: number | null = null;
+      Array.from(byStrike.entries())
+        .sort((a, b) => a[0] - b[0])
+        .forEach(([strike, v]) => {
+          const ivs = [v.ce, v.pe].filter((x): x is number => x != null && x > 0);
+          if (ivs.length) points.push({ strike, iv: ivs.reduce((a, b) => a + b, 0) / ivs.length });
+          if (strike === atm) {
+            atmCe = v.ce && v.ce > 0 ? v.ce : null;
+            atmPe = v.pe && v.pe > 0 ? v.pe : null;
+          }
+        });
+      return { atm, points, atmCe, atmPe };
     },
   });
 }
