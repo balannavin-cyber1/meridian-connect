@@ -85,14 +85,24 @@ function spotFromMarker(m: any): number | null {
   );
 }
 
-function formatDTE(expiryISO: string | null | undefined): string {
+function formatDTE(expiryISO: string | null | undefined, dteDays?: number | null): string {
   if (!expiryISO) return "—";
-  const hours = (new Date(expiryISO).getTime() - Date.now()) / 3.6e6;
-  if (!Number.isFinite(hours)) return "—";
-  const d = Math.max(0, Math.floor(hours / 24));
-  const h = Math.max(0, Math.round(hours - d * 24));
+  const totalHours = (new Date(expiryISO).getTime() - Date.now()) / 3.6e6;
+  if (!Number.isFinite(totalHours)) return "—";
+  const d = dteDays != null && Number.isFinite(dteDays)
+    ? Math.max(0, Math.floor(dteDays))
+    : Math.max(0, Math.floor(totalHours / 24));
+  let h = Math.round(totalHours - d * 24);
+  if (h >= 24) return `${d + 1}d 0h`;
+  if (h < 0) h = 0;
   return `${d}d ${h}h`;
 }
+
+const REGIME_DISPLAY: Record<string, { label: string; bg: string; fg: string; desc: string }> = {
+  LONG_GAMMA: { label: "POSITIVE_γ", bg: "var(--mv-green-bg)", fg: "var(--mv-green)", desc: "long dealer γ · mean-reverting" },
+  SHORT_GAMMA: { label: "NEGATIVE_γ", bg: "var(--mv-red-bg)", fg: "var(--mv-red)", desc: "short dealer γ · trend-amplifying" },
+  NO_FLIP: { label: "NO_FLIP", bg: "var(--mv-blue-bg)", fg: "var(--mv-blue)", desc: "no flip in window" },
+};
 
 const qualityTone = (q?: string | null) => {
   switch ((q ?? "").toUpperCase()) {
