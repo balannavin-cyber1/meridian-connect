@@ -314,6 +314,7 @@ export function useRefetchMarketview() {
           "straddleIntraday",
           "maxPainByStrike",
           "breadthIntraday",
+          "wcbLatest",
           "ivSmile",
         ].includes(k as string);
       },
@@ -428,6 +429,30 @@ export function useBreadthIntraday(symbol: Symbol) {
     },
   });
 }
+
+// Weighted Constituent Breadth (separate table; symbol column is index_symbol)
+export function useWcbLatest(symbol: Symbol) {
+  return useQuery({
+    queryKey: ["wcbLatest", symbol],
+    staleTime: MV_STALE,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("weighted_constituent_breadth_snapshots")
+        .select(
+          "ts, wcb_score, wcb_regime, weighted_advances_pct, weighted_pct_above_10dma, weighted_pct_above_20dma, weighted_pct_above_40dma, active_weight_pct",
+        )
+        .eq("index_symbol", symbol)
+        .order("ts", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+  });
+}
+
+
 
 
 // ---------- Settings ----------
