@@ -16,6 +16,7 @@ import {
   useStraddleIntraday,
   useMaxPainByStrike,
   useBreadthIntraday,
+  useWcbLatest,
   useIvSmile,
   type Symbol as MSymbol,
   type StraddleBucket,
