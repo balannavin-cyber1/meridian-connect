@@ -1110,17 +1110,48 @@ export default function Marketview() {
             {/* WCB */}
             <Card>
               <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>WCB</div>
-              {breadth.data?.wcb != null ? (
-                <>
-                  <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: breadth.data.wcb >= 0 ? MV.green : MV.red, fontFamily: MV.mono }}>
-                    {fmtSigned(breadth.data.wcb)}
-                  </div>
-                  <div className="mt-3">
-                    <Sparkline data={[breadth.data.wcb]} color={breadth.data.wcb >= 0 ? MV.greenLine : MV.redLine} />
-                  </div>
-                </>
-              ) : <Unavailable />}
+              {wcb.data ? (() => {
+                const w: any = wcb.data;
+                const score = w.wcb_score;
+                const regime = w.wcb_regime as string | null;
+                const regimeColor =
+                  regime === "BULLISH" ? MV.green : regime === "BEARISH" ? MV.red : MV.weak;
+                const Row = ({ label, value, suffix = "%" }: { label: string; value: any; suffix?: string }) =>
+                  value == null ? null : (
+                    <div className="flex items-baseline justify-between text-[11px]" style={{ fontFamily: MV.mono }}>
+                      <span style={{ color: MV.weak }}>{label}</span>
+                      <span>{Number(value).toFixed(1)}{suffix}</span>
+                    </div>
+                  );
+                return (
+                  <>
+                    <div className="mt-1 flex items-baseline gap-1">
+                      <span className="text-[30px] font-bold leading-none" style={{ fontFamily: MV.mono }}>
+                        {score != null ? Number(score).toFixed(1) : "—"}
+                      </span>
+                      <span className="text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>/100</span>
+                    </div>
+                    {regime && (
+                      <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: regimeColor }}>
+                        {regime}
+                      </div>
+                    )}
+                    <div className="mt-3 space-y-1">
+                      <Row label="adv" value={w.weighted_advances_pct} />
+                      <Row label=">10DMA" value={w.weighted_pct_above_10dma} />
+                      <Row label=">20DMA" value={w.weighted_pct_above_20dma} />
+                      <Row label=">40DMA" value={w.weighted_pct_above_40dma} />
+                    </div>
+                    {w.active_weight_pct != null && (
+                      <div className="mt-3 text-[10px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
+                        coverage {Number(w.active_weight_pct).toFixed(1)}%
+                      </div>
+                    )}
+                  </>
+                );
+              })() : <Unavailable />}
             </Card>
+
 
             {/* Market Breadth split bar */}
             <Card>
