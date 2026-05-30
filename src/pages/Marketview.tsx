@@ -708,6 +708,7 @@ export default function Marketview() {
   const straddle = useStraddleIntraday(symbol);
   const maxPain = useMaxPainByStrike(symbol);
   const breadth = useBreadthIntraday(symbol);
+  const wcb = useWcbLatest(symbol);
 
   const strikeStep = symbol === "NIFTY" ? 50 : 100;
   const g = gamma.data ?? ({} as any);
