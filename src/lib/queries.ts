@@ -332,7 +332,7 @@ export function useGammaToday(symbol: Symbol) {
       startIst.setUTCHours(3, 45, 0, 0); // 09:15 IST = 03:45 UTC
       const { data, error } = await supabase
         .from("gamma_metrics")
-        .select("ts, spot, pin_risk_score, straddle_atm, expansion_probability")
+        .select("ts, spot, pin_risk_score, straddle_atm, expansion_probability, net_gex")
         .eq("symbol", symbol)
         .gte("ts", startIst.toISOString())
         .order("ts", { ascending: true });
