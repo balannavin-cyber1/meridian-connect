@@ -87,7 +87,8 @@ function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
 function FourLensStrip({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
   const amb = useAmbient(symbol);
   const a: any = amb.data ?? null;
-  type Lens = { label: string; value: React.ReactNode; sub?: string; color?: string };
+  type Kind = "gamma" | "breadth" | "participant" | "macro";
+  type Lens = { label: string; value: React.ReactNode; sub?: string; tone?: string; kind: Kind };
   const toneOf = (v: any): string => {
     const s = String(v ?? "").toUpperCase();
     if (["POSITIVE", "LONG", "ALIGNED", "RISK_ON", "BULLISH", "SUPPORT"].some((k) => s.includes(k))) return MV.green;
@@ -96,12 +97,22 @@ function FourLensStrip({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
     return MV.weak;
   };
   const lenses: Lens[] = a ? [
-    { label: "Net GEX Regime", value: a.net_gex_regime ?? "—", color: toneOf(a.net_gex_regime) },
-    { label: "Price vs Breadth", value: a.price_vs_breadth_div ?? "—", color: toneOf(a.price_vs_breadth_div) },
-    { label: "OI Cycle Asymmetry", value: a.cycle_oi_call_put_asym ?? "—", color: toneOf(a.cycle_oi_call_put_asym) },
+    { label: "Net GEX Regime", value: a.net_gex_regime ?? "—", tone: toneOf(a.net_gex_regime), kind: "gamma" },
+    { label: "Price vs Breadth", value: a.price_vs_breadth_div ?? "—", tone: toneOf(a.price_vs_breadth_div), kind: "breadth" },
+    { label: "OI Cycle Asymmetry", value: a.cycle_oi_call_put_asym ?? "—", tone: toneOf(a.cycle_oi_call_put_asym), kind: "participant" },
     { label: "FII 5D Δ Fut L/S", value: a.fii_index_fut_ls_delta_5d != null ? fmtSigned(Number(a.fii_index_fut_ls_delta_5d)) : "—",
-      color: (a.fii_index_fut_ls_delta_5d ?? 0) >= 0 ? MV.green : MV.red },
+      tone: (a.fii_index_fut_ls_delta_5d ?? 0) >= 0 ? MV.green : MV.red, kind: "macro" },
   ] : [];
+
+  // Alarm color is driven by lens_alignment, not per-cell values.
+  // ALIGNED → all muted. DIVERGENT → only breadth+participant lit. Otherwise → all muted.
+  const alignment = a?.lens_alignment;
+  const isDivergent = alignment === "DIVERGENT";
+  const colorFor = (l: Lens): string => {
+    if (isDivergent && (l.kind === "breadth" || l.kind === "participant")) return l.tone ?? MV.strong;
+    return MV.strong;
+  };
+
   return (
     <div>
       <SectionLabel>Four Lens Strip</SectionLabel>
@@ -111,7 +122,7 @@ function FourLensStrip({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
             <div key={l.label} className="rounded-lg p-3"
               style={{ background: MV.card, border: `1px solid ${MV.border}` }}>
               <div className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>{l.label}</div>
-              <div className="mt-1 text-[15px] font-bold" style={{ color: l.color ?? MV.strong, fontFamily: MV.mono }}>{l.value}</div>
+              <div className="mt-1 text-[15px] font-bold" style={{ color: colorFor(l), fontFamily: MV.mono }}>{l.value}</div>
               {l.sub && <div className="mt-0.5 text-[10px]" style={{ color: MV.weak, fontFamily: MV.mono }}>{l.sub}</div>}
             </div>
           ))}
