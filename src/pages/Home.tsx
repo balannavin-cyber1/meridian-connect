@@ -11,9 +11,20 @@ import { useAmbient, useExpiryBaseRates, useExpiryOutcomes } from "@/lib/queries
 import { NarrativeModal } from "@/components/NarrativeModal";
 
 // ---------- Ambient verdict card ----------
-function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
+const normalizeRegime = (r: string | null | undefined): string | null => {
+  if (!r) return null;
+  const s = String(r).toUpperCase();
+  if (s === "LONG_GAMMA" || s === "POSITIVE_Γ" || s === "POSITIVE_GAMMA" || s.includes("POSITIVE")) return "POSITIVE_γ";
+  if (s === "SHORT_GAMMA" || s === "NEGATIVE_Γ" || s === "NEGATIVE_GAMMA" || s.includes("NEGATIVE")) return "NEGATIVE_γ";
+  return s;
+};
+
+function AmbientVerdict({ symbol, liveRegime }: { symbol: "NIFTY" | "SENSEX"; liveRegime: string | null }) {
   const amb = useAmbient(symbol);
   const a: any = amb.data ?? null;
+  const liveN = normalizeRegime(liveRegime);
+  const settledN = normalizeRegime(a?.net_gex_regime ?? null);
+  const drift = liveN && settledN && liveN !== settledN;
   const regime = a?.ambient_regime ?? null;
   const alignment = a?.lens_alignment ?? null;
   const note = a?.regime_conditional_note ?? null;
@@ -73,6 +84,12 @@ function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
             <div className="rounded-md px-3 py-2 text-[11px] leading-snug"
               style={{ background: MV.card, border: `1px dashed ${MV.border}`, color: MV.weak, fontFamily: MV.mono }}>
               open confirms the prior — {shiftText}
+            </div>
+          )}
+          {drift && (
+            <div className="rounded-md px-3 py-2 text-[12px] font-medium leading-snug"
+              style={{ background: MV.amber + "1f", border: `1px solid ${MV.amber}55`, color: MV.amber, fontFamily: MV.mono }}>
+              ⚠ INTRADAY DRIFT — dealers flipped to {liveN} since the open; the settled verdict ({settledN}) is stale until tonight's recompile.
             </div>
           )}
         </div>
@@ -214,7 +231,7 @@ export default function Home() {
         }
       />
       <SnapshotStrip s={s} />
-      <AmbientVerdict symbol={symbol} />
+      <AmbientVerdict symbol={symbol} liveRegime={s.regime} />
       <FourLensStrip symbol={symbol} />
       <KeyParametersSection s={s} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
