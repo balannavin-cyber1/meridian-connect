@@ -69,10 +69,11 @@ export function KeyParametersSection({ s }: { s: MvState }) {
     <div>
       <SectionLabel>Key Parameters</SectionLabel>
       <div className="flex flex-wrap gap-3">
-        <Tile label="Regime" value="" pill={regimePill} sub={regimePill?.sub} />
+        <Tile label="Regime" value="" pill={regimePill} sub={regimePill?.sub} badge={<LiveTag />} />
         <Tile label="Net Dealer γ"
           value={s.netDealerGamma != null ? `${fmtSigned(s.netDealerGamma)} Cr` : "—"}
           valueColor={(s.netDealerGamma ?? 0) >= 0 ? MV.green : MV.red}
+          badge={<LiveTag />}
           sub={s.dampenTotal != null || s.amplifyTotal != null
             ? `Σdmp ${fmtNum(s.dampenTotal)}k · Σamp ${fmtNum(s.amplifyTotal)}` : "no flow breakdown"} />
         <Tile label="Spot Context"
