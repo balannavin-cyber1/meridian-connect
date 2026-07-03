@@ -25,29 +25,55 @@ function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
     alignment === "ALIGNED" ? MV.green :
     alignment === "MIXED" ? MV.amber :
     alignment === "DIVERGENT" ? MV.red : MV.weak;
+
+  // Parse session_prior for OPEN relate segment
+  const sessionPrior: string | null = a?.session_prior ?? null;
+  const relate = sessionPrior?.split("  ||  ").find((s) => s.startsWith("OPEN ")) ?? null;
+  const isShift = relate?.includes("SHIFTS") ?? false;
+  const isConfirm = relate?.includes("CONFIRMS") ?? false;
+  const shiftText = relate ? relate.replace(/^OPEN (SHIFTS|CONFIRMS):\s*/, "") : null;
+
+  const subtitle = a?.as_of_date && a?.for_session_date
+    ? `AS-OF ${a.as_of_date} close → FOR ${a.for_session_date} session`
+    : a?.for_session_date ? `session ${a.for_session_date}` : undefined;
+
   return (
-    <Card title="Ambient Verdict" subtitle={a?.for_session_date ? `session ${a.for_session_date}` : undefined}>
+    <Card title="Ambient Verdict" subtitle={subtitle}>
       {a ? (
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: MV.weak }}>Regime</div>
-            <div className="mt-1 text-[36px] font-bold leading-none" style={{ color: regimeColor, fontFamily: MV.mono }}>
-              {regime ?? "—"}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: MV.weak }}>Regime</div>
+              <div className="mt-1 text-[36px] font-bold leading-none" style={{ color: regimeColor, fontFamily: MV.mono }}>
+                {regime ?? "—"}
+              </div>
             </div>
-          </div>
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: MV.weak }}>Lens Alignment</div>
-            <div className="mt-1">
-              <span className="inline-flex items-center rounded px-2 py-1 text-[13px] font-bold"
-                style={{ background: alignColor + "22", color: alignColor, fontFamily: MV.mono }}>
-                {alignment ?? "—"}
-              </span>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: MV.weak }}>Lens Alignment</div>
+              <div className="mt-1">
+                <span className="inline-flex items-center rounded px-2 py-1 text-[13px] font-bold"
+                  style={{ background: alignColor + "22", color: alignColor, fontFamily: MV.mono }}>
+                  {alignment ?? "—"}
+                </span>
+              </div>
             </div>
+            {note && (
+              <p className="max-w-[560px] flex-1 text-[12px] leading-relaxed" style={{ color: MV.mid }}>
+                {note}
+              </p>
+            )}
           </div>
-          {note && (
-            <p className="max-w-[560px] flex-1 text-[12px] leading-relaxed" style={{ color: MV.mid }}>
-              {note}
-            </p>
+          {relate && isShift && (
+            <div className="rounded-md px-3 py-2 text-[12px] font-medium leading-snug"
+              style={{ background: MV.amber + "1f", border: `1px solid ${MV.amber}55`, color: MV.amber, fontFamily: MV.mono }}>
+              ⚠ OPEN SHIFT — {shiftText}
+            </div>
+          )}
+          {relate && isConfirm && (
+            <div className="rounded-md px-3 py-2 text-[11px] leading-snug"
+              style={{ background: MV.card, border: `1px dashed ${MV.border}`, color: MV.weak, fontFamily: MV.mono }}>
+              open confirms the prior — {shiftText}
+            </div>
           )}
         </div>
       ) : (
