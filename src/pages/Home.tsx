@@ -11,9 +11,20 @@ import { useAmbient, useExpiryBaseRates, useExpiryOutcomes } from "@/lib/queries
 import { NarrativeModal } from "@/components/NarrativeModal";
 
 // ---------- Ambient verdict card ----------
-function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
+const normalizeRegime = (r: string | null | undefined): string | null => {
+  if (!r) return null;
+  const s = String(r).toUpperCase();
+  if (s === "LONG_GAMMA" || s === "POSITIVE_Γ" || s === "POSITIVE_GAMMA" || s.includes("POSITIVE")) return "POSITIVE_γ";
+  if (s === "SHORT_GAMMA" || s === "NEGATIVE_Γ" || s === "NEGATIVE_GAMMA" || s.includes("NEGATIVE")) return "NEGATIVE_γ";
+  return s;
+};
+
+function AmbientVerdict({ symbol, liveRegime }: { symbol: "NIFTY" | "SENSEX"; liveRegime: string | null }) {
   const amb = useAmbient(symbol);
   const a: any = amb.data ?? null;
+  const liveN = normalizeRegime(liveRegime);
+  const settledN = normalizeRegime(a?.net_gex_regime ?? null);
+  const drift = liveN && settledN && liveN !== settledN;
   const regime = a?.ambient_regime ?? null;
   const alignment = a?.lens_alignment ?? null;
   const note = a?.regime_conditional_note ?? null;
