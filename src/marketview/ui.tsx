@@ -119,17 +119,21 @@ export function Card({
 }
 
 export function Tile({
-  label, value, sub, valueColor, pill,
+  label, value, sub, valueColor, pill, badge,
 }: {
   label: string; value: React.ReactNode; sub?: React.ReactNode; valueColor?: string;
   pill?: { text: string; bg: string; fg: string } | null;
+  badge?: React.ReactNode;
 }) {
   return (
     <div
       className="flex-1 rounded-lg"
       style={{ background: MV.card, border: `1px solid ${MV.border}`, padding: "12px 14px", minWidth: 160 }}
     >
-      <div className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>{label}</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>{label}</div>
+        {badge}
+      </div>
       <div className="mt-1.5">
         {pill ? (
           <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold"
