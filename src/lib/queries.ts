@@ -300,27 +300,75 @@ export function useRefetchMarketview() {
       predicate: (q) => {
         const k = q.queryKey[0];
         return [
-          "spotMarker",
-          "gammaLatest",
-          "gammaSeries",
-          "gammaToday",
-          "signalLatest",
-          "signalsToday",
-          "gexStrikes",
-          "pinZone",
-          "accelZone",
-          "ictZones",
-          "dealerFlow",
-          "straddleIntraday",
-          "maxPainByStrike",
-          "breadthIntraday",
-          "wcbLatest",
-          "ivSmile",
+          "spotMarker", "gammaLatest", "gammaSeries", "gammaToday",
+          "signalLatest", "signalsToday", "gexStrikes", "pinZone", "accelZone",
+          "ictZones", "dealerFlow", "straddleIntraday", "maxPainByStrike",
+          "breadthIntraday", "wcbLatest", "ivSmile",
+          "ambient", "expiryBaseRates", "expiryOutcomes",
         ].includes(k as string);
       },
     });
   };
 }
+
+// Latest ambient regime snapshot (defensive: table may not exist yet)
+export function useAmbient(symbol: Symbol) {
+  return useQuery({
+    queryKey: ["ambient", symbol],
+    staleTime: MV_STALE,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("market_environment_snapshots")
+        .select("*")
+        .eq("symbol", symbol)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+  });
+}
+
+// Historical base rates for (ambient_regime, lens_alignment) pin/break outcomes
+export function useExpiryBaseRates(ambientRegime: string | null | undefined, lensAlignment: string | null | undefined) {
+  return useQuery({
+    queryKey: ["expiryBaseRates", ambientRegime, lensAlignment],
+    enabled: !!ambientRegime && !!lensAlignment,
+    staleTime: 5 * 60_000,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_expiry_base_rates")
+        .select("*")
+        .eq("ambient_regime", ambientRegime!)
+        .eq("lens_alignment", lensAlignment!);
+      if (error) return null;
+      return data ?? [];
+    },
+  });
+}
+
+// Recent expiry outcomes (chronological journal)
+export function useExpiryOutcomes(symbol: Symbol, limit = 20) {
+  return useQuery({
+    queryKey: ["expiryOutcomes", symbol, limit],
+    staleTime: 5 * 60_000,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("expiry_outcomes")
+        .select("*")
+        .eq("symbol", symbol)
+        .order("expiry_date", { ascending: false })
+        .limit(limit);
+      if (error) return null;
+      return data ?? [];
+    },
+  });
+}
+
 
 // Today's gamma_metrics rows (for Pin Risk Timeline + ATM straddle today series)
 export function useGammaToday(symbol: Symbol) {
@@ -332,7 +380,7 @@ export function useGammaToday(symbol: Symbol) {
       startIst.setUTCHours(3, 45, 0, 0); // 09:15 IST = 03:45 UTC
       const { data, error } = await supabase
         .from("gamma_metrics")
-        .select("ts, spot, pin_risk_score, straddle_atm, expansion_probability")
+        .select("ts, spot, pin_risk_score, straddle_atm, expansion_probability, net_gex")
         .eq("symbol", symbol)
         .gte("ts", startIst.toISOString())
         .order("ts", { ascending: true });
