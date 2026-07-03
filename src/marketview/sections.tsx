@@ -12,6 +12,17 @@ import { IVSmile } from "@/components/primitives/IVSmile";
 import type { MvState } from "./state";
 
 /* --------------------------------------------------------- */
+export function LiveTag() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em]"
+      style={{ background: MV.green + "1f", color: MV.green, fontFamily: MV.mono }}>
+      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: MV.green }} />
+      LIVE
+    </span>
+  );
+}
+
+/* --------------------------------------------------------- */
 /* Snapshot strip: compact facts row for every page header. */
 /* --------------------------------------------------------- */
 export function SnapshotStrip({ s }: { s: MvState }) {
@@ -33,6 +44,7 @@ export function SnapshotStrip({ s }: { s: MvState }) {
   return (
     <div className="flex flex-wrap items-stretch gap-x-6 gap-y-2 rounded-lg px-4 py-2.5"
       style={{ background: MV.card, border: `1px solid ${MV.border}` }}>
+      <div className="flex items-center pr-2"><LiveTag /></div>
       {cells.map((c) => (
         <div key={c.label} className="flex flex-col">
           <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>{c.label}</span>
@@ -57,10 +69,11 @@ export function KeyParametersSection({ s }: { s: MvState }) {
     <div>
       <SectionLabel>Key Parameters</SectionLabel>
       <div className="flex flex-wrap gap-3">
-        <Tile label="Regime" value="" pill={regimePill} sub={regimePill?.sub} />
+        <Tile label="Regime" value="" pill={regimePill} sub={regimePill?.sub} badge={<LiveTag />} />
         <Tile label="Net Dealer γ"
           value={s.netDealerGamma != null ? `${fmtSigned(s.netDealerGamma)} Cr` : "—"}
           valueColor={(s.netDealerGamma ?? 0) >= 0 ? MV.green : MV.red}
+          badge={<LiveTag />}
           sub={s.dampenTotal != null || s.amplifyTotal != null
             ? `Σdmp ${fmtNum(s.dampenTotal)}k · Σamp ${fmtNum(s.amplifyTotal)}` : "no flow breakdown"} />
         <Tile label="Spot Context"

@@ -25,29 +25,55 @@ function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
     alignment === "ALIGNED" ? MV.green :
     alignment === "MIXED" ? MV.amber :
     alignment === "DIVERGENT" ? MV.red : MV.weak;
+
+  // Parse session_prior for OPEN relate segment
+  const sessionPrior: string | null = a?.session_prior ?? null;
+  const relate = sessionPrior?.split("  ||  ").find((s) => s.startsWith("OPEN ")) ?? null;
+  const isShift = relate?.includes("SHIFTS") ?? false;
+  const isConfirm = relate?.includes("CONFIRMS") ?? false;
+  const shiftText = relate ? relate.replace(/^OPEN (SHIFTS|CONFIRMS):\s*/, "") : null;
+
+  const subtitle = a?.as_of_date && a?.for_session_date
+    ? `AS-OF ${a.as_of_date} close → FOR ${a.for_session_date} session`
+    : a?.for_session_date ? `session ${a.for_session_date}` : undefined;
+
   return (
-    <Card title="Ambient Verdict" subtitle={a?.for_session_date ? `session ${a.for_session_date}` : undefined}>
+    <Card title="Ambient Verdict" subtitle={subtitle}>
       {a ? (
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: MV.weak }}>Regime</div>
-            <div className="mt-1 text-[36px] font-bold leading-none" style={{ color: regimeColor, fontFamily: MV.mono }}>
-              {regime ?? "—"}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: MV.weak }}>Regime</div>
+              <div className="mt-1 text-[36px] font-bold leading-none" style={{ color: regimeColor, fontFamily: MV.mono }}>
+                {regime ?? "—"}
+              </div>
             </div>
-          </div>
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: MV.weak }}>Lens Alignment</div>
-            <div className="mt-1">
-              <span className="inline-flex items-center rounded px-2 py-1 text-[13px] font-bold"
-                style={{ background: alignColor + "22", color: alignColor, fontFamily: MV.mono }}>
-                {alignment ?? "—"}
-              </span>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: MV.weak }}>Lens Alignment</div>
+              <div className="mt-1">
+                <span className="inline-flex items-center rounded px-2 py-1 text-[13px] font-bold"
+                  style={{ background: alignColor + "22", color: alignColor, fontFamily: MV.mono }}>
+                  {alignment ?? "—"}
+                </span>
+              </div>
             </div>
+            {note && (
+              <p className="max-w-[560px] flex-1 text-[12px] leading-relaxed" style={{ color: MV.mid }}>
+                {note}
+              </p>
+            )}
           </div>
-          {note && (
-            <p className="max-w-[560px] flex-1 text-[12px] leading-relaxed" style={{ color: MV.mid }}>
-              {note}
-            </p>
+          {relate && isShift && (
+            <div className="rounded-md px-3 py-2 text-[12px] font-medium leading-snug"
+              style={{ background: MV.amber + "1f", border: `1px solid ${MV.amber}55`, color: MV.amber, fontFamily: MV.mono }}>
+              ⚠ OPEN SHIFT — {shiftText}
+            </div>
+          )}
+          {relate && isConfirm && (
+            <div className="rounded-md px-3 py-2 text-[11px] leading-snug"
+              style={{ background: MV.card, border: `1px dashed ${MV.border}`, color: MV.weak, fontFamily: MV.mono }}>
+              open confirms the prior — {shiftText}
+            </div>
           )}
         </div>
       ) : (
@@ -61,7 +87,8 @@ function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
 function FourLensStrip({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
   const amb = useAmbient(symbol);
   const a: any = amb.data ?? null;
-  type Lens = { label: string; value: React.ReactNode; sub?: string; color?: string };
+  type Kind = "gamma" | "breadth" | "participant" | "macro";
+  type Lens = { label: string; value: React.ReactNode; sub?: string; tone?: string; kind: Kind };
   const toneOf = (v: any): string => {
     const s = String(v ?? "").toUpperCase();
     if (["POSITIVE", "LONG", "ALIGNED", "RISK_ON", "BULLISH", "SUPPORT"].some((k) => s.includes(k))) return MV.green;
@@ -70,12 +97,22 @@ function FourLensStrip({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
     return MV.weak;
   };
   const lenses: Lens[] = a ? [
-    { label: "Net GEX Regime", value: a.net_gex_regime ?? "—", color: toneOf(a.net_gex_regime) },
-    { label: "Price vs Breadth", value: a.price_vs_breadth_div ?? "—", color: toneOf(a.price_vs_breadth_div) },
-    { label: "OI Cycle Asymmetry", value: a.cycle_oi_call_put_asym ?? "—", color: toneOf(a.cycle_oi_call_put_asym) },
+    { label: "Net GEX Regime", value: a.net_gex_regime ?? "—", tone: toneOf(a.net_gex_regime), kind: "gamma" },
+    { label: "Price vs Breadth", value: a.price_vs_breadth_div ?? "—", tone: toneOf(a.price_vs_breadth_div), kind: "breadth" },
+    { label: "OI Cycle Asymmetry", value: a.cycle_oi_call_put_asym ?? "—", tone: toneOf(a.cycle_oi_call_put_asym), kind: "participant" },
     { label: "FII 5D Δ Fut L/S", value: a.fii_index_fut_ls_delta_5d != null ? fmtSigned(Number(a.fii_index_fut_ls_delta_5d)) : "—",
-      color: (a.fii_index_fut_ls_delta_5d ?? 0) >= 0 ? MV.green : MV.red },
+      tone: (a.fii_index_fut_ls_delta_5d ?? 0) >= 0 ? MV.green : MV.red, kind: "macro" },
   ] : [];
+
+  // Alarm color is driven by lens_alignment, not per-cell values.
+  // ALIGNED → all muted. DIVERGENT → only breadth+participant lit. Otherwise → all muted.
+  const alignment = a?.lens_alignment;
+  const isDivergent = alignment === "DIVERGENT";
+  const colorFor = (l: Lens): string => {
+    if (isDivergent && (l.kind === "breadth" || l.kind === "participant")) return l.tone ?? MV.strong;
+    return MV.strong;
+  };
+
   return (
     <div>
       <SectionLabel>Four Lens Strip</SectionLabel>
@@ -85,7 +122,7 @@ function FourLensStrip({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
             <div key={l.label} className="rounded-lg p-3"
               style={{ background: MV.card, border: `1px solid ${MV.border}` }}>
               <div className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>{l.label}</div>
-              <div className="mt-1 text-[15px] font-bold" style={{ color: l.color ?? MV.strong, fontFamily: MV.mono }}>{l.value}</div>
+              <div className="mt-1 text-[15px] font-bold" style={{ color: colorFor(l), fontFamily: MV.mono }}>{l.value}</div>
               {l.sub && <div className="mt-0.5 text-[10px]" style={{ color: MV.weak, fontFamily: MV.mono }}>{l.sub}</div>}
             </div>
           ))}
