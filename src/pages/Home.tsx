@@ -231,7 +231,7 @@ export default function Home() {
         }
       />
       <SnapshotStrip s={s} />
-      <AmbientVerdict symbol={symbol} />
+      <AmbientVerdict symbol={symbol} liveRegime={s.regime} />
       <FourLensStrip symbol={symbol} />
       <KeyParametersSection s={s} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
