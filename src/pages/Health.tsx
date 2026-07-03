@@ -40,6 +40,9 @@ const TRACKED_WRITERS: WriterDef[] = [
   { script: "ingest_breadth_from_ticks.py", cadence: 5, symbol_scoped: false },
   { script: "merdian_pipeline_alert_daemon", cadence: 1, symbol_scoped: false },
   { script: "build_ict_htf_zones.py", cadence: 1440, symbol_scoped: false },
+  { script: "compile_market_environment_local.py", cadence: 1440, symbol_scoped: false },
+  { script: "relate_ambient_to_open_local.py", cadence: 1440, symbol_scoped: false },
+  { script: "accrue_expiry_outcomes.py", cadence: 1440, symbol_scoped: false },
 ];
 
 // ============================================================
