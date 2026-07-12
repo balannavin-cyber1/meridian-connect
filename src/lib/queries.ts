@@ -311,7 +311,8 @@ export function useRefetchMarketview() {
   };
 }
 
-// Latest ambient regime snapshot (defensive: table may not exist yet)
+// Latest ambient regime snapshot — ordered by as_of_date so backfills can't
+// surface a stale row with a newer created_at than the true latest session.
 export function useAmbient(symbol: Symbol) {
   return useQuery({
     queryKey: ["ambient", symbol],
@@ -322,7 +323,7 @@ export function useAmbient(symbol: Symbol) {
         .from("market_environment_snapshots")
         .select("*")
         .eq("symbol", symbol)
-        .order("created_at", { ascending: false })
+        .order("as_of_date", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) return null;

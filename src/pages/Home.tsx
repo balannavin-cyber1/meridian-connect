@@ -28,7 +28,6 @@ function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
   const alignment = a?.lens_alignment ?? null;
   const note = a?.regime_conditional_note ?? null;
 
-
   const regimeColor =
     regime === "RISK_ON" ? MV.green :
     regime === "RISK_OFF" ? MV.red :
@@ -38,57 +37,45 @@ function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
     alignment === "MIXED" ? MV.amber :
     alignment === "DIVERGENT" ? MV.red : MV.weak;
 
-  // Parse session_prior for OPEN relate segment
   const sessionPrior: string | null = a?.session_prior ?? null;
   const relate = sessionPrior?.split("  ||  ").find((s) => s.startsWith("OPEN ")) ?? null;
   const isShift = relate?.includes("SHIFTS") ?? false;
-  const isConfirm = relate?.includes("CONFIRMS") ?? false;
   const shiftText = relate ? relate.replace(/^OPEN (SHIFTS|CONFIRMS):\s*/, "") : null;
 
-  const subtitle = a?.as_of_date && a?.for_session_date
-    ? `AS-OF ${a.as_of_date} close → FOR ${a.for_session_date} session`
-    : a?.for_session_date ? `session ${a.for_session_date}` : undefined;
+  const asOf = a?.as_of_date
+    ? new Date(a.as_of_date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+    : null;
+  const forS = a?.for_session_date
+    ? new Date(a.for_session_date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+    : null;
 
   return (
-    <Card title="Ambient Verdict" subtitle={subtitle}>
+    <Card>
       {a ? (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-end justify-between gap-6">
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: MV.weak }}>Regime</div>
-              <div className="mt-1 text-[36px] font-bold leading-none" style={{ color: regimeColor, fontFamily: MV.mono }}>
-                {regime ?? "—"}
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: MV.weak }}>Lens Alignment</div>
-              <div className="mt-1">
-                <span className="inline-flex items-center rounded px-2 py-1 text-[13px] font-bold"
-                  style={{ background: alignColor + "22", color: alignColor, fontFamily: MV.mono }}>
-                  {alignment ?? "—"}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] font-bold"
+            style={{ fontFamily: MV.mono }}>
+            <span style={{ color: regimeColor }}>{regime ?? "—"}</span>
+            <span style={{ color: MV.weak }}>·</span>
+            <span style={{ color: alignColor }}>{alignment ?? "—"}</span>
+            {(asOf || forS) && (
+              <>
+                <span style={{ color: MV.weak }}>·</span>
+                <span className="text-[12px] font-normal" style={{ color: MV.weak }}>
+                  as-of {asOf ?? "—"} → for {forS ?? "—"}
                 </span>
-              </div>
-            </div>
-            {note && (
-              <p className="max-w-[560px] flex-1 text-[12px] leading-relaxed" style={{ color: MV.mid }}>
-                {note}
-              </p>
+              </>
             )}
           </div>
+          {note && (
+            <p className="text-[12px] leading-relaxed" style={{ color: MV.mid }}>{note}</p>
+          )}
           {relate && isShift && (
-            <div className="rounded-md px-3 py-2 text-[12px] font-medium leading-snug"
+            <div className="rounded-md px-3 py-1.5 text-[11px] font-medium leading-snug"
               style={{ background: MV.amber + "1f", border: `1px solid ${MV.amber}55`, color: MV.amber, fontFamily: MV.mono }}>
               ⚠ OPEN SHIFT — {shiftText}
             </div>
           )}
-          {relate && isConfirm && (
-            <div className="rounded-md px-3 py-2 text-[11px] leading-snug"
-              style={{ background: MV.card, border: `1px dashed ${MV.border}`, color: MV.weak, fontFamily: MV.mono }}>
-              open confirms the prior — {shiftText}
-            </div>
-          )}
-
-
         </div>
       ) : (
         <Unavailable label="ambient snapshot not published" />
