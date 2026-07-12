@@ -2,13 +2,15 @@ import { useMemo, useState } from "react";
 import { useSymbol } from "@/contexts/SymbolContext";
 import { useMvData } from "@/marketview/state";
 import {
-  MV, Card, Scalar, SectionLabel, PageTitle, Unavailable, fmtNum, fmtSigned, fmtPct,
+  MV, Card, SectionLabel, PageTitle, Unavailable, fmtSigned,
 } from "@/marketview/ui";
 import {
   SnapshotStrip, KeyParametersSection, NetDealerGammaSection,
 } from "@/marketview/sections";
-import { useAmbient, useExpiryBaseRates, useExpiryOutcomes } from "@/lib/queries";
+import { useAmbient, useExpiryBaseRates } from "@/lib/queries";
 import { NarrativeModal } from "@/components/NarrativeModal";
+import { AmbientTrajectory } from "@/components/AmbientTrajectory";
+
 
 // ---------- Ambient verdict card ----------
 const normalizeRegime = (r: string | null | undefined): string | null => {
