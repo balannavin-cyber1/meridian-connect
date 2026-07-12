@@ -26,9 +26,7 @@ function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
   const alignment = a?.lens_alignment ?? null;
   const note = a?.regime_conditional_note ?? null;
 
-  const regime = a?.ambient_regime ?? null;
-  const alignment = a?.lens_alignment ?? null;
-  const note = a?.regime_conditional_note ?? null;
+
   const regimeColor =
     regime === "RISK_ON" ? MV.green :
     regime === "RISK_OFF" ? MV.red :
