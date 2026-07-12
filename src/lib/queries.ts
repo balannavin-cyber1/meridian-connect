@@ -501,6 +501,44 @@ export function useWcbLatest(symbol: Symbol) {
 }
 
 
+// Settled ambient trajectory series (up to ~40 sessions) — read-only.
+export type AmbientSeriesRow = {
+  as_of_date: string;
+  eod_spot: number | null;
+  front_expiry: string | null;
+  cycle_oi_call_put_asym: number | null;
+  gex_regime_persistence_20d: number | null;
+  max_gamma_strike_drift_5d: number | null;
+  concentration_trend_5d: number | null;
+  net_gex_regime: string | null;
+  wcb_slope_5d: number | null;
+  pct_above_20dma_slope_5d: number | null;
+  price_vs_breadth_div: string | null;
+  ambient_regime: string | null;
+  lens_alignment: string | null;
+  session_prior: string | null;
+  regime_conditional_note: string | null;
+};
+
+export function useAmbientSeries(symbol: Symbol, limit = 40) {
+  return useQuery({
+    queryKey: ["ambientSeries", symbol, limit],
+    staleTime: MV_STALE,
+    retry: false,
+    queryFn: async (): Promise<AmbientSeriesRow[]> => {
+      const { data, error } = await supabase
+        .from("market_environment_snapshots")
+        .select(
+          "as_of_date, eod_spot, front_expiry, cycle_oi_call_put_asym, gex_regime_persistence_20d, max_gamma_strike_drift_5d, concentration_trend_5d, net_gex_regime, wcb_slope_5d, pct_above_20dma_slope_5d, price_vs_breadth_div, ambient_regime, lens_alignment, session_prior, regime_conditional_note",
+        )
+        .eq("symbol", symbol)
+        .order("as_of_date", { ascending: true })
+        .limit(limit);
+      if (error) return [];
+      return (data ?? []) as AmbientSeriesRow[];
+    },
+  });
+}
 
 
 // ---------- Settings ----------

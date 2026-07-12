@@ -2,13 +2,15 @@ import { useMemo, useState } from "react";
 import { useSymbol } from "@/contexts/SymbolContext";
 import { useMvData } from "@/marketview/state";
 import {
-  MV, Card, Scalar, SectionLabel, PageTitle, Unavailable, fmtNum, fmtSigned, fmtPct,
+  MV, Card, SectionLabel, PageTitle, Unavailable, fmtSigned,
 } from "@/marketview/ui";
 import {
   SnapshotStrip, KeyParametersSection, NetDealerGammaSection,
 } from "@/marketview/sections";
-import { useAmbient, useExpiryBaseRates, useExpiryOutcomes } from "@/lib/queries";
+import { useAmbient, useExpiryBaseRates } from "@/lib/queries";
 import { NarrativeModal } from "@/components/NarrativeModal";
+import { AmbientTrajectory } from "@/components/AmbientTrajectory";
+
 
 // ---------- Ambient verdict card ----------
 const normalizeRegime = (r: string | null | undefined): string | null => {
@@ -19,15 +21,14 @@ const normalizeRegime = (r: string | null | undefined): string | null => {
   return s;
 };
 
-function AmbientVerdict({ symbol, liveRegime }: { symbol: "NIFTY" | "SENSEX"; liveRegime: string | null }) {
+function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
   const amb = useAmbient(symbol);
   const a: any = amb.data ?? null;
-  const liveN = normalizeRegime(liveRegime);
-  const settledN = normalizeRegime(a?.net_gex_regime ?? null);
-  const drift = liveN && settledN && liveN !== settledN;
   const regime = a?.ambient_regime ?? null;
   const alignment = a?.lens_alignment ?? null;
   const note = a?.regime_conditional_note ?? null;
+
+
   const regimeColor =
     regime === "RISK_ON" ? MV.green :
     regime === "RISK_OFF" ? MV.red :
@@ -86,12 +87,8 @@ function AmbientVerdict({ symbol, liveRegime }: { symbol: "NIFTY" | "SENSEX"; li
               open confirms the prior — {shiftText}
             </div>
           )}
-          {drift && (
-            <div className="rounded-md px-3 py-2 text-[12px] font-medium leading-snug"
-              style={{ background: MV.amber + "1f", border: `1px solid ${MV.amber}55`, color: MV.amber, fontFamily: MV.mono }}>
-              ⚠ INTRADAY DRIFT — dealers flipped to {liveN} since the open; the settled verdict ({settledN}) is stale until tonight's recompile.
-            </div>
-          )}
+
+
         </div>
       ) : (
         <Unavailable label="ambient snapshot not published" />
@@ -209,10 +206,20 @@ function ExpiryMemoryStrip({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
   );
 }
 
+const DRILL_TABS = [
+  { id: "lens", label: "Four Lenses" },
+  { id: "memory", label: "Expiry Memory" },
+  { id: "params", label: "Key Parameters" },
+  { id: "gamma", label: "Net γ Intraday" },
+] as const;
+type DrillTab = (typeof DRILL_TABS)[number]["id"];
+
 export default function Home() {
   const { symbol } = useSymbol();
   const s = useMvData(symbol);
   const [narrativeOpen, setNarrativeOpen] = useState(false);
+  const [drillOpen, setDrillOpen] = useState(false);
+  const [drillTab, setDrillTab] = useState<DrillTab>("lens");
   const expiryLabel = useMemo(() =>
     s.expiry ? new Date(s.expiry).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—",
     [s.expiry]);
@@ -220,8 +227,8 @@ export default function Home() {
   return (
     <div className="mx-auto max-w-[1440px] space-y-5 px-7 py-6">
       <PageTitle
-        title="Home — Ambient"
-        subtitle="single-glance market temperature and today's positioning shape"
+        title="Home — Ambient Trajectory"
+        subtitle="three clocks over price · verdict is a snapshot; trajectory is the read"
         right={
           <button onClick={() => setNarrativeOpen(true)}
             className="rounded border px-3 py-1.5 text-[11px] font-semibold tracking-wide transition-colors hover:bg-gray-900 hover:text-white"
@@ -231,13 +238,64 @@ export default function Home() {
         }
       />
       <SnapshotStrip s={s} />
-      <AmbientVerdict symbol={symbol} liveRegime={s.regime} />
-      <FourLensStrip symbol={symbol} />
-      <KeyParametersSection s={s} />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <NetDealerGammaSection s={s} />
-        <ExpiryMemoryStrip symbol={symbol} />
+
+      {/* TIER 0 — verdict headline */}
+      <AmbientVerdict symbol={symbol} />
+
+      {/* TIER 1 — hero */}
+      <AmbientTrajectory
+        symbol={symbol}
+        live={{
+          spot: s.spot || null,
+          regime: s.regime,
+          flipLevel: s.flipLevel,
+          maxGammaStrike: s.maxGammaStrike,
+          dte: (s.gamma.data as any)?.dte ?? null,
+          pinRiskScore: s.pinRiskScore,
+          ts: s.latestActivityTs,
+        }}
+      />
+
+      {/* TIER 2 — drill-down (collapsed by default) */}
+      <div>
+        <button
+          onClick={() => setDrillOpen((v) => !v)}
+          className="flex w-full items-center justify-between rounded-lg border px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors"
+          style={{ borderColor: MV.border, background: MV.card, color: MV.weak }}
+          aria-expanded={drillOpen}
+        >
+          <span>Drill-down · lenses, expiry memory, parameters, intraday γ</span>
+          <span style={{ color: MV.mid, fontFamily: MV.mono }}>{drillOpen ? "▾ hide" : "▸ show"}</span>
+        </button>
+        {drillOpen && (
+          <div className="mt-3 space-y-3">
+            <div className="flex flex-wrap gap-1 text-[10px]" style={{ fontFamily: MV.mono }}>
+              {DRILL_TABS.map((t) => {
+                const active = t.id === drillTab;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setDrillTab(t.id)}
+                    className="rounded border px-2.5 py-1"
+                    style={{
+                      borderColor: active ? MV.strong : MV.border,
+                      background: active ? MV.border : "transparent",
+                      color: active ? MV.strong : MV.weak,
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+            {drillTab === "lens" && <FourLensStrip symbol={symbol} />}
+            {drillTab === "memory" && <ExpiryMemoryStrip symbol={symbol} />}
+            {drillTab === "params" && <KeyParametersSection s={s} />}
+            {drillTab === "gamma" && <NetDealerGammaSection s={s} />}
+          </div>
+        )}
       </div>
+
       <NarrativeModal
         open={narrativeOpen}
         onClose={() => setNarrativeOpen(false)}
@@ -251,3 +309,4 @@ export default function Home() {
     </div>
   );
 }
+
