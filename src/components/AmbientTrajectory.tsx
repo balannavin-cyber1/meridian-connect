@@ -474,27 +474,48 @@ export function AmbientTrajectory({
               fill={MV.card} opacity={0.55} pointerEvents="none" />
           )}
 
-          {/* --- Cycle dividers span ALL lanes (rendered LAST so they win) --- */}
-          {rowBoundaries.map((bi) => {
-            const bx = x(bi) - xStep / 2;
-            const isDimBoundary = bi === dimUntilIdx && dimUntilIdx > 0;
-            return (
-              <g key={`b${bi}`}>
-                <line x1={bx} x2={bx} y1={chartTop} y2={chartBottom}
-                  stroke={isDimBoundary ? MV.amber : MV.borderStrong}
-                  strokeWidth={isDimBoundary ? 1.2 : 1}
-                  strokeDasharray={isDimBoundary ? undefined : "2,3"}
-                  opacity={isDimBoundary ? 0.9 : tf === "MONTH" ? 0.4 : 0.75} />
-                <text x={bx + 4} y={chartTop - 6} fontSize="9" fill={MV.weak} style={{ fontFamily: MV.mono }}>
-                  ⟵ exp {fmtDate(rows[bi - 1].front_expiry)}
-                </text>
-              </g>
-            );
-          })}
-          {last.front_expiry && (
+          {/* --- Cycle dividers span ALL lanes (rendered LAST so they win) ---
+              Labels: compact date only; drop any label within ~60px of the
+              previously-drawn label; reserve the right edge for the LIVE chip
+              (CYCLE/WEEK) or the current-cycle label (MONTH). */}
+          {(() => {
+            const MIN_GAP = 60;
+            // Right-edge reserved zone: the LIVE chip sits ~110px wide in
+            // CYCLE/WEEK; in MONTH the current-cycle label itself reserves
+            // ~60px. Boundary labels must not intrude on either.
+            const rightReserveX = showLiveRail
+              ? padL + cw - 110
+              : padL + cw - MIN_GAP;
+            let lastLabelX = -Infinity;
+            return rowBoundaries.map((bi) => {
+              const bx = x(bi) - xStep / 2;
+              const isDimBoundary = bi === dimUntilIdx && dimUntilIdx > 0;
+              const labelX = bx + 4;
+              const drawLabel =
+                labelX - lastLabelX >= MIN_GAP && labelX <= rightReserveX;
+              if (drawLabel) lastLabelX = labelX;
+              return (
+                <g key={`b${bi}`}>
+                  <line x1={bx} x2={bx} y1={chartTop} y2={chartBottom}
+                    stroke={isDimBoundary ? MV.amber : MV.borderStrong}
+                    strokeWidth={isDimBoundary ? 1.2 : 1}
+                    strokeDasharray={isDimBoundary ? undefined : "2,3"}
+                    opacity={isDimBoundary ? 0.9 : tf === "MONTH" ? 0.4 : 0.75} />
+                  {drawLabel && (
+                    <text x={labelX} y={chartTop - 6} fontSize="9" fill={MV.weak}
+                      style={{ fontFamily: MV.mono }}>
+                      {fmtDate(rows[bi - 1].front_expiry)}
+                    </text>
+                  )}
+                </g>
+              );
+            });
+          })()}
+          {/* Current-cycle label — only in MONTH (chip covers it in CYCLE/WEEK) */}
+          {!showLiveRail && last.front_expiry && (
             <text x={padL + cw - 4} y={chartTop - 6} textAnchor="end" fontSize="9" fill={MV.weak}
               style={{ fontFamily: MV.mono }}>
-              cycle → {fmtDate(last.front_expiry)}{live.dte != null ? ` · ${live.dte}d live` : ""}
+              {fmtDate(last.front_expiry)}
             </text>
           )}
 
