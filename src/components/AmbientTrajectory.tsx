@@ -1,7 +1,9 @@
-// Ambient Trajectory — the Home hero panel (ENH-116 Obj 1, v7).
+// Ambient Trajectory — the Home hero panel (ENH-116 Obj 1, v8).
 // Three stacked lanes over a shared x-axis, with a MONTH / CYCLE / WEEK
-// timeframe switcher that reorders and resizes lanes so each clock gets a
-// view where it is the protagonist. Every lane autoscales to observed range.
+// timeframe switcher. Every lane reserves a top header strip so labels never
+// collide with the plot; every lane autoscales its own range. WEEK floors its
+// window to ≥6 sessions when the current cycle is thin, dimming the prior
+// cycle so the current one still reads as the subject.
 // Settled = solid. Live = dashed / outlined. NULL cycle asym = gap, never 0.
 import { useMemo, useState } from "react";
 import { MV, fmtNum, Unavailable } from "@/marketview/ui";
@@ -41,20 +43,25 @@ const fmtDate = (d: string | null | undefined) =>
 // Lane layout per timeframe: order + height (px inside SVG viewBox).
 const LANE_CFG: Record<TF, { key: LaneKey; height: number; hint: string }[]> = {
   MONTH: [
-    { key: "REGIME", height: 160, hint: "20d γ persistence — positioning cage over weeks" },
-    { key: "PRICE",  height: 120, hint: "eod spot · divergence markers on line" },
-    { key: "CYCLE",  height: 60,  hint: "cycle OI asymmetry (context)" },
+    { key: "REGIME", height: 170, hint: "20d γ persistence — positioning cage over weeks" },
+    { key: "PRICE",  height: 130, hint: "eod spot · divergence markers on line" },
+    { key: "CYCLE",  height: 70,  hint: "cycle OI asymmetry (context)" },
   ],
   CYCLE: [
-    { key: "PRICE",  height: 160, hint: "eod spot · settled solid · live NOW dashed" },
-    { key: "CYCLE",  height: 90,  hint: "cycle OI asymmetry — up = ceiling, down = floor (NULL = gap)" },
-    { key: "REGIME", height: 70,  hint: "20d γ persistence" },
+    { key: "PRICE",  height: 170, hint: "eod spot · settled solid · live NOW dashed" },
+    { key: "CYCLE",  height: 100, hint: "cycle OI asymmetry — up = ceiling, down = floor" },
+    { key: "REGIME", height: 80,  hint: "20d γ persistence" },
   ],
   WEEK: [
-    { key: "PRICE",  height: 220, hint: "this cycle · flip & max-γ as reference lines" },
-    { key: "CYCLE",  height: 80,  hint: "this cycle's OI build" },
+    { key: "PRICE",  height: 230, hint: "flip & max-γ as reference lines" },
+    { key: "CYCLE",  height: 90,  hint: "this cycle's OI build" },
   ],
 };
+
+const HEADER_H = 22;   // reserved band at top of each lane for label + hint
+const LANE_GAP = 10;   // vertical padding between lanes
+const AXIS_BAND = 30;  // reserved band below last lane for x-axis date labels
+const TOP_PAD = 20;    // room above top lane for cycle-divider labels
 
 export function AmbientTrajectory({
   symbol,
@@ -91,16 +98,35 @@ export function AmbientTrajectory({
   }, [coerced]);
 
   // ---- Window by timeframe ----------------------------------------------
-  const rows = useMemo(() => {
-    if (tf === "MONTH" || coerced.length < 3) return coerced;
-    if (tf === "CYCLE") {
-      if (allBoundaries.length >= 2) return coerced.slice(allBoundaries[allBoundaries.length - 2]);
-      if (allBoundaries.length === 1) return coerced.slice(allBoundaries[0]);
-      return coerced;
+  // dimUntilIdx = number of leading rows in `rows` that belong to the prior
+  // cycle (rendered dim). 0 means everything is current-cycle.
+  const { rows, dimUntilIdx, weekCurrentCount } = useMemo(() => {
+    if (tf === "MONTH" || coerced.length < 3) {
+      return { rows: coerced, dimUntilIdx: 0, weekCurrentCount: coerced.length };
     }
-    // WEEK — current cycle only
-    if (allBoundaries.length >= 1) return coerced.slice(allBoundaries[allBoundaries.length - 1]);
-    return coerced;
+    if (tf === "CYCLE") {
+      let start = 0;
+      if (allBoundaries.length >= 2) start = allBoundaries[allBoundaries.length - 2];
+      else if (allBoundaries.length === 1) start = allBoundaries[0];
+      return { rows: coerced.slice(start), dimUntilIdx: 0, weekCurrentCount: coerced.length - start };
+    }
+    // WEEK — current cycle only, floored to ≥ 6 rows if possible
+    const curStart = allBoundaries.length ? allBoundaries[allBoundaries.length - 1] : 0;
+    const currentCount = coerced.length - curStart;
+    if (currentCount >= 4) {
+      return { rows: coerced.slice(curStart), dimUntilIdx: 0, weekCurrentCount: currentCount };
+    }
+    // Extend backwards until we have ≥ 6 rows.
+    let start = curStart;
+    // Walk boundaries backwards.
+    for (let bi = allBoundaries.length - 2; bi >= 0; bi--) {
+      start = allBoundaries[bi];
+      if (coerced.length - start >= 6) break;
+    }
+    if (coerced.length - start < 6) start = 0;
+    const winRows = coerced.slice(start);
+    const dim = curStart - start;
+    return { rows: winRows, dimUntilIdx: dim, weekCurrentCount: currentCount };
   }, [coerced, allBoundaries, tf]);
 
   const rowBoundaries = useMemo(() => {
@@ -157,24 +183,23 @@ export function AmbientTrajectory({
   const W = 1200;
   const padL = 60;
   const padR = tf === "MONTH" ? 24 : 100;
-  const laneGap = 10;
-  const laneTop = 26;   // room for lane label + top cycle-divider markers
-  const axisBottom = 26;
-  const laneTotal = lanes.reduce((a, l) => a + l.height, 0) + laneGap * (lanes.length - 1);
-  const H = laneTop + laneTotal + axisBottom;
+  const laneTotal = lanes.reduce((a, l) => a + l.height, 0) + LANE_GAP * (lanes.length - 1);
+  const H = TOP_PAD + laneTotal + AXIS_BAND;
   const cw = W - padL - padR;
 
-  // Lane offsets
-  const laneY: Record<LaneKey, { y0: number; h: number }> = {} as any;
+  // Lane offsets → each lane has a header strip (top) + plot area (below).
+  const laneY: Record<LaneKey, { y0: number; h: number; plotY0: number; plotH: number }> = {} as any;
   {
-    let y = laneTop;
+    let y = TOP_PAD;
     for (const l of lanes) {
-      laneY[l.key] = { y0: y, h: l.height };
-      y += l.height + laneGap;
+      const plotY0 = y + HEADER_H;
+      const plotH = Math.max(20, l.height - HEADER_H);
+      laneY[l.key] = { y0: y, h: l.height, plotY0, plotH };
+      y += l.height + LANE_GAP;
     }
   }
-  const chartTop = laneTop;
-  const chartBottom = laneTop + laneTotal;
+  const chartTop = TOP_PAD;
+  const chartBottom = TOP_PAD + laneTotal;
 
   // X axis (settled slots), live rail to the right of cw
   const n = rows.length;
@@ -182,6 +207,11 @@ export function AmbientTrajectory({
   const x = (i: number) => padL + i * xStep;
   const liveX = padL + cw + 28;
   const showLiveRail = (tf === "CYCLE" || tf === "WEEK") && live.spot != null;
+
+  // Dim overlay covers rows [0, dimUntilIdx) — draw between them and their
+  // right-neighbour so the boundary divider lands right at the edge.
+  const dimOverlayX2 =
+    dimUntilIdx > 0 && dimUntilIdx < rows.length ? x(dimUntilIdx) - xStep / 2 : null;
 
   // -- PRICE scale
   const spots = rows.map((r) => r.eod_spot).filter((v): v is number => v != null);
@@ -196,27 +226,27 @@ export function AmbientTrajectory({
   const pPad = (pMax - pMin) * 0.08 || Math.max(1, pMax * 0.001);
   const priceLane = laneY.PRICE;
   const yPrice = (v: number) =>
-    priceLane.y0 + priceLane.h - ((v - (pMin - pPad)) / ((pMax + pPad) - (pMin - pPad))) * priceLane.h;
+    priceLane.plotY0 + priceLane.plotH - ((v - (pMin - pPad)) / ((pMax + pPad) - (pMin - pPad))) * priceLane.plotH;
 
   // -- CYCLE scale (autoscale to observed |asym|)
   const asymAbs = rows.map((r) => (r.cycle_oi_call_put_asym != null ? Math.abs(r.cycle_oi_call_put_asym) : 0));
   const asymMax = Math.max(0.02, ...asymAbs) * 1.2;
   const cycleLane = laneY.CYCLE;
-  const cycleMid = cycleLane.y0 + cycleLane.h / 2;
-  const yCycle = (v: number) => cycleMid - (Math.max(-asymMax, Math.min(asymMax, v)) / asymMax) * (cycleLane.h / 2);
+  const cycleMid = cycleLane.plotY0 + cycleLane.plotH / 2;
+  const yCycle = (v: number) =>
+    cycleMid - (Math.max(-asymMax, Math.min(asymMax, v)) / asymMax) * (cycleLane.plotH / 2);
   const cycleHasData = rows.some((r) => r.cycle_oi_call_put_asym != null);
 
   // -- REGIME scale (autoscale to observed persistence)
   const persistVals = rows.map((r) => r.gex_regime_persistence_20d).filter((v): v is number => v != null);
   const rMin = persistVals.length ? Math.max(0, Math.min(...persistVals) - 0.05) : 0;
   const rMax = persistVals.length ? Math.min(1, Math.max(...persistVals) + 0.05) : 1;
-  const regimeLane = laneY.REGIME as { y0: number; h: number } | undefined;
+  const regimeLane = laneY.REGIME as { y0: number; h: number; plotY0: number; plotH: number } | undefined;
   const yRegime = regimeLane
-    ? (v: number) => regimeLane.y0 + regimeLane.h - ((v - rMin) / (rMax - rMin || 1)) * regimeLane.h
+    ? (v: number) => regimeLane.plotY0 + regimeLane.plotH - ((v - rMin) / (rMax - rMin || 1)) * regimeLane.plotH
     : null;
 
   // ---- Paths -----------------------------------------------------------
-  // Price path (breaks on nulls)
   const pricePath = (() => {
     const parts: string[] = [];
     let cur: string[] = [];
@@ -228,7 +258,6 @@ export function AmbientTrajectory({
     return parts;
   })();
 
-  // Regime path
   const regimePath = (() => {
     if (!yRegime) return [];
     const parts: string[] = [];
@@ -259,6 +288,23 @@ export function AmbientTrajectory({
   const laneLabel = (key: LaneKey): string =>
     key === "PRICE" ? "PRICE" : key === "CYCLE" ? "CLOCK 2 · CYCLE" : "CLOCK 1 · REGIME";
 
+  // Helper: place a reference-line label so it never sits inside the lane
+  // header band. Default above the line; if that lands in the header, drop
+  // it below.
+  const refLabelY = (lineY: number) => {
+    const headerBottom = priceLane.plotY0;
+    if (lineY - 3 < headerBottom + 4) return lineY + 11;
+    return lineY - 3;
+  };
+
+  // Lane subtitle for WEEK's PRICE lane (window context)
+  const priceHintOverride =
+    tf === "WEEK"
+      ? dimUntilIdx > 0
+        ? `this cycle (${weekCurrentCount} session${weekCurrentCount === 1 ? "" : "s"}) · prior cycle shown for context`
+        : `this cycle · ${weekCurrentCount} session${weekCurrentCount === 1 ? "" : "s"}`
+      : null;
+
   return (
     <div className="rounded-lg" style={{ background: MV.card, border: `1px solid ${MV.border}`, padding: "20px 22px" }}>
       <HeaderBar symbol={symbol} settledThrough={last.as_of_date} tf={tf} setTf={setTf} />
@@ -275,74 +321,57 @@ export function AmbientTrajectory({
         <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" preserveAspectRatio="none"
           onMouseLeave={() => setHoverIdx(null)}>
 
-          {/* --- Cycle dividers span ALL lanes, labelled once at top --- */}
-          {rowBoundaries.map((bi) => {
-            const bx = x(bi) - xStep / 2;
-            return (
-              <g key={`b${bi}`}>
-                <line x1={bx} x2={bx} y1={chartTop - 6} y2={chartBottom}
-                  stroke={MV.borderStrong} strokeWidth="1" strokeDasharray="2,3"
-                  opacity={tf === "MONTH" ? 0.35 : 0.75} />
-                <text x={bx + 4} y={chartTop - 10} fontSize="9" fill={MV.weak} style={{ fontFamily: MV.mono }}>
-                  ⟵ exp {fmtDate(rows[bi - 1].front_expiry)}
-                </text>
-              </g>
-            );
-          })}
-          {last.front_expiry && (
-            <text x={padL + cw - 4} y={chartTop - 10} textAnchor="end" fontSize="9" fill={MV.weak}
-              style={{ fontFamily: MV.mono }}>
-              cycle → {fmtDate(last.front_expiry)}{live.dte != null ? ` · ${live.dte}d live` : ""}
-            </text>
-          )}
-
-          {/* --- Per-lane background labels --- */}
+          {/* --- Per-lane header strips (top-left labels, separator) --- */}
           {lanes.map((l) => (
             <g key={`lbl${l.key}`}>
-              <text x={padL + 4} y={laneY[l.key].y0 + 10} fontSize="9" fontWeight={700}
-                fill={MV.mid} style={{ fontFamily: MV.mono }}>{laneLabel(l.key)}</text>
-              <text x={padL + 4} y={laneY[l.key].y0 + 20} fontSize="8"
-                fill={MV.weak} style={{ fontFamily: MV.mono }}>{l.hint}</text>
-              {/* Lane separator top border */}
               <line x1={padL} x2={padL + cw} y1={laneY[l.key].y0} y2={laneY[l.key].y0}
                 stroke={MV.border} strokeWidth="0.4" opacity={0.4} />
+              <text x={padL + 4} y={laneY[l.key].y0 + 10} fontSize="9" fontWeight={700}
+                fill={MV.mid} style={{ fontFamily: MV.mono }}>{laneLabel(l.key)}</text>
+              <text x={padL + 4} y={laneY[l.key].y0 + 19} fontSize="8"
+                fill={MV.weak} style={{ fontFamily: MV.mono }}>
+                {l.key === "PRICE" && priceHintOverride ? priceHintOverride : l.hint}
+              </text>
             </g>
           ))}
 
           {/* ==================== PRICE LANE ==================== */}
-          {/* Y ticks (min/mid/max only, to keep it clean) */}
-          {[0, 0.5, 1].map((p) => {
-            const v = (pMin - pPad) + p * ((pMax + pPad) - (pMin - pPad));
+          {/* Y ticks: min & max only, at the plot area edges (not header). */}
+          {[pMin - pPad, pMax + pPad].map((v, k) => (
+            <g key={`py${k}`}>
+              <line x1={padL} x2={padL + cw} y1={yPrice(v)} y2={yPrice(v)}
+                stroke={MV.border} strokeWidth="0.4" opacity={0.35} />
+              <text x={padL - 6} y={yPrice(v) + (k === 0 ? -2 : 8)} textAnchor="end" fontSize="9" fill={MV.weak}
+                style={{ fontFamily: MV.mono }}>{fmtNum(v, { maximumFractionDigits: 0 })}</text>
+            </g>
+          ))}
+          {/* WEEK: flip + max-γ reference lines across price lane */}
+          {tf === "WEEK" && live.flipLevel != null && live.flipLevel >= pMin - pPad && live.flipLevel <= pMax + pPad && (() => {
+            const ly = yPrice(live.flipLevel);
             return (
-              <g key={`py${p}`}>
-                <line x1={padL} x2={padL + cw} y1={yPrice(v)} y2={yPrice(v)}
-                  stroke={MV.border} strokeWidth="0.4" opacity={0.4} />
-                <text x={padL - 6} y={yPrice(v) + 3} textAnchor="end" fontSize="9" fill={MV.weak}
-                  style={{ fontFamily: MV.mono }}>{fmtNum(v, { maximumFractionDigits: 0 })}</text>
+              <g>
+                <line x1={padL} x2={padL + cw + (showLiveRail ? 30 : 0)} y1={ly} y2={ly}
+                  stroke={MV.amber} strokeWidth="1" strokeDasharray="3,3" opacity={0.75} />
+                <text x={padL + cw - 4} y={refLabelY(ly)} textAnchor="end" fontSize="9"
+                  fill={MV.amber} style={{ fontFamily: MV.mono }}>
+                  flip {fmtNum(live.flipLevel, { maximumFractionDigits: 0 })}
+                </text>
               </g>
             );
-          })}
-          {/* WEEK: flip + max-γ reference lines across price lane */}
-          {tf === "WEEK" && live.flipLevel != null && live.flipLevel >= pMin - pPad && live.flipLevel <= pMax + pPad && (
-            <g>
-              <line x1={padL} x2={padL + cw + (showLiveRail ? 30 : 0)} y1={yPrice(live.flipLevel)} y2={yPrice(live.flipLevel)}
-                stroke={MV.amber} strokeWidth="1" strokeDasharray="3,3" opacity={0.75} />
-              <text x={padL + cw - 4} y={yPrice(live.flipLevel) - 3} textAnchor="end" fontSize="9"
-                fill={MV.amber} style={{ fontFamily: MV.mono }}>
-                flip {fmtNum(live.flipLevel, { maximumFractionDigits: 0 })}
-              </text>
-            </g>
-          )}
-          {tf === "WEEK" && live.maxGammaStrike != null && live.maxGammaStrike >= pMin - pPad && live.maxGammaStrike <= pMax + pPad && (
-            <g>
-              <line x1={padL} x2={padL + cw + (showLiveRail ? 30 : 0)} y1={yPrice(live.maxGammaStrike)} y2={yPrice(live.maxGammaStrike)}
-                stroke={MV.purple} strokeWidth="1" strokeDasharray="3,3" opacity={0.75} />
-              <text x={padL + cw - 4} y={yPrice(live.maxGammaStrike) - 3} textAnchor="end" fontSize="9"
-                fill={MV.purple} style={{ fontFamily: MV.mono }}>
-                max γ {fmtNum(live.maxGammaStrike, { maximumFractionDigits: 0 })}
-              </text>
-            </g>
-          )}
+          })()}
+          {tf === "WEEK" && live.maxGammaStrike != null && live.maxGammaStrike >= pMin - pPad && live.maxGammaStrike <= pMax + pPad && (() => {
+            const ly = yPrice(live.maxGammaStrike);
+            return (
+              <g>
+                <line x1={padL} x2={padL + cw + (showLiveRail ? 30 : 0)} y1={ly} y2={ly}
+                  stroke={MV.purple} strokeWidth="1" strokeDasharray="3,3" opacity={0.75} />
+                <text x={padL + cw - 4} y={refLabelY(ly)} textAnchor="end" fontSize="9"
+                  fill={MV.purple} style={{ fontFamily: MV.mono }}>
+                  max γ {fmtNum(live.maxGammaStrike, { maximumFractionDigits: 0 })}
+                </text>
+              </g>
+            );
+          })()}
           {pricePath.map((p, k) => (
             <path key={`pp${k}`} d={p} fill="none" stroke={MV.blueLine} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
           ))}
@@ -366,7 +395,7 @@ export function AmbientTrajectory({
               <g>
                 <line x1={x(idx)} x2={liveX} y1={yPrice(lastSpot)} y2={ly}
                   stroke={MV.blueLine} strokeWidth="1.5" strokeDasharray="4,3" opacity={0.85} />
-                <line x1={padL + cw + 8} x2={padL + cw + 8} y1={priceLane.y0} y2={priceLane.y0 + priceLane.h}
+                <line x1={padL + cw + 8} x2={padL + cw + 8} y1={priceLane.plotY0} y2={priceLane.plotY0 + priceLane.plotH}
                   stroke={MV.border} strokeWidth="0.5" />
                 <circle cx={liveX} cy={ly} r={5} fill={MV.card} stroke={MV.blue} strokeWidth={2} />
                 <text x={liveX} y={ly - 10} textAnchor="middle" fontSize="9" fontWeight={700}
@@ -381,9 +410,9 @@ export function AmbientTrajectory({
           <line x1={padL} x2={padL + cw} y1={cycleMid} y2={cycleMid}
             stroke={MV.border} strokeWidth="0.5" />
           {/* ceiling / floor axis marks — small icons only, no numeric labels */}
-          <text x={padL - 6} y={cycleLane.y0 + 12} textAnchor="end" fontSize="10" fill={MV.redLine}
+          <text x={padL - 6} y={cycleLane.plotY0 + 10} textAnchor="end" fontSize="10" fill={MV.redLine}
             style={{ fontFamily: MV.mono }}>▲</text>
-          <text x={padL - 6} y={cycleLane.y0 + cycleLane.h - 3} textAnchor="end" fontSize="10" fill={MV.greenLine}
+          <text x={padL - 6} y={cycleLane.plotY0 + cycleLane.plotH - 2} textAnchor="end" fontSize="10" fill={MV.greenLine}
             style={{ fontFamily: MV.mono }}>▼</text>
           {runs.map((seg, k) => {
             if (seg.pts.length < 1) return null;
@@ -420,14 +449,15 @@ export function AmbientTrajectory({
           {/* ==================== REGIME LANE (optional) ==================== */}
           {regimeLane && yRegime && (
             <g>
-              <rect x={padL} y={regimeLane.y0} width={cw} height={regimeLane.h}
+              <rect x={padL} y={regimeLane.plotY0} width={cw} height={regimeLane.plotH}
                 fill={MV.border} opacity={0.18} />
-              {/* min/max ticks */}
-              {[rMin, rMax].map((v, k) => (
-                <g key={`ry${k}`}>
-                  <text x={padL - 6} y={yRegime(v) + 3} textAnchor="end" fontSize="9" fill={MV.weak}
-                    style={{ fontFamily: MV.mono }}>{(v * 100).toFixed(0)}%</text>
-                </g>
+              {/* min/max ticks — 2 max, at plot edges */}
+              {[
+                { v: rMin, dy: 8 },
+                { v: rMax, dy: -2 },
+              ].map((t, k) => (
+                <text key={`ry${k}`} x={padL - 6} y={yRegime(t.v) + t.dy} textAnchor="end" fontSize="9" fill={MV.weak}
+                  style={{ fontFamily: MV.mono }}>{(t.v * 100).toFixed(0)}%</text>
               ))}
               {regimePath.map((p, k) => (
                 <path key={`rp${k}`} d={p} fill="none" stroke={MV.mid} strokeWidth={tf === "MONTH" ? 2 : 1.4}
@@ -436,11 +466,43 @@ export function AmbientTrajectory({
             </g>
           )}
 
-          {/* --- Bottom x-axis (last lane only) --- */}
+          {/* --- Dim overlay for WEEK prior-cycle sessions ---
+              Drawn AFTER data so the prior cycle desaturates; dividers below
+              this render on top so the boundary stays fully visible. */}
+          {dimOverlayX2 != null && (
+            <rect x={padL} y={chartTop} width={dimOverlayX2 - padL} height={chartBottom - chartTop}
+              fill={MV.card} opacity={0.55} pointerEvents="none" />
+          )}
+
+          {/* --- Cycle dividers span ALL lanes (rendered LAST so they win) --- */}
+          {rowBoundaries.map((bi) => {
+            const bx = x(bi) - xStep / 2;
+            const isDimBoundary = bi === dimUntilIdx && dimUntilIdx > 0;
+            return (
+              <g key={`b${bi}`}>
+                <line x1={bx} x2={bx} y1={chartTop} y2={chartBottom}
+                  stroke={isDimBoundary ? MV.amber : MV.borderStrong}
+                  strokeWidth={isDimBoundary ? 1.2 : 1}
+                  strokeDasharray={isDimBoundary ? undefined : "2,3"}
+                  opacity={isDimBoundary ? 0.9 : tf === "MONTH" ? 0.4 : 0.75} />
+                <text x={bx + 4} y={chartTop - 6} fontSize="9" fill={MV.weak} style={{ fontFamily: MV.mono }}>
+                  ⟵ exp {fmtDate(rows[bi - 1].front_expiry)}
+                </text>
+              </g>
+            );
+          })}
+          {last.front_expiry && (
+            <text x={padL + cw - 4} y={chartTop - 6} textAnchor="end" fontSize="9" fill={MV.weak}
+              style={{ fontFamily: MV.mono }}>
+              cycle → {fmtDate(last.front_expiry)}{live.dte != null ? ` · ${live.dte}d live` : ""}
+            </text>
+          )}
+
+          {/* --- Bottom x-axis (reserved band; no lane draws here) --- */}
           {(() => {
             const ticks = Array.from(new Set([0, ...rowBoundaries, rows.length - 1])).filter((i) => i >= 0 && i < rows.length);
             return ticks.map((i) => (
-              <text key={`xt${i}`} x={x(i)} y={chartBottom + 14} textAnchor="middle" fontSize="9" fill={MV.weak}
+              <text key={`xt${i}`} x={x(i)} y={chartBottom + 16} textAnchor="middle" fontSize="9" fill={MV.weak}
                 style={{ fontFamily: MV.mono }}>
                 {fmtDate(rows[i].as_of_date)}
               </text>
