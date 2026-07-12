@@ -19,12 +19,13 @@ const normalizeRegime = (r: string | null | undefined): string | null => {
   return s;
 };
 
-function AmbientVerdict({ symbol, liveRegime }: { symbol: "NIFTY" | "SENSEX"; liveRegime: string | null }) {
+function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
   const amb = useAmbient(symbol);
   const a: any = amb.data ?? null;
-  const liveN = normalizeRegime(liveRegime);
-  const settledN = normalizeRegime(a?.net_gex_regime ?? null);
-  const drift = liveN && settledN && liveN !== settledN;
+  const regime = a?.ambient_regime ?? null;
+  const alignment = a?.lens_alignment ?? null;
+  const note = a?.regime_conditional_note ?? null;
+
   const regime = a?.ambient_regime ?? null;
   const alignment = a?.lens_alignment ?? null;
   const note = a?.regime_conditional_note ?? null;
