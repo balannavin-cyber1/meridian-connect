@@ -404,7 +404,7 @@ export function useIvSmile(symbol: Symbol, spot: number | null | undefined, step
       const hi = atm + step * 5;
       const { data, error } = await supabase
         .from("option_chain_snapshots")
-        .select("ts, strike, option_type, iv")
+        .select("ts, expiry_date, strike, option_type, iv")
         .eq("symbol", symbol)
         .gte("strike", lo)
         .lte("strike", hi)
@@ -413,9 +413,16 @@ export function useIvSmile(symbol: Symbol, spot: number | null | undefined, step
       if (error) return null;
       const rows = (data ?? []) as any[];
       if (!rows.length) return null;
-      // Filter to most recent ts only
+      // Filter to most recent ts + front expiry only
       const maxTs = rows[0].ts;
-      const latest = rows.filter((r) => r.ts === maxTs);
+      const maxTsRows = rows.filter((r) => r.ts === maxTs);
+      const frontExpiry = maxTsRows
+        .map((r) => r.expiry_date)
+        .filter((d): d is string => !!d)
+        .sort((a, b) => a.localeCompare(b))[0];
+      const latest = frontExpiry
+        ? maxTsRows.filter((r) => r.expiry_date === frontExpiry)
+        : maxTsRows;
       // Average CE+PE IV per strike for the smile curve
       const byStrike = new Map<number, { ce: number | null; pe: number | null }>();
       for (const r of latest) {
