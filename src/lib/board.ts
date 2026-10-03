@@ -265,7 +265,7 @@ export function useLadderStrikes(s: Symbol) {
       if (e1) throw e1;
       if (!top) return null;
       const { data, error } = await supabase.from("gex_strike_snapshots")
-        .select("strike, gex_cr, gamma_call, gamma_put, oi_call, oi_put")
+        .select("strike, expiry_date, gex_cr, gamma_call, gamma_put, oi_call, oi_put")
         .eq("run_id", (top as any).run_id).order("strike", { ascending: true }).limit(1000);
       if (error) throw error;
       const current = (data ?? []) as any[];
