@@ -86,21 +86,36 @@ export function IVPanel({ data }: { data: Data }) {
 
 function Smile({ rows, leg, setLeg, legs }: { rows: any[]; leg: number; setLeg: (l: number) => void; legs: number[] }) {
   const [norm, setNorm] = useState(false);
+  const [xHalf, setXHalf] = useState(9);
+  const [xCenter, setXCenter] = useState(0);
   const r0 = rows[0];
   const status = r0?.leg_status;
   const W = 720, H = 220, P = 28;
   const yKey = norm ? "iv_over_atm" : "iv";
-  const quoted = rows.filter((r) => r.quote_state !== "OTM_ABSENT" && n(r[yKey]) != null && n(r.moneyness_pct) != null);
+  // dead strikes: quoted but oi_otm = 0 — degenerate vendor IV, excluded from the curve
+  const dead = rows.filter((r) => r.quote_state !== "OTM_ABSENT" && n(r.oi_otm) === 0);
+  const quoted = rows.filter((r) => r.quote_state !== "OTM_ABSENT" && n(r.oi_otm) !== 0 && n(r[yKey]) != null && n(r.moneyness_pct) != null);
   const absent = rows.filter((r) => r.quote_state === "OTM_ABSENT");
-  const xs = rows.map((r) => n(r.moneyness_pct)).filter((v): v is number => v != null);
-  const ys = quoted.map((r) => n(r[yKey])!);
-  const xLo = Math.min(...xs), xHi = Math.max(...xs), yLo = Math.min(...ys), yHi = Math.max(...ys);
+  const xLo = xCenter - xHalf, xHi = xCenter + xHalf;
+  const vis = quoted.filter((r) => { const m = n(r.moneyness_pct)!; return m >= xLo && m <= xHi; });
+  const ys = vis.map((r) => n(r[yKey])!);
+  const yLo = Math.min(...ys), yHi = Math.max(...ys);
   const x = (v: number) => P + ((v - xLo) / Math.max(1e-9, xHi - xLo)) * (W - 2 * P);
   const y = (v: number) => H - P - ((v - yLo) / Math.max(1e-9, yHi - yLo)) * (H - 2 * P);
-  const path = quoted.map((r, i) => `${i ? "L" : "M"}${x(n(r.moneyness_pct)!).toFixed(1)},${y(n(r[yKey])!).toFixed(1)}`).join(" ");
+  const path = vis.map((r, i) => `${i ? "L" : "M"}${x(n(r.moneyness_pct)!).toFixed(1)},${y(n(r[yKey])!).toFixed(1)}`).join(" ");
   const atm = rows.find((r) => r.strike === r.leg_atm_strike);
   const atmY = norm ? 1 : n(r0?.leg_atm_iv);
   const k98 = rows.find((r) => r.strike === r0?.leg_k98);
+  const inWin = (m: number | null | undefined) => m != null && m >= xLo && m <= xHi;
+  const zoomX = (k: number) => setXHalf((h) => Math.min(150, Math.max(1, h * k)));
+  const panX = (dir: number) => setXCenter((c) => c + dir * xHalf * 0.5);
+  const fitAll = () => {
+    const ms = quoted.map((r) => n(r.moneyness_pct)!);
+    if (!ms.length) return;
+    setXCenter(0);
+    setXHalf(Math.min(150, Math.max(2, Math.max(Math.abs(Math.min(...ms)), Math.abs(Math.max(...ms))) * 1.08)));
+  };
+  const xm = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)} %`;
 
   return (
     <Card>
@@ -118,6 +133,13 @@ function Smile({ rows, leg, setLeg, legs }: { rows: any[]; leg: number; setLeg: 
           style={{ borderColor: norm ? "var(--ink-1)" : "var(--line-2)", color: norm ? "var(--ink-1)" : "var(--ink-3)" }}>
           {norm ? "IV ÷ ATM" : "IV %"}
         </button>
+        <div className="flex gap-1" title="x-window: moneyness range">
+          <button onClick={() => panX(-1)} className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }}>◀</button>
+          <button onClick={() => zoomX(1 / 1.6)} className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }}>+</button>
+          <button onClick={() => zoomX(1.6)} className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }}>−</button>
+          <button onClick={() => panX(1)} className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }}>▶</button>
+          <button onClick={fitAll} className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: xHalf >= 149.9 ? "var(--ink-1)" : "var(--line-2)", color: "var(--ink-2)" }}>full</button>
+        </div>
         <div className="ml-auto flex flex-wrap gap-4 text-[12px]">
           <span><span style={{ color: "var(--ink-3)" }}>ATM </span>{r0?.leg_atm_strike?.toLocaleString("en-IN") ?? "—"} · {pct(r0?.leg_atm_iv)}</span>
           <span><span style={{ color: "var(--ink-3)" }}>skew 98 </span>{sgn(r0?.leg_skew_98)} vol pts <span style={{ color: "var(--ink-3)" }}>@ {r0?.leg_k98?.toLocaleString("en-IN") ?? "—"}</span></span>
@@ -125,20 +147,21 @@ function Smile({ rows, leg, setLeg, legs }: { rows: any[]; leg: number; setLeg: 
       </div>
       {status === "SKIPPED_EXPIRY" ? <Chip>expiry — IV skipped</Chip>
         : !rows.length ? <Chip>pending measurement · no surface for this leg</Chip>
-        : quoted.length < 2 ? <Chip>pending measurement · too few quoted strikes</Chip> : (
+        : quoted.length < 2 ? <Chip>pending measurement · too few quoted strikes</Chip>
+        : vis.length < 2 ? <Chip>pending measurement · too few quoted strikes in this window — widen or pan</Chip> : (
         <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" style={{ maxHeight: 260 }}>
-          <line x1={x(0)} x2={x(0)} y1={P / 2} y2={H - P} stroke="var(--axis)" strokeDasharray="2,3" />
+          {0 >= xLo && 0 <= xHi && <line x1={x(0)} x2={x(0)} y1={P / 2} y2={H - P} stroke="var(--axis)" strokeDasharray="2,3" />}
           <path d={path} fill="none" stroke="var(--ink-1)" strokeOpacity={0.85} strokeWidth={1.5} />
-          {quoted.map((r) => <circle key={r.strike} cx={x(n(r.moneyness_pct)!)} cy={y(n(r[yKey])!)} r={1.6} fill={r.side_used === "CE" ? "var(--call)" : "var(--put)"}><title>{`${r.strike} · ${r.side_used} · ${norm ? n(r.iv_over_atm)?.toFixed(3) : pct(r.iv)}`}</title></circle>)}
-          {absent.map((r) => n(r.moneyness_pct) != null && (
+          {vis.map((r) => <circle key={r.strike} cx={x(n(r.moneyness_pct)!)} cy={y(n(r[yKey])!)} r={1.6} fill={r.side_used === "CE" ? "var(--call)" : "var(--put)"}><title>{`${r.strike} · ${r.side_used} · ${norm ? n(r.iv_over_atm)?.toFixed(3) : pct(r.iv)}`}</title></circle>)}
+          {absent.map((r) => inWin(n(r.moneyness_pct)) && (
             <g key={`a${r.strike}`}><line x1={x(n(r.moneyness_pct)!)} x2={x(n(r.moneyness_pct)!)} y1={H - P + 2} y2={H - P + 8} stroke="var(--ink-3)" /><title>{`${r.strike} · OTM absent`}</title></g>
           ))}
-          {k98 && n(k98.moneyness_pct) != null && <line x1={x(n(k98.moneyness_pct)!)} x2={x(n(k98.moneyness_pct)!)} y1={P / 2} y2={H - P} stroke="var(--rule)" strokeOpacity={0.5} strokeDasharray="1,3" />}
-          {atm && atmY != null && <circle cx={x(n(atm.moneyness_pct) ?? 0)} cy={y(atmY)} r={4} fill="none" stroke="var(--sel)" strokeWidth={1.5} />}
-          <text x={x(0) + 4} y={P / 2 + 8} fontSize="9" fill="var(--ink-3)">ATM</text>
-          {k98 && n(k98.moneyness_pct) != null && <text x={x(n(k98.moneyness_pct)!) + 4} y={P / 2 + 8} fontSize="9" fill="var(--ink-3)">K98</text>}
-          <text x={P} y={H - 6} fontSize="9" fill="var(--ink-3)">{xLo.toFixed(1)} %</text>
-          <text x={W - P} y={H - 6} fontSize="9" fill="var(--ink-3)" textAnchor="end">+{xHi.toFixed(1)} % moneyness</text>
+          {k98 && inWin(n(k98.moneyness_pct)) && <line x1={x(n(k98.moneyness_pct)!)} x2={x(n(k98.moneyness_pct)!)} y1={P / 2} y2={H - P} stroke="var(--rule)" strokeOpacity={0.5} strokeDasharray="1,3" />}
+          {atm && inWin(n(atm.moneyness_pct) ?? 0) && atmY != null && <circle cx={x(n(atm.moneyness_pct) ?? 0)} cy={y(atmY)} r={4} fill="none" stroke="var(--sel)" strokeWidth={1.5} />}
+          {0 >= xLo && 0 <= xHi && <text x={x(0) + 4} y={P / 2 + 8} fontSize="9" fill="var(--ink-3)">ATM</text>}
+          {k98 && inWin(n(k98.moneyness_pct)) && <text x={x(n(k98.moneyness_pct)!) + 4} y={P / 2 + 8} fontSize="9" fill="var(--ink-3)">K98</text>}
+          <text x={P} y={H - 6} fontSize="9" fill="var(--ink-3)">{xm(xLo)}</text>
+          <text x={W - P} y={H - 6} fontSize="9" fill="var(--ink-3)" textAnchor="end">{xm(xHi)} moneyness</text>
           <text x={4} y={y(yHi) + 3} fontSize="9" fill="var(--ink-3)">{norm ? yHi.toFixed(2) : yHi.toFixed(1)}</text>
           <text x={4} y={y(yLo) + 3} fontSize="9" fill="var(--ink-3)">{norm ? yLo.toFixed(2) : yLo.toFixed(1)}</text>
         </svg>
@@ -146,6 +169,7 @@ function Smile({ rows, leg, setLeg, legs }: { rows: any[]; leg: number; setLeg: 
       <div className="mt-2 flex flex-wrap gap-4 text-[10px]" style={{ color: "var(--ink-3)" }}>
         <span>● PE side (grey) · ● CE side (light)</span><span>◯ ATM</span><span>┆ K98 (server skew strike)</span>
         <span>▏ OTM absent · {absent.length} strike{absent.length === 1 ? "" : "s"}</span>
+        <span>zero-OI (quoted) excluded · {dead.length} strike{dead.length === 1 ? "" : "s"}</span>
         <span>skew from view · not recomputed</span>
       </div>
     </Card>
