@@ -301,7 +301,7 @@ export function useNetGammaToday(s: Symbol, session: string | null) {
   });
 }
 
-export type RiverDay = { date: string; net: number; lo: number; hi: number; complete: boolean; spot: number | null; dte: number | null };
+export type RiverDay = { date: string; net: number; lo: number; hi: number; complete: boolean; spot: number | null; dte: number | null; gapBefore: boolean };
 /** Settled daily net-γ river. Not intraday-gated; drops any session the calendar says is not open. */
 export function useGammaRiver(s: Symbol) {
   return useQuery({
@@ -320,7 +320,10 @@ export function useGammaRiver(s: Symbol) {
           .eq("is_open", true).gte("trade_date", dates[0]).lte("trade_date", dates[dates.length - 1]).limit(5000);
         if (cal?.length) open = new Set((cal as any[]).map((c) => c.trade_date));
       }
-      return rows.filter((r) => open.has(r.session_date) && (!gate.session || r.session_date <= gate.session)).map((r): RiverDay => ({
+      const openSorted = [...open].sort();
+      const kept = rows.filter((r) => open.has(r.session_date) && (!gate.session || r.session_date <= gate.session));
+      return kept.map((r, i): RiverDay => ({
+        gapBefore: i > 0 && openSorted.some((d) => d > kept[i - 1].session_date && d < r.session_date),
         date: r.session_date, net: Number(r.net_gex_cr), lo: Number(r.session_min_net_gex_cr), hi: Number(r.session_max_net_gex_cr),
         complete: r.session_complete !== false, spot: r.spot != null ? Number(r.spot) : null, dte: r.dte != null ? Number(r.dte) : null,
       }));
