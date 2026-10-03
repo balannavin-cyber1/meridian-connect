@@ -280,3 +280,50 @@ export function useLadderStrikes(s: Symbol) {
 export function usePinBand(s: Symbol) {
   return useQuery({ queryKey: ["board", "pinband", s], ...opts, queryFn: latestBySymbol("v_gex_strike_pin_zone", s) });
 }
+
+/** Phase 1c Gamma: concentration (γ clock, gated). */
+export const useConcentration = (s: Symbol) =>
+  useQuery({ queryKey: ["board", "conc", s], ...opts, queryFn: latestBySymbol("v_gex_concentration", s) });
+
+/** Net Γ per run for the current trading session (deduped by ts). */
+export function useNetGammaToday(s: Symbol, session: string | null) {
+  return useQuery({
+    queryKey: ["board", "netToday", s, session], ...opts, enabled: !!session,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("gamma_metrics").select("ts, net_gex")
+        .eq("symbol", s).gte("ts", istAt(session!, "00:00")).lt("ts", istAt(nextDay(session!), "00:00"))
+        .order("ts", { ascending: true }).limit(1000);
+      if (error) throw error;
+      const seen = new Set<string>();
+      return ((data ?? []) as any[]).filter((r) => r.net_gex != null && !seen.has(r.ts) && seen.add(r.ts))
+        .map((r) => ({ ts: r.ts as string, v: Number(r.net_gex) }));
+    },
+  });
+}
+
+export type RiverDay = { date: string; net: number; lo: number; hi: number; complete: boolean; spot: number | null; dte: number | null };
+/** Settled daily net-γ river. Not intraday-gated; drops any session the calendar says is not open. */
+export function useGammaRiver(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "river", s], staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
+    queryFn: async () => {
+      const gate = await getGate();
+      const { data, error } = await supabase.from("v_gex_net_gamma_river")
+        .select("session_date, net_gex_cr, session_min_net_gex_cr, session_max_net_gex_cr, session_complete, spot, dte")
+        .eq("symbol", s).order("session_date", { ascending: true }).limit(2000);
+      if (error) throw error;
+      const rows = (data ?? []) as any[];
+      const dates = rows.map((r) => r.session_date as string);
+      let open = new Set<string>(dates);
+      if (dates.length) {
+        const { data: cal } = await supabase.from("trading_calendar").select("trade_date")
+          .eq("is_open", true).gte("trade_date", dates[0]).lte("trade_date", dates[dates.length - 1]).limit(5000);
+        if (cal?.length) open = new Set((cal as any[]).map((c) => c.trade_date));
+      }
+      return rows.filter((r) => open.has(r.session_date) && (!gate.session || r.session_date <= gate.session)).map((r): RiverDay => ({
+        date: r.session_date, net: Number(r.net_gex_cr), lo: Number(r.session_min_net_gex_cr), hi: Number(r.session_max_net_gex_cr),
+        complete: r.session_complete !== false, spot: r.spot != null ? Number(r.spot) : null, dte: r.dte != null ? Number(r.dte) : null,
+      }));
+    },
+  });
+}
