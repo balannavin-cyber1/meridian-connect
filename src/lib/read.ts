@@ -30,7 +30,10 @@ export function useBoardRead(symbol: Symbol): string | null {
   if (cState && cState !== "UNDEFINED" && pw != null && cw != null) {
     const useCall = Math.abs(cw - spot) <= Math.abs(spot - pw);
     const wall = useCall ? cw : pw;
-    out += `, ${((Math.abs(wall - spot) / spot) * 100).toFixed(1)}% ${spot < wall ? "under" : "above"} the ${useCall ? "call" : "put"} OI wall at ${num(wall)}`;
+    const wallDistancePct = (Math.abs(wall - spot) / spot) * 100;
+    out += wallDistancePct < 0.05
+      ? `, at the ${useCall ? "call" : "put"} OI wall at ${num(wall)}`
+      : `, ${wallDistancePct.toFixed(1)}% ${spot < wall ? "under" : "above"} the ${useCall ? "call" : "put"} OI wall at ${num(wall)}`;
     if (pin != null && pin === wall) out += ", which is also the largest gamma strike";
   }
   if (fPct != null && fms != null) {
