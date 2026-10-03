@@ -6,8 +6,12 @@ import { useSymbol } from "@/contexts/SymbolContext";
 import {
   useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useWalls, useStrikeRank,
   useIvFront, useFutures, useSpotPocket, useGammaSession, useOpenGap, usePrevBasis,
-  istTime, istDateOf,
+  istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, usePinBand,
 } from "@/lib/board";
+import { LadderPanel, TABS, type Tab, type OverviewItem } from "@/components/board/LadderPanel";
+import type { Level } from "@/components/board/StrikeLadder";
+
+const CELL_TO_ITEM: Record<string, string> = { s1: "dte", s2: "spot", s3: "net", s4: "flip", s5: "corridor", s6: "pin", s7: "priced" };
 
 // ---------- formatting ----------
 const num = (v: number | null | undefined, d = 0) =>
@@ -73,8 +77,14 @@ function Cell({ id, label, value, color, sub, viz, sel, onSel }: CellProps) {
 export default function Board() {
   const { symbol } = useSymbol();
   const [params] = useSearchParams();
-  const [sel, setSel] = useState<string | null>(params.get("sel"));
-  useEffect(() => { const s = params.get("sel"); if (s) setSel(s); }, [params]);
+  const fromParam = (v: string | null) => (v ? CELL_TO_ITEM[v] ?? v : null);
+  const [sel, setSel] = useState<string | null>(fromParam(params.get("sel")) ?? "net");
+  const [tab, setTab] = useState<Tab>(() => TABS.find((t) => t.toLowerCase() === params.get("tab")) ?? "Overview");
+  useEffect(() => { const s = fromParam(params.get("sel")); if (s) setSel(s); }, [params]);
+  const nextOpen = useNextOpen().data ?? null;
+  const closedWord = `market closed${nextOpen ? ` · next ${new Date(nextOpen + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}` : ""}`;
+  const ladder = useLadderStrikes(symbol).data;
+  const pinBandRow = usePinBand(symbol).data as any;
   const sess = useSessions();
   const session = sess.data?.session ?? null, prev = sess.data?.prev ?? null;
 
@@ -97,7 +107,7 @@ export default function Board() {
   // S1
   const expiry = g?.expiry_date ?? null;
   const dteS = n(iv?.dte_sessions);
-  const s1sub = expiry && expiry === today ? "expiry today" : dteS != null ? `${dteS} DTE` : undefined;
+  const s1sub = isAwaiting(iv) ? (nextOpen ? `next ${new Date(nextOpen + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}` : undefined) : expiry && expiry === today ? "expiry today" : dteS != null ? `${dteS} DTE` : undefined;
 
   // S2
   const spotChg = spot != null && prevClose != null ? spot - prevClose : null;
@@ -160,32 +170,67 @@ export default function Board() {
 
   const read = useBoardRead(symbol);
 
+  // ---------- ladder (Overview) ----------
+  const step = symbol === "NIFTY" ? 50 : 100;
+  const lad = (v: number) => (Math.abs(v) >= 1e5 ? `${sgn(v / 1e5, 1)}L` : sgn(v, 0));
+  const rows = (ladder?.rows ?? []).map((r) => ({ strike: r.strike, value: r.gex, tint: r.gex, readout: r.gex == null ? "·" : lad(r.gex), full: r.gex == null ? "no quote" : `${lad(r.gex)} Cr` }));
+  const levels: Level[] = [
+    ...(spot != null ? [{ id: "spot", name: "SPOT", at: spot, style: "spot" as const }] : []),
+    ...(fVal != null ? [{ id: "flip", name: "FLIP", at: fVal, style: "dashed" as const }] : []),
+    ...(cw != null && cState !== "UNDEFINED" ? [{ id: "callwall", name: "CALL OI WALL", at: cw, style: "solid" as const }] : []),
+    ...(pw != null && cState !== "UNDEFINED" ? [{ id: "putwall", name: "PUT OI WALL", at: pw, style: "solid" as const }] : []),
+    ...(pin != null ? [{ id: "gconc", name: "γ-CONC", at: pin, style: "dotted" as const }] : []),
+  ];
+  const items: OverviewItem[] = [
+    { id: "net", label: "Net Γ", sub: net != null ? `${net >= 0 ? "long γ" : "short γ"}${ratio != null ? ` · ${ratio.toFixed(2)} of gross` : ""}` : "",
+      value: net != null ? <span style={{ color: hue(net) }}>{crLakh(net)}</span> : <Absent word="no run" />, levelIds: [],
+      caption: net != null ? `Net gamma is ${crLakh(net)}${ratio != null ? `, ${ratio.toFixed(2)} of gross` : ""}; bars show signed γ per strike.` : "Net gamma has no run." },
+    { id: "flip", label: "Flip", sub: fPct != null ? `${fPct >= 0 ? "+" : "−"}${Math.abs(fPct).toFixed(2)} % from spot` : "",
+      value: fVal != null ? num(fVal) : isAwaiting(flip) ? <Absent word={closedWord} /> : fStatus && flipAbsent[fStatus] ? <Absent word={flipAbsent[fStatus]} /> : <Absent word="no run" />,
+      levelIds: ["flip"], caption: fVal != null ? `Flip at ${num(fVal)}, ${fPct! >= 0 ? "+" : "−"}${Math.abs(fPct!).toFixed(2)}% from spot (dashed rule).` : isAwaiting(flip) ? `Flip: ${closedWord}.` : `Flip: ${fStatus && flipAbsent[fStatus] ? flipAbsent[fStatus] : "no run"}.` },
+    { id: "corridor", label: "Corridor", sub: cState ? stateWord[cState] ?? cState.toLowerCase() : "",
+      value: pw != null && cw != null && cState !== "UNDEFINED" ? `${num(pw)}–${num(cw)}` : <Absent word="corridor undefined" />,
+      levelIds: ["callwall", "putwall"], caption: pw != null && cw != null ? `Put OI wall ${num(pw)} to call OI wall ${num(cw)}${widthPct != null ? `, ${widthPct.toFixed(2)}% wide` : ""}; spot is ${stateWord[cState ?? ""] ?? "—"}.` : "Corridor undefined." },
+    { id: "pin", label: "Pin (γ-conc)", sub: [sh1 != null ? `${(sh1 * 100).toFixed(1)} % of gross` : null, lead != null ? `lead ${lead.toFixed(1)} pts` : null].filter(Boolean).join(" · "),
+      value: pin != null ? num(pin) : <Absent word="no run" />, levelIds: ["gconc"],
+      caption: pin != null ? `${num(pin)} carries the largest gamma share${sh1 != null ? `, ${(sh1 * 100).toFixed(1)}% of gross` : ""} (dotted rule).` : "No ranked strike." },
+    { id: "priced", label: "Priced move", sub: strad != null && spot ? `±${((strad / spot) * 100).toFixed(2)} % to expiry` : "",
+      value: strad != null ? `±${num(strad)}` : <Absent word="no run" />, levelIds: [], priced: true,
+      caption: strad != null ? `The straddle prices ±${num(strad)} to expiry; the left gutter marks strikes inside it.` : "No straddle." },
+    { id: "spot", label: "Spot", sub: spotChg != null && prevClose ? `${sgn(spotChg, 1)} · ${sgn((spotChg / prevClose) * 100, 2)} %` : "",
+      value: spot != null ? num(spot, 1) : <Absent word="no run" />, levelIds: ["spot"],
+      caption: spot != null ? `Spot ${num(spot, 1)} at the γ run of ${istTime(g?.ts)}.` : "No spot." },
+    { id: "dte", label: "Time to expiry", sub: expiry ? `front ${expShort(expiry)}` : "",
+      value: dteS != null ? `${dteS} sess` : isAwaiting(iv) ? <Absent word={closedWord} /> : <Absent word="no chain" />, levelIds: [],
+      caption: dteS != null ? `${dteS} trading session${dteS === 1 ? "" : "s"} to the front expiry.` : isAwaiting(iv) ? `Time to expiry: ${closedWord}.` : "No chain." },
+  ];
+
   const C = { sel, onSel: setSel };
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4 px-3 py-4 md:px-5">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5 min-[1440px]:grid-flow-col min-[1440px]:auto-cols-fr min-[1440px]:grid-cols-none">
-        <Cell id="s1" label="Symbol · Expiry" {...C}
+        <Cell id="dte" label="Symbol · Expiry" {...C}
           value={expiry ? `${expShort(expiry)}` : <Absent word="no expiry" />} sub={[symbol, s1sub].filter(Boolean).join(" · ")} />
 
-        <Cell id="s2" label="Spot" {...C}
+        <Cell id="spot" label="Spot" {...C}
           value={spot != null ? num(spot, 1) : <Absent word="no run" />}
           sub={spotChg != null && prevClose ? <><Mark delta={spotChg} />{sgn(spotChg, 1)} · {sgn((spotChg / prevClose) * 100, 2)} %</> : undefined}
           viz={sparkPts.length >= 3 ? <Spark pts={sparkPts} /> : undefined} />
 
-        <Cell id="s3" label="Net Γ" {...C}
+        <Cell id="net" label="Net Γ" {...C}
           value={net != null ? crLakh(net) : <Absent word="no run" />} color={hue(net)}
           sub={net != null ? `${net >= 0 ? "long γ" : "short γ"}${ratio != null ? ` · ${ratio.toFixed(2)} of gross` : ""} · unit definition pending` : undefined}
           viz={net != null && gross ? (
             <SplitBar net={net} gross={gross} />
           ) : undefined} />
 
-        <Cell id="s4" label="Flip" {...C}
-          value={fVal != null ? num(fVal, 0) : fStatus && flipAbsent[fStatus] ? <Absent word={flipAbsent[fStatus]} /> : <Absent word="no run" />}
+        <Cell id="flip" label="Flip" {...C}
+          value={fVal != null ? num(fVal, 0) : isAwaiting(flip) ? <Absent word={closedWord} /> : fStatus && flipAbsent[fStatus] ? <Absent word={flipAbsent[fStatus]} /> : <Absent word="no run" />}
           sub={fPct != null ? `${fPct >= 0 ? "+" : "−"}${Math.abs(fPct).toFixed(2)} % from spot` : undefined}
           viz={fSpot != null ? <Track lo={fSpot * 0.97} hi={fSpot * 1.03} spot={fSpot}
             ticks={fVal != null ? [{ at: fVal, color: "var(--rule)", dashed: true }] : []} /> : undefined} />
 
-        <Cell id="s5" label="Corridor" {...C}
+        <Cell id="corridor" label="Corridor" {...C}
           value={pw != null && cw != null && cState !== "UNDEFINED" ? `${num(pw)}–${num(cw)}` : <Absent word="corridor undefined" />}
           sub={cState ? [stateWord[cState] ?? cState.toLowerCase(), widthPct != null && cState !== "UNDEFINED" ? `${widthPct.toFixed(2)} % wide` : null, walls?.iv_fresh === false ? "IV stale" : null].filter(Boolean).join(" · ") : undefined}
           viz={pw != null && cw != null && wSpot != null && cState !== "UNDEFINED" ? (() => {
@@ -193,7 +238,7 @@ export default function Board() {
             return <Track lo={lo - pad} hi={hi + pad} spot={wSpot} ticks={[{ at: pw, color: "var(--put)" }, { at: cw, color: "var(--call)" }]} />;
           })() : undefined} />
 
-        <Cell id="s6" label="Pin (γ-conc)" {...C}
+        <Cell id="pin" label="Pin (γ-conc)" {...C}
           value={pin != null ? num(pin) : <Absent word="no run" />}
           sub={pin != null ? [sh1 != null ? `${(sh1 * 100).toFixed(1)} % of gross` : null, lead != null ? `lead ${lead.toFixed(1)} pts` : null, pinWall].filter(Boolean).join(" · ") : undefined}
           viz={sh1 != null ? (
@@ -203,8 +248,8 @@ export default function Board() {
             </div>
           ) : undefined} />
 
-        <Cell id="s7" label="IV · VIX" {...C}
-          value={atmIv != null || vix != null ? <>{atmIv != null ? atmIv.toFixed(1) : "—"} · {vix != null ? vix.toFixed(2) : "—"}</> : <Absent word="no chain" />}
+        <Cell id="priced" label="IV · VIX" {...C}
+          value={isAwaiting(iv) && vix == null ? <Absent word={closedWord} /> : atmIv != null || vix != null ? <>{isAwaiting(iv) ? <Absent word="market closed" /> : atmIv != null ? atmIv.toFixed(1) : "—"} · {vix != null ? vix.toFixed(2) : "—"}</> : <Absent word="no chain" />}
           sub={<>
             {vixChg != null && <><Mark delta={vixChg} />VIX {sgn(vixChg, 2)}</>}
             {strad != null && spot ? `${vixChg != null ? " · " : ""}±${num(strad, 0)} · ±${((strad / spot) * 100).toFixed(2)} %` : ""}
@@ -231,6 +276,11 @@ export default function Board() {
       <p className="max-w-[1100px] text-[15px] leading-relaxed" style={{ color: "var(--ink-1)" }}>
         {read ?? <Absent word="no run" />}
       </p>
+
+      <LadderPanel symbol={symbol} step={step} rows={rows} spot={spot} straddle={strad} levels={levels}
+        pinBand={n(pinBandRow?.pin_lower) != null ? { lo: Number(pinBandRow.pin_lower), hi: Number(pinBandRow.pin_upper) } : null}
+        corridor={pw != null && cw != null && cState !== "UNDEFINED" ? { lo: pw, hi: cw } : null}
+        items={items} sel={sel} setSel={setSel} tab={tab} setTab={setTab} />
     </div>
   );
 }
