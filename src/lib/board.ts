@@ -272,7 +272,7 @@ export function useLadderStrikes(s: Symbol) {
       const gate = await getGate();
       let firstRows: any[] = [];
       let runCount = 0;
-      if (gate.session) {
+      if (gate.session && s !== "SENSEX") {
         const expiry = (current[0]?.expiry_date as string | undefined) ?? null;
         let runsQ: any = supabase.from("gex_strike_snapshots").select("run_id, ts").eq("symbol", s)
           .gte("ts", istAt(gate.session, "00:00")).lt("ts", istAt(nextDay(gate.session), "00:00"));
