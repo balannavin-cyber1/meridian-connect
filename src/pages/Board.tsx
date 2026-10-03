@@ -8,6 +8,7 @@ import {
   useIvFront, useFutures, useSpotPocket, useGammaSession, useOpenGap, usePrevBasis,
   istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, usePinBand,
   useConcentration, useNetGammaToday, useGammaRiver,
+  useMaxPainRun,
 } from "@/lib/board";
 import { LadderPanel, TABS, type Tab, type OverviewItem } from "@/components/board/LadderPanel";
 import type { Level } from "@/components/board/StrikeLadder";
@@ -82,7 +83,7 @@ export default function Board() {
   const fromParam = (v: string | null) => (v ? CELL_TO_ITEM[v] ?? v : null);
   const [sel, setSel] = useState<string | null>(fromParam(params.get("sel")) ?? (params.get("tab") === "gamma" ? "g_top" : "net"));
   const [tab, setTabRaw] = useState<Tab>(() => TABS.find((t) => t.toLowerCase() === params.get("tab")) ?? "Overview");
-  const FIRST: Partial<Record<Tab, string>> = { Overview: "net", Gamma: "g_top" };
+  const FIRST: Partial<Record<Tab, string>> = { Overview: "net", Gamma: "g_top", OI: "oi_max" };
   const setTab = (t: Tab) => { setTabRaw(t); if (t !== tab && FIRST[t]) setSel(FIRST[t]!); };
   useEffect(() => { const s = fromParam(params.get("sel")); if (s) setSel(s); }, [params]);
   const nextOpen = useNextOpen().data ?? null;
@@ -176,6 +177,7 @@ export default function Board() {
   const conc = useConcentration(symbol).data as any;
   const netToday = (useNetGammaToday(symbol, session).data ?? []) as { ts: string; v: number }[];
   const river = useGammaRiver(symbol).data ?? [];
+  const painRows = useMaxPainRun(symbol, ladder?.runId ?? null).data ?? [];
 
   const read = useBoardRead(symbol);
 
@@ -264,6 +266,35 @@ export default function Board() {
       caption: sparkG.length >= 3 ? `Net γ moved from ${crLakh(sparkG[0])} to ${crLakh(sparkG[sparkG.length - 1])} over ${sparkG.length} runs today.` : "Fewer than 3 runs today — no sparkline." },
   ];
 
+  // ---------- OI tab (Phase 1d) ----------
+  const oiRaw = ladder?.rows ?? [];
+  const totalCall = oiRaw.reduce((sum, r) => sum + (r.oiCall ?? 0), 0);
+  const totalPut = oiRaw.reduce((sum, r) => sum + (r.oiPut ?? 0), 0);
+  const totalOI = totalCall + totalPut;
+  const oiFmt = (v: number) => Math.abs(v) >= 1e5 ? `${sgn(v / 1e5, 1)}L` : Math.abs(v) >= 1e3 ? `${sgn(v / 1e3, 1)}K` : sgn(v, 0);
+  const deltaAvailable = symbol !== "SENSEX" && (ladder?.runCount ?? 0) >= 2;
+  const deltaNet = deltaAvailable ? oiRaw.reduce((sum, r) => sum + (r.deltaCall ?? 0) + (r.deltaPut ?? 0), 0) : null;
+  const maxPain = painRows[0]?.maxPain ?? null;
+  const maxPainPct = maxPain != null && spot ? ((maxPain - spot) / spot) * 100 : null;
+  const oiRows = oiRaw.map((r) => ({
+    strike: r.strike, value: null, tint: null,
+    leftValue: r.oiPut, rightValue: r.oiCall,
+    deltaLeft: deltaAvailable ? r.deltaPut : null, deltaRight: deltaAvailable ? r.deltaCall : null,
+    readout: oiFmt((r.oiCall ?? 0) + (r.oiPut ?? 0)),
+    full: `put ${oiFmt(r.oiPut ?? 0)} · call ${oiFmt(r.oiCall ?? 0)}`,
+  }));
+  const painCurve = painRows.length ? new Map(painRows.map((r) => [r.strike, r.pain])) : null;
+  const oiLevels: Level[] = maxPain != null ? [{ id: "maxpain", name: `MAX PAIN ${num(maxPain)}`, at: maxPain, style: "spot" }] : [];
+  const oiDeltaNote = symbol === "SENSEX" ? "ΔOI · n/a (SENSEX)" : (ladder?.runCount ?? 0) < 2 ? "ΔOI · 1 run" : "ΔOI · since first run";
+  const oiItems: OverviewItem[] = [
+    { id: "oi_max", label: "Max pain", sub: "γ clock · pain minimum", value: maxPain != null ? num(maxPain) : <Absent word="no run" />, levelIds: ["maxpain"], caption: maxPain != null ? `Max pain is ${num(maxPain)}; the ink rule marks the minimum of the faint pain valley.` : "No max-pain run." },
+    { id: "oi_dist", label: "Distance to max pain", sub: maxPainPct == null ? "" : maxPainPct > 0 ? "above spot" : maxPainPct < 0 ? "below spot" : "at spot", value: maxPainPct != null ? `${sgn(maxPainPct, 2)} %` : <Absent word="no run" />, levelIds: ["maxpain"], caption: maxPainPct != null ? `Max pain is ${Math.abs(maxPainPct).toFixed(2)}% ${maxPainPct > 0 ? "above" : maxPainPct < 0 ? "below" : "at"} spot.` : "Distance unavailable." },
+    { id: "oi_callwall", label: "Call OI wall", sub: "calls · right wing", value: cw != null ? num(cw) : <Absent word="no wall" />, levelIds: [], caption: cw != null ? `Call OI wall is ${num(cw)}; call contracts extend right from the strike axis.` : "No call wall." },
+    { id: "oi_putwall", label: "Put OI wall", sub: "puts · left wing", value: pw != null ? num(pw) : <Absent word="no wall" />, levelIds: [], caption: pw != null ? `Put OI wall is ${num(pw)}; put contracts extend left from the strike axis.` : "No put wall." },
+    { id: "oi_total", label: "Total OI", sub: `calls ${oiFmt(totalCall)} · puts ${oiFmt(totalPut)}`, value: totalOI ? oiFmt(totalOI).replace(/^\+/, "") : <Absent word="no run" />, levelIds: [], caption: `Stored chain OI totals ${oiFmt(totalOI).replace(/^\+/, "")} contracts: calls ${oiFmt(totalCall).replace(/^\+/, "")}, puts ${oiFmt(totalPut).replace(/^\+/, "")}.` },
+    ...(symbol !== "SENSEX" ? [{ id: "oi_delta", label: "ΔOI net", sub: oiDeltaNote, value: deltaNet != null ? <span style={{ color: hue(deltaNet) }}>{oiFmt(deltaNet)}</span> : <span style={{ color: "var(--ink-3)" }}>—</span>, levelIds: [], caption: deltaNet != null ? `Net OI changed ${oiFmt(deltaNet)} contracts since today's first gamma run.` : "One run today — ΔOI ticks are hidden." }] : []),
+  ];
+
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4 px-3 py-4 md:px-5">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5 min-[1440px]:grid-flow-col min-[1440px]:auto-cols-fr min-[1440px]:grid-cols-none">
@@ -339,7 +370,9 @@ export default function Board() {
         pinBand={n(pinBandRow?.pin_lower) != null ? { lo: Number(pinBandRow.pin_lower), hi: Number(pinBandRow.pin_upper) } : null}
         corridor={pw != null && cw != null && cState !== "UNDEFINED" ? { lo: pw, hi: cw } : null}
         items={items} sel={sel} setSel={setSel} tab={tab} setTab={setTab}
-        gammaItems={gammaItems} gammaLevels={gammaLevels} silhouette={silhouette} river={<GammaRiver days={river} />} />
+        gammaItems={gammaItems} gammaLevels={gammaLevels} silhouette={silhouette}
+        oiRows={oiRows} oiItems={oiItems} oiLevels={oiLevels} painCurve={painCurve} oiDeltaNote={oiDeltaNote}
+        river={<GammaRiver days={river} />} />
     </div>
   );
 }

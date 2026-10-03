@@ -3,7 +3,10 @@ import { useMemo } from "react";
 
 export type LevelStyle = "spot" | "solid" | "dashed" | "dotted";
 export type Level = { id: string; name: string; at: number; style: LevelStyle };
-export type LadderRow = { strike: number; value: number | null; readout: string; tint?: number | null; full?: string };
+export type LadderRow = {
+  strike: number; value: number | null; readout: string; tint?: number | null; full?: string;
+  leftValue?: number | null; rightValue?: number | null; deltaLeft?: number | null; deltaRight?: number | null;
+};
 
 const fmt = (v: number) => v.toLocaleString("en-IN", { maximumFractionDigits: 1 });
 const mix = (c: string, p: number) => `color-mix(in srgb, ${c} ${p}%, transparent)`;
@@ -28,6 +31,8 @@ type Props = {
   onRecentre: (strike: number) => void;
   phone: boolean;
   silhouette?: Map<number, number> | null; // running Σ gex_cr from the highest strike down
+  curve?: Map<number, number> | null;
+  butterfly?: boolean;
 };
 
 function rule(style: LevelStyle, sel: boolean) {
@@ -42,6 +47,7 @@ export function StrikeLadder(p: Props) {
   const rowH = p.phone ? 22 : Math.max(8, Math.min(26, Math.floor(560 / Math.max(1, win.length))));
   const dense = rowH < 14;
   const maxAbs = Math.max(1e-9, ...win.map((r) => Math.abs(r.value ?? 0)));
+  const wingMax = Math.max(1e-9, ...win.flatMap((r) => [Math.abs(r.leftValue ?? 0), Math.abs(r.rightValue ?? 0)]));
   const barH = Math.max(6, rowH - 8);
   // The cumulative silhouette owns a stable full-series scale. Strike bars above
   // remain scaled only to their largest visible per-strike magnitude.
@@ -49,6 +55,14 @@ export function StrikeLadder(p: Props) {
   const silhouettePoints = p.silhouette ? win.flatMap((r, i) => {
     const value = p.silhouette?.get(r.strike);
     return value == null ? [] : [{ strike: r.strike, x: 50 + (value / silMax) * 48, y: i * rowH + rowH / 2 }];
+  }) : [];
+  const curveValues = p.curve ? Array.from(p.curve.values()) : [];
+  const curveLo = curveValues.length ? Math.min(...curveValues) : 0;
+  const curveHi = curveValues.length ? Math.max(...curveValues) : 1;
+  const curveRange = Math.max(1e-9, curveHi - curveLo);
+  const curvePoints = p.curve ? win.flatMap((r, i) => {
+    const value = p.curve?.get(r.strike);
+    return value == null ? [] : [{ strike: r.strike, x: 5 + ((value - curveLo) / curveRange) * 90, y: i * rowH + rowH / 2 }];
   }) : [];
 
   // group levels: on-strike (coincidence joins) vs between strikes
@@ -124,6 +138,15 @@ export function StrikeLadder(p: Props) {
               </svg>
             </div>
           )}
+          {curvePoints.length > 0 && (
+            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-[70px] right-[74px] z-[4]">
+              <svg className="h-full w-full" viewBox={`0 0 100 ${win.length * rowH}`} preserveAspectRatio="none">
+                {curvePoints.length > 1 && <polyline points={curvePoints.map((point) => `${point.x},${point.y}`).join(" ")}
+                  fill="none" stroke="var(--ink-1)" strokeOpacity={0.28} strokeWidth={2}
+                  strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+              </svg>
+            </div>
+          )}
           {items.map((it, idx) => {
             if (it.kind === "mark") {
               const ls = it.ls.sort((a, b) => rank[a.style] - rank[b.style]);
@@ -167,6 +190,16 @@ export function StrikeLadder(p: Props) {
                       background: r.value >= 0 ? "var(--cool)" : "var(--warm)",
                     }} />
                   )}
+                  {p.butterfly && <>
+                    {(r.leftValue ?? 0) > 0 && <div className="absolute top-1/2 -translate-y-1/2" style={{
+                      height: barH, width: `${((r.leftValue ?? 0) / wingMax) * 50}%`, right: "50%", background: "var(--put)" }} />}
+                    {(r.rightValue ?? 0) > 0 && <div className="absolute top-1/2 -translate-y-1/2" style={{
+                      height: barH, width: `${((r.rightValue ?? 0) / wingMax) * 50}%`, left: "50%", background: "var(--call)" }} />}
+                    {r.deltaLeft != null && <div className="absolute top-1/2 z-[6] h-[2px] w-[7px] -translate-y-1/2" style={{
+                      right: `${50 + ((r.leftValue ?? 0) / wingMax) * 50}%`, background: r.deltaLeft >= 0 ? "var(--cool)" : "var(--warm)" }} />}
+                    {r.deltaRight != null && <div className="absolute top-1/2 z-[6] h-[2px] w-[7px] -translate-y-1/2" style={{
+                      left: `${50 + ((r.rightValue ?? 0) / wingMax) * 50}%`, background: r.deltaRight >= 0 ? "var(--cool)" : "var(--warm)" }} />}
+                  </>}
                   {p.silhouette?.has(r.strike) && (
                     <div className="pointer-events-none absolute top-1/2 z-[7] h-[2px] w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full"
                       style={{ left: `${50 + ((p.silhouette.get(r.strike) ?? 0) / silMax) * 48}%`, background: "var(--ink-1)" }} />

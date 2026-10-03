@@ -25,6 +25,12 @@ const DETAIL: Record<string, { title: string; unit: string; what: string; how: s
   g_contrib: { title: "Contributing strikes", unit: "strikes", what: "Strikes with non-zero gamma out of all stored strikes in the run.", how: "Few contributors with a high top-strike share = a thin, pointy book.", computed: "v_gex_abs_exposure.n_contributing / n_strikes.", scale: "—", caveat: "Unquoted strikes count as non-contributing.", withIds: ["g_top", "g_gross"], src: "sql/ file · COMMENT not live" },
   g_netlong: { title: "Net-long γ strike", unit: "strike", what: "The strike with the largest positive net gamma.", how: "Dotted rule on the ladder (NET-LONG γ). Where dealers are most long gamma.", computed: "gamma_metrics.max_gamma_strike (matches the positive gex_cr argmax, E-D5).", scale: "—", caveat: "Not \"near spot\" — it can sit far from price (ADR-024 Amendment A).", withIds: ["g_net", "g_top"], src: "sql/ file · COMMENT not live" },
   g_spark: { title: "Net Γ today", unit: "₹ Cr", what: "Net gamma at each run of the current trading session.", how: "Shape of the day: drifting toward zero means the dampening is wearing off.", computed: "gamma_metrics.ts, net_gex for today, deduped by ts; drawn only with ≥3 runs.", scale: "—", caveat: "γ clock.", withIds: ["g_net", "g_gross"], src: "sql/ file · COMMENT not live" },
+  oi_max: { title: "Max pain", unit: "strike", what: "The strike where total option-holder pain is lowest at the latest gamma run.", how: "The ink rule marks the minimum; the faint curve shows the full pain valley.", computed: "v_gex_max_pain at the ladder run_id.", scale: "curve owns its min–max scale", caveat: "A positional concentration, not a forecast or pressure sign.", withIds: ["oi_dist", "oi_total"], src: "sql/ file · COMMENT not live" },
+  oi_dist: { title: "Distance to max pain", unit: "% of spot", what: "The signed distance from spot to the max-pain strike.", how: "Above means max pain is above spot; below means it is below spot.", computed: "(max_pain_strike − spot) ÷ spot × 100.", scale: "—", caveat: "Uses spot at the same gamma clock.", withIds: ["oi_max", "spot"], src: "sql/ file · COMMENT not live" },
+  oi_callwall: { title: "Call OI wall", unit: "strike", what: "The eligible strike carrying the largest call open interest.", how: "Calls extend right from the strike axis in the butterfly.", computed: "v_gex_strike_walls.call_wall.", scale: "raw contracts", caveat: "OI is positional; grey does not encode pressure sign.", withIds: ["oi_putwall", "oi_total"], src: "sql/ file · COMMENT not live" },
+  oi_putwall: { title: "Put OI wall", unit: "strike", what: "The eligible strike carrying the largest put open interest.", how: "Puts extend left from the strike axis in the butterfly.", computed: "v_gex_strike_walls.put_wall.", scale: "raw contracts", caveat: "OI is positional; grey does not encode pressure sign.", withIds: ["oi_callwall", "oi_total"], src: "sql/ file · COMMENT not live" },
+  oi_total: { title: "Total OI", unit: "contracts", what: "Call plus put open interest across the stored chain.", how: "Use the butterfly to see which strikes and sides carry that stock.", computed: "Σ oi_call + Σ oi_put at the latest gamma run.", scale: "raw, lot-agnostic", caveat: "Do not compare contract counts across products without context.", withIds: ["oi_callwall", "oi_putwall"], src: "sql/ file · COMMENT not live" },
+  oi_delta: { title: "ΔOI net", unit: "contracts since first run", what: "Net change in call plus put OI since today's first gamma run.", how: "Cool ticks rose; warm ticks fell. The value sums both sides across strikes.", computed: "latest OI − first gamma-run OI for the trading session.", scale: "raw, lot-agnostic", caveat: "Unavailable for SENSEX (TD-S84-NEW-4); one run cannot form a change.", withIds: ["oi_total", "oi_max"], src: "sql/ file · COMMENT not live" },
   dte: { title: "Time to expiry", unit: "sessions", what: "Trading sessions left to the front expiry.", how: "Fewer sessions concentrate gamma near spot.", computed: "v_iv_term_structure.dte_sessions where leg = 1.", scale: "—", caveat: "Chain clock.", withIds: ["priced", "pin"], src: "sql/ file · COMMENT not live" },
 };
 
@@ -43,6 +49,11 @@ type Props = {
   gammaItems: OverviewItem[];
   gammaLevels: Level[];
   silhouette: Map<number, number> | null;
+  oiRows: LadderRow[];
+  oiItems: OverviewItem[];
+  oiLevels: Level[];
+  painCurve: Map<number, number> | null;
+  oiDeltaNote: string;
   river: React.ReactNode;
   tab: Tab;
   setTab: (t: Tab) => void;
@@ -56,10 +67,11 @@ export function LadderPanel(p: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [search, setSearch] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const isOverview = p.tab === "Overview", isGamma = p.tab === "Gamma";
-  const layered = isOverview || isGamma;
-  const items = isOverview ? p.items : isGamma ? p.gammaItems : [];
-  const levels = isOverview ? p.levels : isGamma ? p.gammaLevels : [];
+  const isOverview = p.tab === "Overview", isGamma = p.tab === "Gamma", isOI = p.tab === "OI";
+  const layered = isOverview || isGamma || isOI;
+  const items = isOverview ? p.items : isGamma ? p.gammaItems : isOI ? p.oiItems : [];
+  const levels = isOverview ? p.levels : isGamma ? p.gammaLevels : isOI ? p.oiLevels : [];
+  const activeRows = isOI ? p.oiRows : p.rows;
 
   const clamp = (lo: number, hi: number) => ({ lo: Math.max(chainLo, lo), hi: Math.min(chainHi, hi) });
   const snapOut = (lo: number, hi: number) => clamp(Math.floor(lo / p.step) * p.step, Math.ceil(hi / p.step) * p.step);
@@ -125,12 +137,12 @@ export function LadderPanel(p: Props) {
   const selItem = items.find((it) => it.id === p.sel) ?? null;
   const hoverText = useMemo(() => {
     if (hover == null) return null;
-    const r = p.rows.find((x) => x.strike === hover);
+    const r = activeRows.find((x) => x.strike === hover);
     if (!r) return null;
     const names = levels.filter((l) => l.at === hover).map((l) => l.name).join(" ≡ ");
     const pct = p.spot ? ` · ${sgn(((hover - p.spot) / p.spot) * 100, 2)} %` : "";
     return `${num(hover)} · ${r.full ?? r.readout}${pct}${names ? ` · ${names}` : ""}`;
-  }, [hover, p.rows, levels, p.spot]);
+  }, [hover, activeRows, levels, p.spot]);
 
   const detail = selItem ? DETAIL[selItem.id] : null;
   const modeLabel: Record<Mode, string> = { near: "Near spot", all: "All levels", full: "Full chain", custom: "Custom" };
@@ -171,6 +183,7 @@ export function LadderPanel(p: Props) {
               style={{ borderColor: "var(--sel)", color: "var(--ink-1)" }} />
           )}
           <div className="flex-1" />
+          {isOI && <span>{p.oiDeltaNote}</span>}
           <label className="flex cursor-not-allowed items-center gap-1 opacity-50" title="pending measurement (E-3)">
             <input type="checkbox" disabled /> γ CEILING / FLOOR · pending measurement
           </label>
@@ -202,16 +215,17 @@ export function LadderPanel(p: Props) {
           {/* Ladder */}
           <div className="order-1 min-w-0 lg:order-2">
             <div className="mb-1 grid grid-cols-[60px_10px_1fr_10px_64px] text-[9px] uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>
-              <div className="text-right pr-2">strike</div><div /><div className="text-center">{layered ? "← amplifying · dampening →" : ""}</div><div />
-              <div className="pl-2 text-right">{layered ? "net γ" : ""}</div>
+              <div className="text-right pr-2">strike</div><div /><div className="text-center">{isOI ? "← PUT OI · CALL OI →" : layered ? "← amplifying · dampening →" : ""}</div><div />
+              <div className="pl-2 text-right">{isOI ? "TOTAL OI" : layered ? "net γ" : ""}</div>
             </div>
             {p.rows.length ? (
               <StrikeLadder
-                rows={layered ? p.rows : p.rows.map((r) => ({ ...r, value: null, tint: null, readout: "" }))}
+                 rows={layered ? activeRows : p.rows.map((r) => ({ ...r, value: null, tint: null, readout: "" }))}
                 lo={w.lo} hi={w.hi} step={p.step} spot={p.spot} levels={levels}
-                priced={layered && p.spot != null && p.straddle != null ? { lo: p.spot - p.straddle, hi: p.spot + p.straddle } : null}
-                pin={layered ? p.pinBand : null} corridor={layered ? p.corridor : null} signed={layered}
+                 priced={!isOI && layered && p.spot != null && p.straddle != null ? { lo: p.spot - p.straddle, hi: p.spot + p.straddle } : null}
+                 pin={!isOI && layered ? p.pinBand : null} corridor={!isOI && layered ? p.corridor : null} signed={layered}
                 silhouette={isGamma ? p.silhouette : null}
+                 curve={isOI ? p.painCurve : null} butterfly={isOI}
                 selected={p.sel} selLevelIds={selItem?.levelIds ?? []} selPriced={!!selItem?.priced}
                 hover={hover} onHover={setHover} onSelectLevel={(id) => {
                   const it = items.find((x) => x.levelIds.includes(id)); if (it) p.setSel(it.id);
@@ -223,12 +237,14 @@ export function LadderPanel(p: Props) {
             {/* Legend */}
             {layered && (
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]" style={{ color: "var(--ink-3)" }}>
-                <Sw c="var(--warm)" l="amplifying γ" /><Sw c="var(--cool)" l="dampening γ" />
-                <Sw c="color-mix(in srgb, var(--ink-1) 30%, transparent)" l="priced move" />
-                <Sw c="color-mix(in srgb, var(--cool) 55%, transparent)" l="pin band" />
-                <Rl s="2px solid var(--ink-1)" l="spot" /><Rl s="1px dashed var(--rule)" l="flip" />
-                {isGamma ? <><Rl s="1px dotted var(--rule)" l="net-long γ" /><span className="flex items-center gap-1"><span className="inline-block h-[5px] w-[5px] rounded-full" style={{ background: "var(--ink-1)" }} />cumulative Σγ from top</span></>
-                  : <><Rl s="1px solid var(--rule)" l="OI wall" /><Rl s="1px dotted var(--rule)" l="γ-conc" /></>}
+                 {isOI ? <><Sw c="var(--put)" l="put OI" /><Sw c="var(--call)" l="call OI" /><Rl s="2px solid var(--ink-1)" l="max pain" /><Rl s="2px solid var(--cool)" l="ΔOI rose" /><Rl s="2px solid var(--warm)" l="ΔOI fell" /><Rl s="2px solid color-mix(in srgb, var(--ink-1) 28%, transparent)" l="pain valley" /></> : <>
+                   <Sw c="var(--warm)" l="amplifying γ" /><Sw c="var(--cool)" l="dampening γ" />
+                   <Sw c="color-mix(in srgb, var(--ink-1) 30%, transparent)" l="priced move" />
+                   <Sw c="color-mix(in srgb, var(--cool) 55%, transparent)" l="pin band" />
+                   <Rl s="2px solid var(--ink-1)" l="spot" /><Rl s="1px dashed var(--rule)" l="flip" />
+                   {isGamma ? <><Rl s="1px dotted var(--rule)" l="net-long γ" /><span className="flex items-center gap-1"><span className="inline-block h-[5px] w-[5px] rounded-full" style={{ background: "var(--ink-1)" }} />cumulative Σγ from top</span></>
+                     : <><Rl s="1px solid var(--rule)" l="OI wall" /><Rl s="1px dotted var(--rule)" l="γ-conc" /></>}
+                 </>}
               </div>
             )}
             <p className="mt-3 min-h-[20px] text-[13px]" style={{ color: hoverText ? "var(--ink-2)" : "var(--ink-1)" }}>
