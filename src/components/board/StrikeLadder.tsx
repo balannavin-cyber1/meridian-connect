@@ -107,24 +107,22 @@ export function StrikeLadder(p: Props) {
       <div className="flex gap-3">
         <div className="relative min-w-0 flex-1">
           {silhouettePoints.length > 0 && (
-            <svg
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 left-[70px] right-[74px] z-[5]"
-              height={win.length * rowH}
-              viewBox={`0 0 100 ${win.length * rowH}`}
-              preserveAspectRatio="none"
-            >
-              {silhouettePoints.length > 1 && (
-                <polyline
-                  points={silhouettePoints.map((point) => `${point.x},${point.y}`).join(" ")}
-                  fill="none"
-                  stroke="var(--ink-1)"
-                  strokeOpacity={0.42}
-                  strokeWidth={2}
-                  vectorEffect="non-scaling-stroke"
-                />
-              )}
-            </svg>
+            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-[70px] right-[74px] z-[5]">
+              <svg className="h-full w-full" viewBox={`0 0 100 ${win.length * rowH}`} preserveAspectRatio="none">
+                {silhouettePoints.length > 1 && (
+                  <polyline
+                    points={silhouettePoints.map((point) => `${point.x},${point.y}`).join(" ")}
+                    fill="none"
+                    stroke="var(--ink-1)"
+                    strokeOpacity={0.5}
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+              </svg>
+            </div>
           )}
           {items.map((it, idx) => {
             if (it.kind === "mark") {
