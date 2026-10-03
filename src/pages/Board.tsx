@@ -182,7 +182,7 @@ export default function Board() {
     <div className="mx-auto w-full max-w-[1600px] space-y-4 px-3 py-4 md:px-5">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5 min-[1440px]:grid-flow-col min-[1440px]:auto-cols-fr min-[1440px]:grid-cols-none">
         <Cell id="s1" label="Symbol · Expiry" {...C}
-          value={expiry ? `${symbol} ${expShort(expiry)}` : <Absent word="no expiry" />} sub={s1sub} />
+          value={expiry ? `${expShort(expiry)}` : <Absent word="no expiry" />} sub={[symbol, s1sub].filter(Boolean).join(" · ")} />
 
         <Cell id="s2" label="Spot" {...C}
           value={spot != null ? num(spot, 1) : <Absent word="no run" />}
