@@ -4,4 +4,5 @@
 - [x] Phase 1c: Gamma tab (value list, cumulative silhouette, gamma river)
 - [x] Gamma ladder: cumulative series uses its own full-chain scale with connected dots
 - [x] Phase 1d: OI tab — butterfly, max-pain rule/valley, ΔOI ticks and SENSEX n/a state
-- [ ] Pin / Flows / IV tab layers
+- [x] IV tab (term structure + smile)
+- [ ] Pin / Flows tab layers

@@ -13,6 +13,8 @@ import {
 import { LadderPanel, TABS, type Tab, type OverviewItem } from "@/components/board/LadderPanel";
 import type { Level } from "@/components/board/StrikeLadder";
 import { GammaRiver } from "@/components/board/GammaRiver";
+import { IVPanel } from "@/components/board/IVPanel";
+import { useIvTab } from "@/lib/board";
 
 const CELL_TO_ITEM: Record<string, string> = { s1: "dte", s2: "spot", s3: "net", s4: "flip", s5: "corridor", s6: "pin", s7: "priced" };
 
@@ -266,6 +268,7 @@ export default function Board() {
       caption: sparkG.length >= 3 ? `Net γ moved from ${crLakh(sparkG[0])} to ${crLakh(sparkG[sparkG.length - 1])} over ${sparkG.length} runs today.` : "Fewer than 3 runs today — no sparkline." },
   ];
 
+  const ivTab = useIvTab(symbol).data;
   // ---------- OI tab (Phase 1d) ----------
   const oiRaw = ladder?.rows ?? [];
   const totalCall = oiRaw.reduce((sum, r) => sum + (r.oiCall ?? 0), 0);
@@ -372,7 +375,7 @@ export default function Board() {
         items={items} sel={sel} setSel={setSel} tab={tab} setTab={setTab}
         gammaItems={gammaItems} gammaLevels={gammaLevels} silhouette={silhouette}
         oiRows={oiRows} oiItems={oiItems} oiLevels={oiLevels} painCurve={painCurve} oiDeltaNote={oiDeltaNote}
-        river={<GammaRiver days={river} />} />
+        river={<GammaRiver days={river} />} ivPanel={<IVPanel data={ivTab} />} />
     </div>
   );
 }
