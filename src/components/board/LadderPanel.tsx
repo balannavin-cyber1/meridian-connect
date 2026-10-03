@@ -7,7 +7,7 @@ export const TABS = ["Overview", "Pin", "Gamma", "OI", "Flows", "IV"] as const;
 export type Tab = (typeof TABS)[number];
 type Mode = "near" | "all" | "full" | "custom";
 
-export type OverviewItem = { id: string; label: string; sub: string; value: React.ReactNode; caption: string; levelIds: string[]; priced?: boolean };
+export type OverviewItem = { id: string; label: string; sub: string; value: React.ReactNode; caption: string; levelIds: string[]; priced?: boolean; extra?: React.ReactNode };
 
 const num = (v: number, d = 0) => v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
 const sgn = (v: number, d = 1) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${num(Math.abs(v), d)}`;
@@ -19,6 +19,12 @@ const DETAIL: Record<string, { title: string; unit: string; what: string; how: s
   pin: { title: "Pin (γ-conc)", unit: "strike · share of gross", what: "The strike carrying the largest share of absolute gamma.", how: "A large lead over #2 means one strike dominates the centre.", computed: "v_gex_strike_rank rank 1; lead = (share₁ − share₂) × 100.", scale: "band not measured — calibration gap", caveat: "Concentration is not a forecast of the close.", withIds: ["corridor", "net"], src: "sql/ file · COMMENT not live" },
   priced: { title: "Priced move", unit: "index points", what: "ATM straddle — the move the options market is pricing to expiry.", how: "Lights the left gutter: strikes within ± straddle of spot.", computed: "gamma_metrics.straddle_atm; % = straddle ÷ spot.", scale: "no band", caveat: "Includes time value to expiry, not a one-day range.", withIds: ["flip", "dte"], src: "sql/ file · COMMENT not live" },
   spot: { title: "Spot", unit: "index points", what: "Index level at the latest γ run.", how: "Glowing solid rule on the ladder; the terrain row it sits in is its pocket.", computed: "gamma_metrics.spot.", scale: "—", caveat: "γ clock; may lag the live tick.", withIds: ["corridor", "flip"], src: "sql/ file · COMMENT not live" },
+  g_top: { title: "Top-strike share", unit: "share of net γ (max ÷ sum)", what: "How much of the net gamma book sits on its single largest strike.", how: "High share means one strike carries the book — read single strikes with care; low share means γ is spread out.", computed: "v_gex_concentration.hhi_net (γ clock); call/put splits hhi_call, hhi_put.", scale: "dte bucket matters: 0-DTE concentrates naturally; no measured band", caveat: "This is max/sum, not a Σshare² index — never call it HHI. The call/put split is load-bearing: one side can be concentrated while the other is spread.", withIds: ["g_contrib", "g_gross"], src: "sql/ file · COMMENT not live" },
+  g_gross: { title: "Gross |Γ|", unit: "₹ Cr (unit definition pending)", what: "Sum of absolute dealer gamma across every strike.", how: "The size of the book regardless of sign; net/gross says how one-sided it is.", computed: "v_gex_abs_exposure.abs_gex_cr.", scale: "band not measured — calibration gap (E-D1)", caveat: "Unit still open; compare within a day, not magnitudes across days.", withIds: ["g_net", "g_top"], src: "sql/ file · COMMENT not live" },
+  g_net: { title: "Net Γ", unit: "₹ Cr (unit definition pending)", what: "Signed sum of dealer gamma — same value as the strip's Net Γ.", how: "Cool = dampening (dealers hedge against moves); warm = amplifying. The white dots on the ladder are its running sum from the top strike down.", computed: "v_gex_abs_exposure.net_gex_cr.", scale: "band not measured — calibration gap (E-D1)", caveat: "Where the dots cross zero the book changes sign; that is not the repriced flip.", withIds: ["g_gross", "g_spark"], src: "sql/ file · COMMENT not live" },
+  g_contrib: { title: "Contributing strikes", unit: "strikes", what: "Strikes with non-zero gamma out of all stored strikes in the run.", how: "Few contributors with a high top-strike share = a thin, pointy book.", computed: "v_gex_abs_exposure.n_contributing / n_strikes.", scale: "—", caveat: "Unquoted strikes count as non-contributing.", withIds: ["g_top", "g_gross"], src: "sql/ file · COMMENT not live" },
+  g_netlong: { title: "Net-long γ strike", unit: "strike", what: "The strike with the largest positive net gamma.", how: "Dotted rule on the ladder (NET-LONG γ). Where dealers are most long gamma.", computed: "gamma_metrics.max_gamma_strike (matches the positive gex_cr argmax, E-D5).", scale: "—", caveat: "Not \"near spot\" — it can sit far from price (ADR-024 Amendment A).", withIds: ["g_net", "g_top"], src: "sql/ file · COMMENT not live" },
+  g_spark: { title: "Net Γ today", unit: "₹ Cr", what: "Net gamma at each run of the current trading session.", how: "Shape of the day: drifting toward zero means the dampening is wearing off.", computed: "gamma_metrics.ts, net_gex for today, deduped by ts; drawn only with ≥3 runs.", scale: "—", caveat: "γ clock.", withIds: ["g_net", "g_gross"], src: "sql/ file · COMMENT not live" },
   dte: { title: "Time to expiry", unit: "sessions", what: "Trading sessions left to the front expiry.", how: "Fewer sessions concentrate gamma near spot.", computed: "v_iv_term_structure.dte_sessions where leg = 1.", scale: "—", caveat: "Chain clock.", withIds: ["priced", "pin"], src: "sql/ file · COMMENT not live" },
 };
 
@@ -34,6 +40,10 @@ type Props = {
   items: OverviewItem[];
   sel: string | null;
   setSel: (id: string) => void;
+  gammaItems: OverviewItem[];
+  gammaLevels: Level[];
+  silhouette: Map<number, number> | null;
+  river: React.ReactNode;
   tab: Tab;
   setTab: (t: Tab) => void;
 };
@@ -46,8 +56,10 @@ export function LadderPanel(p: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [search, setSearch] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const isOverview = p.tab === "Overview";
-  const levels = isOverview ? p.levels : [];
+  const isOverview = p.tab === "Overview", isGamma = p.tab === "Gamma";
+  const layered = isOverview || isGamma;
+  const items = isOverview ? p.items : isGamma ? p.gammaItems : [];
+  const levels = isOverview ? p.levels : isGamma ? p.gammaLevels : [];
 
   const clamp = (lo: number, hi: number) => ({ lo: Math.max(chainLo, lo), hi: Math.min(chainHi, hi) });
   const snapOut = (lo: number, hi: number) => clamp(Math.floor(lo / p.step) * p.step, Math.ceil(hi / p.step) * p.step);
@@ -99,18 +111,18 @@ export function LadderPanel(p: Props) {
       else if (k === "l" || k === "L") setMode("all");
       else if (k === "f" || k === "F") setMode("full");
       else if (k === "/") { e.preventDefault(); setSearch(""); setTimeout(() => searchRef.current?.focus(), 0); }
-      else if ((k === "ArrowDown" || k === "ArrowUp") && isOverview) {
+      else if ((k === "ArrowDown" || k === "ArrowUp") && layered && items.length) {
         e.preventDefault();
-        const i = p.items.findIndex((it) => it.id === p.sel);
-        const ni = Math.max(0, Math.min(p.items.length - 1, (i < 0 ? -1 : i) + (k === "ArrowDown" ? 1 : -1)));
-        p.setSel(p.items[ni].id);
+        const i = items.findIndex((it) => it.id === p.sel);
+        const ni = Math.max(0, Math.min(items.length - 1, (i < 0 ? -1 : i) + (k === "ArrowDown" ? 1 : -1)));
+        p.setSel(items[ni].id);
       } else return;
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const selItem = p.items.find((it) => it.id === p.sel) ?? null;
+  const selItem = items.find((it) => it.id === p.sel) ?? null;
   const hoverText = useMemo(() => {
     if (hover == null) return null;
     const r = p.rows.find((x) => x.strike === hover);
@@ -167,7 +179,7 @@ export function LadderPanel(p: Props) {
         <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
           {/* Value list */}
           <div className="order-2 lg:order-1">
-            {isOverview ? p.items.map((it) => {
+            {layered ? items.map((it) => {
               const on = it.id === p.sel;
               return (
                 <button key={it.id} onClick={() => p.setSel(it.id)}
@@ -190,31 +202,33 @@ export function LadderPanel(p: Props) {
           {/* Ladder */}
           <div className="order-1 min-w-0 lg:order-2">
             <div className="mb-1 grid grid-cols-[60px_10px_1fr_10px_64px] text-[9px] uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>
-              <div className="text-right pr-2">strike</div><div /><div className="text-center">{isOverview ? "← amplifying · dampening →" : ""}</div><div />
-              <div className="pl-2 text-right">{isOverview ? "net γ" : ""}</div>
+              <div className="text-right pr-2">strike</div><div /><div className="text-center">{layered ? "← amplifying · dampening →" : ""}</div><div />
+              <div className="pl-2 text-right">{layered ? "net γ" : ""}</div>
             </div>
             {p.rows.length ? (
               <StrikeLadder
-                rows={isOverview ? p.rows : p.rows.map((r) => ({ ...r, value: null, tint: null, readout: "" }))}
+                rows={layered ? p.rows : p.rows.map((r) => ({ ...r, value: null, tint: null, readout: "" }))}
                 lo={w.lo} hi={w.hi} step={p.step} spot={p.spot} levels={levels}
-                priced={isOverview && p.spot != null && p.straddle != null ? { lo: p.spot - p.straddle, hi: p.spot + p.straddle } : null}
-                pin={isOverview ? p.pinBand : null} corridor={isOverview ? p.corridor : null} signed={isOverview}
+                priced={layered && p.spot != null && p.straddle != null ? { lo: p.spot - p.straddle, hi: p.spot + p.straddle } : null}
+                pin={layered ? p.pinBand : null} corridor={layered ? p.corridor : null} signed={layered}
+                silhouette={isGamma ? p.silhouette : null}
                 selected={p.sel} selLevelIds={selItem?.levelIds ?? []} selPriced={!!selItem?.priced}
                 hover={hover} onHover={setHover} onSelectLevel={(id) => {
-                  const it = p.items.find((x) => x.levelIds.includes(id)); if (it) p.setSel(it.id);
+                  const it = items.find((x) => x.levelIds.includes(id)); if (it) p.setSel(it.id);
                 }}
                 onInclude={include} onRecentre={recentre} phone={phone} />
             ) : (
               <span className="inline-block rounded border border-dashed px-1.5 py-0.5 text-[12px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-3)" }}>no run</span>
             )}
             {/* Legend */}
-            {isOverview && (
+            {layered && (
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]" style={{ color: "var(--ink-3)" }}>
                 <Sw c="var(--warm)" l="amplifying γ" /><Sw c="var(--cool)" l="dampening γ" />
                 <Sw c="color-mix(in srgb, var(--ink-1) 30%, transparent)" l="priced move" />
                 <Sw c="color-mix(in srgb, var(--cool) 55%, transparent)" l="pin band" />
                 <Rl s="2px solid var(--ink-1)" l="spot" /><Rl s="1px dashed var(--rule)" l="flip" />
-                <Rl s="1px solid var(--rule)" l="OI wall" /><Rl s="1px dotted var(--rule)" l="γ-conc" />
+                {isGamma ? <><Rl s="1px dotted var(--rule)" l="net-long γ" /><span className="flex items-center gap-1"><span className="inline-block h-[5px] w-[5px] rounded-full" style={{ background: "var(--ink-1)" }} />cumulative Σγ from top</span></>
+                  : <><Rl s="1px solid var(--rule)" l="OI wall" /><Rl s="1px dotted var(--rule)" l="γ-conc" /></>}
               </div>
             )}
             <p className="mt-3 min-h-[20px] text-[13px]" style={{ color: hoverText ? "var(--ink-2)" : "var(--ink-1)" }}>
@@ -225,7 +239,7 @@ export function LadderPanel(p: Props) {
       </div>
 
       {/* Detail panel */}
-      {isOverview && detail && (
+      {layered && detail && (
         <div className="grid gap-x-8 gap-y-3 rounded-lg p-4 text-[12px] md:grid-cols-2" style={{ background: "var(--s1)", border: "1px solid var(--line)" }}>
           <div className="md:col-span-2 flex flex-wrap items-baseline gap-3">
             <span className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>{p.tab}</span>
@@ -235,6 +249,7 @@ export function LadderPanel(p: Props) {
           </div>
           <Slot k="What it is" v={detail.what} /><Slot k="How to read it" v={detail.how} />
           <Slot k="Computed" v={detail.computed} /><Slot k="Scale" v={detail.scale} />
+          {selItem?.extra && <div className="md:col-span-2">{selItem.extra}</div>}
           <Slot k="Caveat" v={detail.caveat} />
           <div>
             <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Read it with</div>
@@ -247,6 +262,7 @@ export function LadderPanel(p: Props) {
           </div>
         </div>
       )}
+      {isGamma && p.river}
     </div>
   );
 }
