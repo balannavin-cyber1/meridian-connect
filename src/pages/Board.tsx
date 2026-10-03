@@ -7,9 +7,11 @@ import {
   useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useWalls, useStrikeRank,
   useIvFront, useFutures, useSpotPocket, useGammaSession, useOpenGap, usePrevBasis,
   istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, usePinBand,
+  useConcentration, useNetGammaToday, useGammaRiver,
 } from "@/lib/board";
 import { LadderPanel, TABS, type Tab, type OverviewItem } from "@/components/board/LadderPanel";
 import type { Level } from "@/components/board/StrikeLadder";
+import { GammaRiver } from "@/components/board/GammaRiver";
 
 const CELL_TO_ITEM: Record<string, string> = { s1: "dte", s2: "spot", s3: "net", s4: "flip", s5: "corridor", s6: "pin", s7: "priced" };
 
@@ -78,8 +80,10 @@ export default function Board() {
   const { symbol } = useSymbol();
   const [params] = useSearchParams();
   const fromParam = (v: string | null) => (v ? CELL_TO_ITEM[v] ?? v : null);
-  const [sel, setSel] = useState<string | null>(fromParam(params.get("sel")) ?? "net");
-  const [tab, setTab] = useState<Tab>(() => TABS.find((t) => t.toLowerCase() === params.get("tab")) ?? "Overview");
+  const [sel, setSel] = useState<string | null>(fromParam(params.get("sel")) ?? (params.get("tab") === "gamma" ? "g_top" : "net"));
+  const [tab, setTabRaw] = useState<Tab>(() => TABS.find((t) => t.toLowerCase() === params.get("tab")) ?? "Overview");
+  const FIRST: Partial<Record<Tab, string>> = { Overview: "net", Gamma: "g_top" };
+  const setTab = (t: Tab) => { setTabRaw(t); if (t !== tab && FIRST[t]) setSel(FIRST[t]!); };
   useEffect(() => { const s = fromParam(params.get("sel")); if (s) setSel(s); }, [params]);
   const nextOpen = useNextOpen().data ?? null;
   const closedWord = `market closed${nextOpen ? ` · next ${new Date(nextOpen + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}` : ""}`;
@@ -168,6 +172,11 @@ export default function Board() {
   // S10
   const clockDiff = walls?.ts && flip?.ts ? Math.abs(new Date(walls.ts).getTime() - new Date(flip.ts).getTime()) / 60000 : 0;
 
+  // ---------- Gamma tab (Phase 1c) ----------
+  const conc = useConcentration(symbol).data as any;
+  const netToday = (useNetGammaToday(symbol, session).data ?? []) as { ts: string; v: number }[];
+  const river = useGammaRiver(symbol).data ?? [];
+
   const read = useBoardRead(symbol);
 
   // ---------- ladder (Overview) ----------
@@ -206,6 +215,55 @@ export default function Board() {
   ];
 
   const C = { sel, onSel: setSel };
+  const silhouette = (() => {
+    const rs = ladder?.rows ?? []; if (!rs.length) return null;
+    const m = new Map<number, number>(); let acc = 0;
+    for (let k = rs.length - 1; k >= 0; k--) { acc += rs[k].gex ?? 0; m.set(rs[k].strike, acc); }
+    return m;
+  })();
+  const hasPositive = (ladder?.rows ?? []).some((r) => (r.gex ?? 0) > 0);
+  const netLong = hasPositive ? n(g?.max_gamma_strike) : null;
+  const gammaLevels: Level[] = [
+    ...(spot != null ? [{ id: "spot", name: "SPOT", at: spot, style: "spot" as const }] : []),
+    ...(fVal != null ? [{ id: "flip", name: "FLIP", at: fVal, style: "dashed" as const }] : []),
+    ...(netLong != null ? [{ id: "netlong", name: "NET-LONG γ", at: netLong, style: "dotted" as const }] : []),
+  ];
+  const hN = n(conc?.hhi_net), hC = n(conc?.hhi_call), hP = n(conc?.hhi_put);
+  const bucket: string | null = conc?.dte_bucket ?? null;
+  const nC = n(abs?.n_contributing), nS = n(abs?.n_strikes);
+  const pct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(1)} %`);
+  const sparkG = netToday.map((r) => r.v);
+  const crossings = silhouette ? (() => { const a = [...silhouette.entries()].sort((x, y) => y[0] - x[0]); let c = 0; for (let k = 1; k < a.length; k++) if (Math.sign(a[k][1]) !== Math.sign(a[k - 1][1]) && a[k][1] !== 0) c++; return c; })() : 0;
+  const gammaItems: OverviewItem[] = [
+    { id: "g_top", label: "Top-strike share", sub: bucket ? `${bucket === "0" ? "0" : bucket} DTE bucket${n(conc?.top_strike_net) != null ? ` · at ${num(n(conc.top_strike_net))}` : ""}` : "",
+      value: hN != null ? pct(hN) : <Absent word="no run" />, levelIds: [],
+      caption: hN != null ? `The largest strike carries ${pct(hN)} of net γ (calls ${pct(hC)}, puts ${pct(hP)}); ${bucket ?? "—"} DTE bucket.` : "No concentration run.",
+      extra: hN != null ? (
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Call / put split</div>
+          {[["calls", hC, "var(--call)"], ["puts", hP, "var(--put)"]].map(([l, v, c]) => (
+            <div key={l as string} className="mt-1 flex items-center gap-2 text-[12px]">
+              <span className="w-10" style={{ color: "var(--ink-3)" }}>{l as string}</span>
+              <div className="h-2 flex-1 max-w-[240px]" style={{ background: "var(--s2)" }}><div className="h-full" style={{ width: `${Math.min(100, ((v as number) ?? 0) * 100)}%`, background: c as string }} /></div>
+              <span style={{ color: "var(--ink-1)" }}>{pct(v as number | null)}</span>
+            </div>
+          ))}
+        </div>) : undefined },
+    { id: "g_gross", label: "Gross |Γ|", sub: "₹ Cr · unit pending (E-D1)", value: gross != null ? crLakh(gross).replace(/^\+/, "") : <Absent word="no run" />, levelIds: [],
+      caption: gross != null ? `Gross absolute gamma is ${crLakh(gross).replace(/^\+/, "")}${ratio != null ? `; net is ${ratio.toFixed(2)} of it` : ""}.` : "No exposure run." },
+    { id: "g_net", label: "Net Γ", sub: net != null ? `${net >= 0 ? "dampening" : "amplifying"}${crossings ? ` · Σ crosses zero ${crossings}×` : ""}` : "",
+      value: net != null ? <span style={{ color: hue(net) }}>{crLakh(net)}</span> : <Absent word="no run" />, levelIds: [],
+      caption: net != null ? `Net γ ${crLakh(net)}. White dots = running sum from the top strike down; ${crossings ? `it crosses zero ${crossings}× — the book changes sign there` : "it never crosses zero in the chain"}.` : "No exposure run." },
+    { id: "g_contrib", label: "Contributing strikes", sub: nC != null && nS ? `${((nC / nS) * 100).toFixed(0)} % of stored` : "",
+      value: nC != null && nS != null ? `${nC} / ${nS}` : <Absent word="no run" />, levelIds: [],
+      caption: nC != null && nS != null ? `${nC} of ${nS} stored strikes carry gamma.` : "No exposure run." },
+    ...(netLong != null ? [{ id: "g_netlong", label: "Net-long γ strike", sub: spot ? `${sgn(((netLong - spot) / spot) * 100, 2)} % from spot · not "near spot"` : "",
+      value: num(netLong), levelIds: ["netlong"], caption: `Dealers are most net-long gamma at ${num(netLong)} (dotted rule).` }] : []),
+    { id: "g_spark", label: "Net Γ today", sub: sparkG.length >= 3 ? `${sparkG.length} runs · ${istTime(netToday[0].ts)}–${istTime(netToday[netToday.length - 1].ts)}` : `${sparkG.length} run${sparkG.length === 1 ? "" : "s"} · sparkline needs 3`,
+      value: sparkG.length >= 3 ? <span className="inline-block w-[90px]"><Spark pts={sparkG} /></span> : <span style={{ color: "var(--ink-3)" }}>—</span>, levelIds: [],
+      caption: sparkG.length >= 3 ? `Net γ moved from ${crLakh(sparkG[0])} to ${crLakh(sparkG[sparkG.length - 1])} over ${sparkG.length} runs today.` : "Fewer than 3 runs today — no sparkline." },
+  ];
+
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4 px-3 py-4 md:px-5">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5 min-[1440px]:grid-flow-col min-[1440px]:auto-cols-fr min-[1440px]:grid-cols-none">
@@ -280,7 +338,8 @@ export default function Board() {
       <LadderPanel symbol={symbol} step={step} rows={rows} spot={spot} straddle={strad} levels={levels}
         pinBand={n(pinBandRow?.pin_lower) != null ? { lo: Number(pinBandRow.pin_lower), hi: Number(pinBandRow.pin_upper) } : null}
         corridor={pw != null && cw != null && cState !== "UNDEFINED" ? { lo: pw, hi: cw } : null}
-        items={items} sel={sel} setSel={setSel} tab={tab} setTab={setTab} />
+        items={items} sel={sel} setSel={setSel} tab={tab} setTab={setTab}
+        gammaItems={gammaItems} gammaLevels={gammaLevels} silhouette={silhouette} river={<GammaRiver days={river} />} />
     </div>
   );
 }
