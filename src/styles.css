@@ -56,24 +56,33 @@
 }
 
 :root {
-  /* Marketview v4 tokens */
-  --mv-bg: #fafafa;
-  --mv-card-bg: #ffffff;
-  --mv-border: #e5e7eb;
-  --mv-border-strong: #d1d5db;
-  --mv-text-strong: #111827;
-  --mv-text-mid: #4b5563;
-  --mv-text-weak: #9ca3af;
-  --mv-text-vweak: #d1d5db;
-  --mv-green: #059669;  --mv-green-bg: #ecfdf5;  --mv-green-line: #10b981;
-  --mv-red: #dc2626;    --mv-red-bg: #fef2f2;    --mv-red-line: #ef4444;
-  --mv-pink: #ec4899;
-  --mv-blue: #2563eb;   --mv-blue-bg: #eff6ff;   --mv-blue-line: #3b82f6;
-  --mv-amber: #d97706;  --mv-amber-bg: #fffbeb;
-  --mv-purple: #7c3aed; --mv-purple-bg: #f5f3ff;
-  --mv-indigo: #4f46e5;
-  --mv-font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
-  --mv-font-sans: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  /* MERDIAN instrument tokens (Phase 1a) */
+  --bg: #0D0F12; --strip: #12151A; --s1: #15191E; --s2: #1C2127; --s-sel-row: #20262E;
+  --line: #22272E; --line-2: #2A3038; --axis: #2F363F;
+  --ink-1: #ECEEF1; --ink-2: #A0A8B3; --ink-3: #7F8893; --rule: #B8BEC6;
+  --cool: #5DB4F5; --warm: #FF8A4C; --call: #D5DAE0; --put: #7F8A97; --sel: #F3E7B3;
+  --alert-bg: #5A1D1D; --alert-fg: #FFD7D2;
+  --font-plex: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-plex-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, sans-serif;
+
+  /* Legacy Marketview tokens, remapped onto the dark instrument palette */
+  --mv-bg: var(--bg);
+  --mv-card-bg: var(--s1);
+  --mv-border: var(--line);
+  --mv-border-strong: var(--line-2);
+  --mv-text-strong: var(--ink-1);
+  --mv-text-mid: var(--ink-2);
+  --mv-text-weak: var(--ink-3);
+  --mv-text-vweak: #4A525C;
+  --mv-green: var(--cool);  --mv-green-bg: #14263A;  --mv-green-line: var(--cool);
+  --mv-red: var(--warm);    --mv-red-bg: #33201A;    --mv-red-line: var(--warm);
+  --mv-pink: #E58AB5;
+  --mv-blue: var(--ink-1);  --mv-blue-bg: var(--s2); --mv-blue-line: var(--cool);
+  --mv-amber: #E2B85C;      --mv-amber-bg: #2E2715;
+  --mv-purple: #A99BE0;     --mv-purple-bg: #221F33;
+  --mv-indigo: #8C9BE8;
+  --mv-font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --mv-font-sans: var(--font-plex);
 
   --radius: 0.5rem;
 
@@ -176,9 +185,11 @@
     height: 100%;
   }
   body {
-    background-color: var(--color-bg-primary);
-    color: var(--color-text-primary);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background-color: var(--bg);
+    color: var(--ink-1);
+    font-family: var(--font-plex);
+    font-variant-numeric: tabular-nums;
+    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
   }
   .mono {
