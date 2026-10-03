@@ -1,299 +1,225 @@
-import { useMemo, useState } from "react";
+import { useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useSymbol } from "@/contexts/SymbolContext";
-import { useMvData } from "@/marketview/state";
 import {
-  MV, Card, SectionLabel, PageTitle, Unavailable, fmtSigned,
-} from "@/marketview/ui";
-import {
-  SnapshotStrip, KeyParametersSection, NetDealerGammaSection,
-} from "@/marketview/sections";
-import { useAmbient, useExpiryBaseRates } from "@/lib/queries";
-import { NarrativeModal } from "@/components/NarrativeModal";
-import { AmbientTrajectory } from "@/components/AmbientTrajectory";
+  useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useWalls, useStrikeRank,
+  useIvFront, useOpenGap, useMaxPain, useFlowSim, useIvTerm, useDailyContext,
+} from "@/lib/board";
+import { useBoardRead } from "@/lib/read";
+import { SplitBar } from "@/components/board/SplitBar";
 
+const n = (v: any): number | null => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
+const num = (v: number, d = 0) => v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
+const sgn = (v: number, d = 1) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${num(Math.abs(v), d)}`;
+const pctS = (v: number, d = 2) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(d)} %`;
+const dShort = (d: string | null | undefined) =>
+  d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : null;
 
-// ---------- Ambient verdict card ----------
-const normalizeRegime = (r: string | null | undefined): string | null => {
-  if (!r) return null;
-  const s = String(r).toUpperCase();
-  if (s === "LONG_GAMMA" || s === "POSITIVE_Γ" || s === "POSITIVE_GAMMA" || s.includes("POSITIVE")) return "POSITIVE_γ";
-  if (s === "SHORT_GAMMA" || s === "NEGATIVE_Γ" || s === "NEGATIVE_GAMMA" || s.includes("NEGATIVE")) return "NEGATIVE_γ";
-  return s;
-};
-
-function AmbientVerdict({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
-  const amb = useAmbient(symbol);
-  const a: any = amb.data ?? null;
-  const regime = a?.ambient_regime ?? null;
-  const alignment = a?.lens_alignment ?? null;
-  const note = a?.regime_conditional_note ?? null;
-
-  const regimeColor =
-    regime === "RISK_ON" ? MV.green :
-    regime === "RISK_OFF" ? MV.red :
-    regime === "NEUTRAL" || regime === "MIXED" ? MV.amber : MV.mid;
-  const alignColor =
-    alignment === "ALIGNED" ? MV.green :
-    alignment === "MIXED" ? MV.amber :
-    alignment === "DIVERGENT" ? MV.red : MV.weak;
-
-  const sessionPrior: string | null = a?.session_prior ?? null;
-  const relate = sessionPrior?.split("  ||  ").find((s) => s.startsWith("OPEN ")) ?? null;
-  const isShift = relate?.includes("SHIFTS") ?? false;
-  const shiftText = relate ? relate.replace(/^OPEN (SHIFTS|CONFIRMS):\s*/, "") : null;
-
-  const asOf = a?.as_of_date
-    ? new Date(a.as_of_date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
-    : null;
-  const forS = a?.for_session_date
-    ? new Date(a.for_session_date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
-    : null;
-
+function Absent({ word }: { word: string }) {
   return (
-    <Card>
-      {a ? (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] font-bold"
-            style={{ fontFamily: MV.mono }}>
-            <span style={{ color: regimeColor }}>{regime ?? "—"}</span>
-            <span style={{ color: MV.weak }}>·</span>
-            <span style={{ color: alignColor }}>{alignment ?? "—"}</span>
-            {(asOf || forS) && (
-              <>
-                <span style={{ color: MV.weak }}>·</span>
-                <span className="text-[12px] font-normal" style={{ color: MV.weak }}>
-                  as-of {asOf ?? "—"} → for {forS ?? "—"}
-                </span>
-              </>
-            )}
-          </div>
-          {note && (
-            <p className="text-[12px] leading-relaxed" style={{ color: MV.mid }}>{note}</p>
-          )}
-          {relate && isShift && (
-            <div className="rounded-md px-3 py-1.5 text-[11px] font-medium leading-snug"
-              style={{ background: MV.amber + "1f", border: `1px solid ${MV.amber}55`, color: MV.amber, fontFamily: MV.mono }}>
-              ⚠ OPEN SHIFT — {shiftText}
-            </div>
-          )}
-        </div>
-      ) : (
-        <Unavailable label="ambient snapshot not published" />
-      )}
-    </Card>
+    <span className="inline-block rounded border border-dashed px-1.5 py-0.5 text-[12px]"
+      style={{ borderColor: "var(--line-2)", color: "var(--ink-3)" }}>{word}</span>
   );
 }
 
-// ---------- Four-lens strip ----------
-function FourLensStrip({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
-  const amb = useAmbient(symbol);
-  const a: any = amb.data ?? null;
-  type Kind = "gamma" | "breadth" | "participant" | "macro";
-  type Lens = { label: string; value: React.ReactNode; sub?: string; tone?: string; kind: Kind };
-  const toneOf = (v: any): string => {
-    const s = String(v ?? "").toUpperCase();
-    if (["POSITIVE", "LONG", "ALIGNED", "RISK_ON", "BULLISH", "SUPPORT"].some((k) => s.includes(k))) return MV.green;
-    if (["NEGATIVE", "SHORT", "DIVERGENT", "RISK_OFF", "BEARISH", "STRESS"].some((k) => s.includes(k))) return MV.red;
-    if (s) return MV.amber;
-    return MV.weak;
-  };
-  const lenses: Lens[] = a ? [
-    { label: "Net GEX Regime", value: a.net_gex_regime ?? "—", tone: toneOf(a.net_gex_regime), kind: "gamma" },
-    { label: "Price vs Breadth", value: a.price_vs_breadth_div ?? "—", tone: toneOf(a.price_vs_breadth_div), kind: "breadth" },
-    { label: "OI Cycle Asymmetry", value: a.cycle_oi_call_put_asym ?? "—", tone: toneOf(a.cycle_oi_call_put_asym), kind: "participant" },
-    { label: "FII 5D Δ Fut L/S", value: a.fii_index_fut_ls_delta_5d != null ? fmtSigned(Number(a.fii_index_fut_ls_delta_5d)) : "—",
-      tone: (a.fii_index_fut_ls_delta_5d ?? 0) >= 0 ? MV.green : MV.red, kind: "macro" },
-  ] : [];
-
-  // Alarm color is driven by lens_alignment, not per-cell values.
-  // ALIGNED → all muted. DIVERGENT → only breadth+participant lit. Otherwise → all muted.
-  const alignment = a?.lens_alignment;
-  const isDivergent = alignment === "DIVERGENT";
-  const colorFor = (l: Lens): string => {
-    if (isDivergent && (l.kind === "breadth" || l.kind === "participant")) return l.tone ?? MV.strong;
-    return MV.strong;
-  };
-
+// ---------- 220×56 pictures ----------
+const W = 220, H = 56;
+function TrackPic({ spot, ticks, band = 0.025 }: { spot: number; band?: number; ticks: { at: number; color: string; dashed?: boolean; span?: [number, number] }[] }) {
+  const lo = spot * (1 - band), hi = spot * (1 + band);
+  const x = (v: number) => Math.min(W - 2, Math.max(2, ((v - lo) / (hi - lo)) * W));
   return (
-    <div>
-      <SectionLabel>Four Lens Strip</SectionLabel>
-      {a ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {lenses.map((l) => (
-            <div key={l.label} className="rounded-lg p-3"
-              style={{ background: MV.card, border: `1px solid ${MV.border}` }}>
-              <div className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>{l.label}</div>
-              <div className="mt-1 text-[15px] font-bold" style={{ color: colorFor(l), fontFamily: MV.mono }}>{l.value}</div>
-              {l.sub && <div className="mt-0.5 text-[10px]" style={{ color: MV.weak, fontFamily: MV.mono }}>{l.sub}</div>}
-            </div>
-          ))}
-          {a.pro_options_imbalance != null && (
-            <div className="rounded-lg p-3 md:col-span-2"
-              style={{ background: MV.card, border: `1px solid ${MV.border}` }}>
-              <div className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Pro Options Imbalance</div>
-              <div className="mt-1 text-[13px]" style={{ color: MV.mid, fontFamily: MV.mono }}>{String(a.pro_options_imbalance)}</div>
-            </div>
-          )}
-          {a.macro_tilt && (
-            <div className="rounded-lg p-3 md:col-span-2"
-              style={{ background: MV.card, border: `1px solid ${MV.border}` }}>
-              <div className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Macro Tilt</div>
-              <div className="mt-1 text-[13px]" style={{ color: MV.mid, fontFamily: MV.mono }}>{String(a.macro_tilt)}</div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <Card><Unavailable label="lens data not published" /></Card>
-      )}
-    </div>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="max-w-full">
+      <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="var(--axis)" />
+      {ticks.filter((t) => t.span).map((t, i) => (
+        <rect key={`s${i}`} x={x(t.span![0])} width={Math.max(1, x(t.span![1]) - x(t.span![0]))} y={H / 2 - 4} height={8} fill="var(--s2)" />
+      ))}
+      {ticks.filter((t) => !t.span).map((t, i) => (
+        <line key={i} x1={x(t.at)} x2={x(t.at)} y1={H / 2 - 12} y2={H / 2 + 12} stroke={t.color}
+          strokeWidth={t.dashed ? 1 : 2} strokeDasharray={t.dashed ? "3 2" : undefined} />
+      ))}
+      <circle cx={x(spot)} cy={H / 2} r={3.5} fill="var(--ink-1)" />
+    </svg>
+  );
+}
+function BarsPic({ a, b }: { a: number; b: number | null }) {
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="max-w-full">
+      <rect x={0} y={16} width={W} height={8} fill="var(--rule)" />
+      {b != null && a > 0 && <rect x={0} y={32} width={(b / a) * W} height={8} fill="var(--ink-3)" />}
+    </svg>
+  );
+}
+function FlowPic({ dn, up }: { dn: number; up: number }) {
+  const m = Math.max(Math.abs(dn), Math.abs(up)) || 1;
+  const y = (v: number) => H / 2 - (v / m) * (H / 2 - 8);
+  const x1 = 40, x2 = W - 40;
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="max-w-full">
+      <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="var(--axis)" />
+      <line x1={x1} y1={y(dn)} x2={x2} y2={y(up)} stroke="var(--rule)" />
+      {[[x1, dn, "−1%"], [x2, up, "+1%"]].map(([xx, v, l]) => (
+        <g key={l as string}>
+          <circle cx={xx as number} cy={y(v as number)} r={3} fill="var(--ink-1)" />
+          <text x={(xx as number) + ((xx as number) < W / 2 ? -34 : 6)} y={y(v as number) + 4} fontSize={9} fill="var(--ink-2)">
+            {(v as number) >= 0 ? "BUY" : "SELL"}
+          </text>
+          <text x={xx as number} y={H - 1} fontSize={8} textAnchor="middle" fill="var(--ink-3)">{l}</text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+function IvPic({ front, back }: { front: number; back: number | null }) {
+  const vals = [front, back ?? front], lo = Math.min(...vals) - 0.5, hi = Math.max(...vals) + 0.5;
+  const y = (v: number) => H - 8 - ((v - lo) / (hi - lo)) * (H - 16);
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="max-w-full">
+      {back != null && <line x1={50} y1={y(front)} x2={W - 50} y2={y(back)} stroke="var(--rule)" />}
+      <circle cx={50} cy={y(front)} r={3.5} fill="var(--ink-1)" />
+      {back != null && <circle cx={W - 50} cy={y(back)} r={3.5} fill="var(--ink-1)" />}
+    </svg>
   );
 }
 
-// ---------- Expiry memory (base rate) ----------
-function ExpiryMemoryStrip({ symbol }: { symbol: "NIFTY" | "SENSEX" }) {
-  const amb = useAmbient(symbol);
-  const a: any = amb.data ?? null;
-  const rates = useExpiryBaseRates(a?.ambient_regime, a?.lens_alignment);
-  const rows = (rates.data ?? []) as any[];
-  return (
-    <Card title="Expiry Memory · Base Rates"
-      subtitle={a?.ambient_regime && a?.lens_alignment ? `${a.ambient_regime} · ${a.lens_alignment}` : undefined}>
-      {rows.length === 0 ? <Unavailable label="insufficient historical base rate for this regime × alignment" /> : (
-        <div className="space-y-3">
-          {rows.map((r, i) => {
-            const pin = Number(r.pinned_pct ?? 0);
-            const up = Number(r.broke_up_pct ?? 0);
-            const dn = Number(r.broke_down_pct ?? 0);
-            return (
-              <div key={i}>
-                <div className="mb-1 flex items-baseline justify-between text-[11px]" style={{ fontFamily: MV.mono }}>
-                  <span className="font-semibold" style={{ color: MV.strong }}>{r.expiry_type ?? "—"}</span>
-                  <span style={{ color: MV.weak }}>n={r.n} · dom {r.dominant_break ?? "—"}</span>
-                </div>
-                <div className="flex h-6 w-full overflow-hidden rounded">
-                  <div className="flex items-center justify-center text-[10px] font-semibold text-white"
-                    style={{ width: `${pin}%`, background: MV.purple, fontFamily: MV.mono }}>
-                    {pin >= 8 ? `${pin.toFixed(0)}% pin` : ""}
-                  </div>
-                  <div className="flex items-center justify-center text-[10px] font-semibold text-white"
-                    style={{ width: `${up}%`, background: MV.greenLine, fontFamily: MV.mono }}>
-                    {up >= 8 ? `${up.toFixed(0)}% ↑` : ""}
-                  </div>
-                  <div className="flex items-center justify-center text-[10px] font-semibold text-white"
-                    style={{ width: `${dn}%`, background: MV.redLine, fontFamily: MV.mono }}>
-                    {dn >= 8 ? `${dn.toFixed(0)}% ↓` : ""}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-const DRILL_TABS = [
-  { id: "lens", label: "Four Lenses" },
-  { id: "memory", label: "Expiry Memory" },
-  { id: "params", label: "Key Parameters" },
-  { id: "gamma", label: "Net γ Intraday" },
-] as const;
-type DrillTab = (typeof DRILL_TABS)[number]["id"];
+type CardDef = { key: number; tab: string; sel: string; q: string; answer: React.ReactNode; pic: React.ReactNode };
 
 export default function Home() {
   const { symbol } = useSymbol();
-  const s = useMvData(symbol);
-  const [narrativeOpen, setNarrativeOpen] = useState(false);
-  const [drillOpen, setDrillOpen] = useState(false);
-  const [drillTab, setDrillTab] = useState<DrillTab>("lens");
-  const expiryLabel = useMemo(() =>
-    s.expiry ? new Date(s.expiry).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—",
-    [s.expiry]);
+  const nav = useNavigate();
+  const sess = useSessions();
+  const session = sess.data?.session ?? null, prev = sess.data?.prev ?? null;
+  const g = useGammaNow(symbol).data as any;
+  const abs = useAbsExposure(symbol).data as any;
+  const flip = useRepricedFlip(symbol).data as any;
+  const walls = useWalls(symbol).data as any;
+  const rank = (useStrikeRank(symbol).data ?? []) as any[];
+  const iv = useIvFront(symbol).data as any;
+  const og = useOpenGap(symbol, session, prev).data;
+  const mp = useMaxPain(symbol).data as any;
+  const flows = (useFlowSim(symbol).data ?? []) as any[];
+  const term = (useIvTerm(symbol).data ?? []) as any[];
+  const ctx = useDailyContext(symbol).data;
+  const read = useBoardRead(symbol);
+
+  const spot = n(g?.spot);
+  const prevClose = og?.prevClose ?? null;
+  const chg = spot != null && prevClose != null ? spot - prevClose : null;
+  const openRef = og?.open ?? og?.preOpen ?? null;
+  const gap = openRef != null && prevClose != null ? ((openRef - prevClose) / prevClose) * 100 : null;
+  const dteS = n(iv?.dte_sessions);
+  const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+  const leftWord = g?.expiry_date === today ? "EXPIRY TODAY" : dteS != null ? `${dteS} SESSION${dteS === 1 ? "" : "S"} LEFT` : null;
+
+  // card values
+  const pw = n(walls?.put_wall), cw = n(walls?.call_wall), cState = walls?.corridor_state as string | undefined;
+  const fOk = flip?.status === "OK", fv = fOk ? n(flip?.flip) : null;
+  const fPct = fOk && n(flip?.flip_minus_spot) != null && n(flip?.spot) ? (n(flip.flip_minus_spot)! / n(flip.spot)!) * 100 : null;
+  const flipWord: Record<string, string> = { NO_CROSSING: "no flip in grid", SKIPPED_EXPIRY: "skipped · expiry day", UNMEASURABLE_R: "carry unmeasurable" };
+  const r1 = rank.find((r) => r.strike_rank === 1), r2 = rank.find((r) => r.strike_rank === 2);
+  const sh1 = n(r1?.share_of_abs), sh2 = n(r2?.share_of_abs), pin = n(r1?.strike);
+  const net = n(abs?.net_gex_cr), gross = n(abs?.abs_gex_cr);
+  const mps = n(mp?.max_pain_strike);
+  const f1 = flows.find((r) => Math.abs(Number(r.spot_pct) + 0.01) < 1e-6), f2 = flows.find((r) => Math.abs(Number(r.spot_pct) - 0.01) < 1e-6);
+  const front = term.find((t) => t.leg === 1), back = term.find((t) => t.leg === 2);
+  const strad = n(g?.straddle_atm);
+
+  const cards: CardDef[] = [
+    { key: 1, tab: "Overview", sel: "s5", q: "What kind of day, and where are the edges?",
+      answer: cState === "UNDEFINED" || pw == null || cw == null ? <Absent word="corridor undefined" /> :
+        <>corridor {num(pw)}–{num(cw)} · {fPct != null ? `flip ${pctS(fPct)}` : flipWord[flip?.status] ?? "no flip run"}</>,
+      pic: spot != null ? <TrackPic spot={spot} ticks={[
+        ...(pw != null && cw != null && cState !== "UNDEFINED" ? [{ at: 0, color: "", span: [pw, cw] as [number, number] }, { at: pw, color: "var(--put)" }, { at: cw, color: "var(--call)" }] : []),
+        ...(fv != null ? [{ at: fv, color: "var(--rule)", dashed: true }] : []),
+      ]} /> : null },
+    { key: 2, tab: "Pin", sel: "s6", q: "How settled is the centre?",
+      answer: sh1 == null ? <Absent word="no run" /> :
+        <>{num(pin!)} holds {(sh1 * 100).toFixed(1)} % of gross{sh2 != null ? ` · lead ${((sh1 - sh2) * 100).toFixed(1)} pts` : ""}</>,
+      pic: sh1 != null ? <BarsPic a={sh1} b={sh2} /> : null },
+    { key: 3, tab: "Gamma", sel: "s3", q: "Can I trust single strikes?",
+      answer: net == null || !gross ? <Absent word="no run" /> :
+        <>net/gross {(net / gross).toFixed(2)}{sh1 != null ? ` · top strike ${(sh1 * 100).toFixed(1)} %` : ""}</>,
+      pic: net != null && gross ? <div className="flex h-14 w-[220px] max-w-full items-center"><SplitBar net={net} gross={gross} className="h-3" /></div> : null },
+    { key: 4, tab: "OI", sel: "s6", q: "What is actually written?",
+      answer: mps == null ? <Absent word="no max pain" /> :
+        <>max pain {num(mps)}{pin != null ? ` · pin ${num(pin)} · ${sgn(mps - pin, 0)}` : ""}</>,
+      pic: spot != null && mps != null ? <TrackPic spot={spot} ticks={[{ at: mps, color: "var(--put)" }, ...(pin != null ? [{ at: pin, color: "var(--rule)" }] : [])]} /> : null },
+    { key: 5, tab: "Flows", sel: "s3", q: "What must dealers trade if spot moves?",
+      answer: !f1 || !f2 ? <Absent word="no flow sim" /> :
+        <>−1 %: {f1.direction} {num(Math.abs(Number(f1.flow_cr)))} Cr · +1 %: {f2.direction} {num(Math.abs(Number(f2.flow_cr)))} Cr</>,
+      pic: f1 && f2 ? <FlowPic dn={Number(f1.flow_cr)} up={Number(f2.flow_cr)} /> : null },
+    { key: 6, tab: "IV", sel: "s7", q: "What do time and cover cost?",
+      answer: n(front?.atm_iv) == null ? <Absent word="no chain" /> :
+        <>front {Number(front.atm_iv).toFixed(1)}{n(back?.atm_iv) != null ? ` · back ${Number(back.atm_iv).toFixed(1)}` : ""}{strad != null ? ` · straddle ±${num(strad)}` : ""}</>,
+      pic: n(front?.atm_iv) != null ? <IvPic front={Number(front.atm_iv)} back={n(back?.atm_iv)} /> : null },
+  ];
+
+  const open = (c: CardDef) => nav(`/board?tab=${c.tab.toLowerCase()}&sel=${c.sel}`);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.metaKey || e.ctrlKey) return;
+      const c = cards.find((c) => String(c.key) === e.key);
+      if (c) open(c);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  const env = ctx?.env, wcb = ctx?.wcb;
+  const ctxParts = [
+    env?.ambient_regime ? String(env.ambient_regime).toLowerCase().replace(/_/g, " ") : null,
+    env?.lens_alignment ? String(env.lens_alignment).toLowerCase() : null,
+    env?.as_of_date ? `as of ${dShort(env.as_of_date)}` : null,
+    n(wcb?.wcb_score) != null ? `WCB ${Number(wcb.wcb_score).toFixed(1)} ${String(wcb.wcb_regime ?? "").toLowerCase()}` : null,
+    n(wcb?.weighted_advances_pct) != null ? `${Number(wcb.weighted_advances_pct).toFixed(0)} % wtd up / ${Number(wcb.weighted_declines_pct).toFixed(0)} % down` : null,
+  ].filter(Boolean);
 
   return (
-    <div className="mx-auto max-w-[1440px] space-y-5 px-7 py-6">
-      <PageTitle
-        title="Home — Ambient Trajectory"
-        subtitle="three clocks over price · verdict is a snapshot; trajectory is the read"
-        right={
-          <button onClick={() => setNarrativeOpen(true)}
-            className="rounded border px-3 py-1.5 text-[11px] font-semibold tracking-wide transition-colors hover:bg-gray-900 hover:text-white"
-            style={{ borderColor: MV.border, color: MV.strong }}>
-            Narrative →
-          </button>
-        }
-      />
-      <SnapshotStrip s={s} />
-
-      {/* TIER 0 — verdict headline */}
-      <AmbientVerdict symbol={symbol} />
-
-      {/* TIER 1 — hero */}
-      <AmbientTrajectory
-        symbol={symbol}
-        live={{
-          spot: s.spot || null,
-          regime: s.regime,
-          flipLevel: s.flipLevel,
-          maxGammaStrike: s.maxGammaStrike,
-          dte: (s.gamma.data as any)?.dte ?? null,
-          pinRiskScore: s.pinRiskScore,
-          ts: s.latestActivityTs,
-        }}
-      />
-
-      {/* TIER 2 — drill-down (collapsed by default) */}
-      <div>
-        <button
-          onClick={() => setDrillOpen((v) => !v)}
-          className="flex w-full items-center justify-between rounded-lg border px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors"
-          style={{ borderColor: MV.border, background: MV.card, color: MV.weak }}
-          aria-expanded={drillOpen}
-        >
-          <span>Drill-down · lenses, expiry memory, parameters, intraday γ</span>
-          <span style={{ color: MV.mid, fontFamily: MV.mono }}>{drillOpen ? "▾ hide" : "▸ show"}</span>
-        </button>
-        {drillOpen && (
-          <div className="mt-3 space-y-3">
-            <div className="flex flex-wrap gap-1 text-[10px]" style={{ fontFamily: MV.mono }}>
-              {DRILL_TABS.map((t) => {
-                const active = t.id === drillTab;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setDrillTab(t.id)}
-                    className="rounded border px-2.5 py-1"
-                    style={{
-                      borderColor: active ? MV.strong : MV.border,
-                      background: active ? MV.border : "transparent",
-                      color: active ? MV.strong : MV.weak,
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
-            {drillTab === "lens" && <FourLensStrip symbol={symbol} />}
-            {drillTab === "memory" && <ExpiryMemoryStrip symbol={symbol} />}
-            {drillTab === "params" && <KeyParametersSection s={s} />}
-            {drillTab === "gamma" && <NetDealerGammaSection s={s} />}
+    <div className="mx-auto w-full max-w-[1280px] space-y-8 px-4 py-6 md:px-8 md:py-10">
+      {/* Masthead + read */}
+      <section className="grid gap-6 lg:grid-cols-[auto_1fr] lg:items-end">
+        <div className="min-w-0">
+          <div className="text-[11px] font-medium uppercase tracking-[0.16em]" style={{ color: "var(--ink-3)" }}>
+            {[symbol, g?.expiry_date ? dShort(g.expiry_date)!.toUpperCase() : null, leftWord].filter(Boolean).join(" · ")}
           </div>
-        )}
-      </div>
+          <div className="mt-1 text-[44px] font-semibold leading-none md:text-[56px]" style={{ fontFamily: "var(--font-plex-cond)", color: "var(--ink-1)" }}>
+            {spot != null ? num(spot, 1) : <Absent word="no run" />}
+          </div>
+          <div className="mt-2 text-[14px]" style={{ fontFamily: "var(--font-plex-cond)" }}>
+            {chg != null && prevClose ? (
+              <span style={{ color: chg >= 0 ? "var(--cool)" : "var(--warm)" }}>{sgn(chg, 1)} · {pctS((chg / prevClose) * 100)}</span>
+            ) : <Absent word="prev close missing" />}
+            {gap != null && (
+              <span style={{ color: "var(--ink-2)" }}> · opened <span className="text-[10px]">{gap > 0 ? "▲" : gap < 0 ? "▼" : "◆"}</span> {Math.abs(gap).toFixed(2)} %</span>
+            )}
+          </div>
+        </div>
+        <p className="text-[17px] leading-relaxed lg:pl-8" style={{ color: "var(--ink-1)" }}>{read ?? ""}</p>
+      </section>
 
-      <NarrativeModal
-        open={narrativeOpen}
-        onClose={() => setNarrativeOpen(false)}
-        symbol={symbol}
-        expiry={expiryLabel}
-        state={{
-          regime: s.regime, netDealerGamma: s.netDealerGamma, maxGammaStrike: s.maxGammaStrike,
-          maxPainStrike: s.maxPainStrike, pinScore: s.pinRiskScore, vix: s.vix,
-        }}
-      />
+      {/* Six question cards */}
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+        {cards.map((c) => (
+          <button key={c.key} onClick={() => open(c)}
+            className="group flex min-w-0 flex-col rounded-lg p-4 text-left transition-colors hover:bg-[var(--s2)]"
+            style={{ background: "var(--s1)", border: "1px solid var(--line)" }}>
+            <div className="flex items-baseline gap-3">
+              <span className="text-[28px] font-semibold leading-none" style={{ fontFamily: "var(--font-plex-cond)", color: "var(--ink-3)" }}>{c.key}</span>
+              <span className="text-[13px] font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--ink-1)" }}>{c.tab}</span>
+            </div>
+            <div className="mt-2 text-[13px]" style={{ color: "var(--ink-2)" }}>{c.q}</div>
+            <div className="mt-2 truncate text-[14px] font-medium" style={{ color: "var(--ink-1)" }}>{c.answer}</div>
+            <div className="mt-3 hidden h-14 md:block">{c.pic}</div>
+          </button>
+        ))}
+      </section>
+
+      {/* Context line */}
+      <Link to="/context" className="block truncate border-t pt-4 text-[12px] hover:text-[var(--ink-1)]"
+        style={{ borderColor: "var(--line)", color: "var(--ink-2)" }}>
+        <span className="font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--ink-3)" }}>Context · Daily</span>
+        {ctxParts.length ? ` · ${ctxParts.join(" · ")}` : " · not published"} ›
+      </Link>
     </div>
   );
 }
-

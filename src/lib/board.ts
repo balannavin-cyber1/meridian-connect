@@ -19,20 +19,38 @@ export function useSessions() {
   return useQuery({
     queryKey: ["board", "sessions", istToday()],
     staleTime: 10 * 60_000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("trading_calendar").select("trade_date")
-        .eq("is_open", true).lte("trade_date", istToday())
-        .order("trade_date", { ascending: false }).limit(2);
-      if (error) throw error;
-      return { session: (data?.[0]?.trade_date as string) ?? null, prev: (data?.[1]?.trade_date as string) ?? null };
-    },
+    queryFn: async () => { const g = await getGate(); return { session: g.session, prev: g.prev }; },
   });
 }
 
+// ---------- trading-session gate ----------
+// Every "latest cycle" read is capped at the end of the last real trading session
+// (trading_calendar.is_open), so frozen holiday/weekend rows never render as live.
+const nextDay = (d: string) => new Date(new Date(d + "T00:00:00Z").getTime() + 86400_000).toISOString().slice(0, 10);
+type Gate = { session: string | null; prev: string | null; end: string | null };
+let gateCache: { at: number; p: Promise<Gate> } | null = null;
+export function getGate(): Promise<Gate> {
+  if (gateCache && Date.now() - gateCache.at < 5 * 60_000) return gateCache.p;
+  const p = (async () => {
+    const { data, error } = await supabase.from("trading_calendar").select("trade_date")
+      .eq("is_open", true).lte("trade_date", istToday())
+      .order("trade_date", { ascending: false }).limit(2);
+    if (error) throw error;
+    const session = (data?.[0]?.trade_date as string) ?? null;
+    return { session, prev: (data?.[1]?.trade_date as string) ?? null, end: session ? istAt(nextDay(session), "00:00") : null };
+  })();
+  gateCache = { at: Date.now(), p };
+  p.catch(() => { gateCache = null; });
+  return p;
+}
+/** Apply the session gate to a query builder on `ts`. */
+// Sync on purpose: awaiting a query builder would execute it.
+export const applyGate = (q: any, end: string | null) => (end ? q.lt("ts", end) : q);
+
 const latestBySymbol = (view: string, symbol: Symbol, extra?: (q: any) => any) =>
   async () => {
-    let q: any = supabase.from(view).select("*").eq("symbol", symbol);
+    const gate = await getGate();
+    let q: any = applyGate(supabase.from(view).select("*").eq("symbol", symbol), gate.end);
     if (extra) q = extra(q);
     const { data, error } = await q.order("ts", { ascending: false }).limit(1).maybeSingle();
     if (error) throw error;
@@ -56,8 +74,8 @@ export function useStrikeRank(s: Symbol) {
   return useQuery({
     queryKey: ["board", "rank", s], ...opts,
     queryFn: async () => {
-      const { data: top, error: e1 } = await supabase.from("v_gex_strike_rank").select("run_id")
-        .eq("symbol", s).order("ts", { ascending: false }).limit(1).maybeSingle();
+      const { data: top, error: e1 } = await applyGate(supabase.from("v_gex_strike_rank").select("run_id")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
       if (e1) throw e1;
       if (!top) return [];
       const { data, error } = await supabase.from("v_gex_strike_rank").select("strike, strike_rank, share_of_abs, ts")
@@ -73,8 +91,8 @@ export function useSpotPocket(s: Symbol) {
   return useQuery({
     queryKey: ["board", "pocket", s], ...opts,
     queryFn: async () => {
-      const { data: top, error: e1 } = await supabase.from("gex_strike_snapshots").select("run_id, spot, ts")
-        .eq("symbol", s).order("ts", { ascending: false }).limit(1).maybeSingle();
+      const { data: top, error: e1 } = await applyGate(supabase.from("gex_strike_snapshots").select("run_id, spot, ts")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
       if (e1) throw e1;
       if (!top) return null;
       const t: any = top;
@@ -95,7 +113,8 @@ export function useGammaSession(s: Symbol, session: string | null, prev: string 
     queryKey: ["board", "gsess", s, session, prev], ...opts, enabled: !!session,
     queryFn: async () => {
       const { data, error } = await supabase.from("gamma_metrics").select("ts, spot")
-        .eq("symbol", s).gte("ts", istAt(session!, "00:00")).order("ts", { ascending: true }).limit(1000);
+        .eq("symbol", s).gte("ts", istAt(session!, "00:00")).lt("ts", istAt(nextDay(session!), "00:00"))
+        .order("ts", { ascending: true }).limit(1000);
       if (error) throw error;
       const seen = new Set<string>();
       const series = ((data ?? []) as any[]).filter((r) => r.spot != null && !seen.has(r.ts) && seen.add(r.ts))
@@ -152,6 +171,68 @@ export function usePrevBasis(s: Symbol, prev: string | null) {
         .order("ts", { ascending: false }).limit(1).maybeSingle();
       if (error) throw error;
       return (data as any)?.basis != null ? Number((data as any).basis) : null;
+    },
+  });
+}
+
+/** Max pain strike for the latest gated γ run. */
+export function useMaxPain(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "maxpain", s], ...opts,
+    queryFn: async () => {
+      const { data, error } = await applyGate(supabase.from("v_gex_max_pain").select("max_pain_strike, ts, is_fresh")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+  });
+}
+
+/** Dealer flow simulation rows for the latest gated run. */
+export function useFlowSim(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "flowsim", s], ...opts,
+    queryFn: async () => {
+      const { data: top, error: e1 } = await applyGate(supabase.from("v_dealer_flow_sim").select("run_id")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
+      if (e1) throw e1;
+      if (!top) return [];
+      const { data, error } = await supabase.from("v_dealer_flow_sim").select("spot_pct, flow_cr, direction")
+        .eq("symbol", s).eq("run_id", (top as any).run_id).order("spot_pct");
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+}
+
+/** Front + back ATM IV from v_iv_term_structure (latest gated ts). */
+export function useIvTerm(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "ivterm2", s], ...opts,
+    queryFn: async () => {
+      const { data: top } = await applyGate(supabase.from("v_iv_term_structure").select("ts").eq("symbol", s), (await getGate()).end)
+        .order("ts", { ascending: false }).limit(1).maybeSingle();
+      if (!top) return [];
+      const { data, error } = await supabase.from("v_iv_term_structure").select("leg, expiry_date, atm_iv, dte_sessions")
+        .eq("symbol", s).eq("ts", (top as any).ts).order("leg");
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+}
+
+/** Daily context: latest settled ambient row + latest gated WCB. */
+export function useDailyContext(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "ctx", s], staleTime: 5 * 60_000, refetchInterval: POLL,
+    queryFn: async () => {
+      const { data: env } = await supabase.from("market_environment_snapshots")
+        .select("as_of_date, ambient_regime, lens_alignment").eq("symbol", s)
+        .order("as_of_date", { ascending: false }).limit(1).maybeSingle();
+      const { data: wcb } = await applyGate(supabase.from("weighted_constituent_breadth_snapshots")
+        .select("ts, wcb_score, wcb_regime, weighted_advances_pct, weighted_declines_pct").eq("index_symbol", s), (await getGate()).end)
+        .order("ts", { ascending: false }).limit(1).maybeSingle();
+      return { env: env as any, wcb: wcb as any };
     },
   });
 }
