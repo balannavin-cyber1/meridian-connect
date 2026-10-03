@@ -236,3 +236,29 @@ export function useDailyContext(s: Symbol) {
     },
   });
 }
+
+/** Every strike of the latest gated γ run (gex_strike_snapshots). */
+export function useLadderStrikes(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "ladder", s], ...opts,
+    queryFn: async () => {
+      const { data: top, error: e1 } = await applyGate(supabase.from("gex_strike_snapshots").select("run_id, ts, spot")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
+      if (e1) throw e1;
+      if (!top) return null;
+      const { data, error } = await supabase.from("gex_strike_snapshots")
+        .select("strike, gex_cr, gamma_call, gamma_put, oi_call, oi_put")
+        .eq("run_id", (top as any).run_id).order("strike", { ascending: true }).limit(1000);
+      if (error) throw error;
+      const rows = ((data ?? []) as any[]).map((r) => {
+        const has = r.gamma_call != null || r.gamma_put != null;
+        return { strike: Number(r.strike), gex: has && r.gex_cr != null ? Number(r.gex_cr) : null };
+      });
+      return { ts: (top as any).ts as string, rows };
+    },
+  });
+}
+
+export function usePinBand(s: Symbol) {
+  return useQuery({ queryKey: ["board", "pinband", s], ...opts, queryFn: latestBySymbol("v_gex_strike_pin_zone", s) });
+}
