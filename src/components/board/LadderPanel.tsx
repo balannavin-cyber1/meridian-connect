@@ -55,6 +55,7 @@ type Props = {
   painCurve: Map<number, number> | null;
   oiDeltaNote: string;
   river: React.ReactNode;
+  ivPanel?: React.ReactNode;
   tab: Tab;
   setTab: (t: Tab) => void;
 };
@@ -189,7 +190,8 @@ export function LadderPanel(p: Props) {
           </label>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+        {p.tab === "IV" && p.ivPanel}
+        <div className={`grid gap-4 lg:grid-cols-[280px_1fr] ${p.tab === "IV" ? "hidden" : ""}`}>
           {/* Value list */}
           <div className="order-2 lg:order-1">
             {layered ? items.map((it) => {

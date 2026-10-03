@@ -378,3 +378,34 @@ export function useGammaRiver(s: Symbol) {
     },
   });
 }
+
+/** Phase 1e IV tab: L9 term structure + L10 surface at one chain-clock ts.
+ *  Gated to the last trading session; if the gate excludes every row, returns the
+ *  newest (non-session) snapshot flagged awaiting so the UI can label it as not live. */
+export function useIvTab(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "ivtab", s], ...opts,
+    queryFn: async () => {
+      const gate = await getGate();
+      const pick = async (gated: boolean) => {
+        let q: any = supabase.from("v_iv_term_structure").select("ts").eq("symbol", s);
+        if (gated) q = applyGate(q, gate.end);
+        const { data } = await q.order("ts", { ascending: false }).limit(1).maybeSingle();
+        return ((data as any)?.ts as string) ?? null;
+      };
+      let ts = await pick(true);
+      let awaiting = false;
+      if (!ts) { ts = await pick(false); awaiting = !!ts; }
+      if (!ts) return null;
+      const [term, surf] = await Promise.all([
+        supabase.from("v_iv_term_structure").select("leg, expiry_date, dte, t_years, atm_strike, ce_iv, pe_iv, atm_iv, parity_gap, spread_vs_front, fwd_vol_from_prev, is_back, term_slope, front_is_0dte")
+          .eq("symbol", s).eq("ts", ts).order("leg"),
+        supabase.from("v_iv_surface").select("leg, expiry_date, dte, spot, strike, moneyness_pct, side_used, ce_iv, pe_iv, iv, parity_gap, oi_otm, iv_over_atm, quote_state, leg_atm_strike, leg_atm_iv, leg_k98, leg_skew_98, leg_status")
+          .eq("symbol", s).eq("ts", ts).order("leg").order("strike").limit(2000),
+      ]);
+      if (term.error) throw term.error;
+      if (surf.error) throw surf.error;
+      return { ts, awaiting, next: gate.next, term: (term.data ?? []) as any[], surface: (surf.data ?? []) as any[] };
+    },
+  });
+}
