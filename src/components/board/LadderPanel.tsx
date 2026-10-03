@@ -237,7 +237,7 @@ export function LadderPanel(p: Props) {
             {/* Legend */}
             {layered && (
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]" style={{ color: "var(--ink-3)" }}>
-                 {isOI ? <><Sw c="var(--put)" l="put OI" /><Sw c="var(--call)" l="call OI" /><Rl s="2px solid var(--ink-1)" l="max pain" /><Rl s="2px solid var(--cool)" l="ΔOI rose" /><Rl s="2px solid var(--warm)" l="ΔOI fell" /><Rl s="2px solid color-mix(in srgb, var(--ink-1) 28%, transparent)" l="pain valley" /></> : <>
+                 {isOI ? <><Sw c="var(--put)" l="put OI" /><Sw c="var(--call)" l="call OI" /><Rl s="2px solid var(--ink-1)" l="max pain" />{p.symbol !== "SENSEX" && <><Rl s="2px solid var(--cool)" l="ΔOI rose" /><Rl s="2px solid var(--warm)" l="ΔOI fell" /></>}<Rl s="2px solid color-mix(in srgb, var(--ink-1) 28%, transparent)" l="pain valley" /></> : <>
                    <Sw c="var(--warm)" l="amplifying γ" /><Sw c="var(--cool)" l="dampening γ" />
                    <Sw c="color-mix(in srgb, var(--ink-1) 30%, transparent)" l="priced move" />
                    <Sw c="color-mix(in srgb, var(--cool) 55%, transparent)" l="pin band" />

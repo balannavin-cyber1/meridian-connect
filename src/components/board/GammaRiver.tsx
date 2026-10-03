@@ -7,7 +7,6 @@ const lak = (v: number) => (Math.abs(v) >= 1e5 ? `${v < 0 ? "−" : v > 0 ? "+" 
 const dShort = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 
 export function GammaRiver({ days }: { days: RiverDay[] }) {
-  const [all, setAll] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(800);
