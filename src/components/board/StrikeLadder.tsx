@@ -109,28 +109,21 @@ export function StrikeLadder(p: Props) {
           {silhouettePoints.length > 0 && (
             <svg
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 z-[5]"
-              width="100%"
+              className="pointer-events-none absolute inset-y-0 left-[70px] right-[74px] z-[5]"
               height={win.length * rowH}
+              viewBox={`0 0 100 ${win.length * rowH}`}
               preserveAspectRatio="none"
             >
-              <g transform="translate(70 0)">
-                <svg x="0" y="0" width="calc(100% - 144px)" height={win.length * rowH} viewBox={`0 0 100 ${win.length * rowH}`} preserveAspectRatio="none" overflow="visible">
-                  {silhouettePoints.length > 1 && (
-                    <polyline
-                      points={silhouettePoints.map((point) => `${point.x},${point.y}`).join(" ")}
-                      fill="none"
-                      stroke="var(--ink-1)"
-                      strokeOpacity={0.42}
-                      strokeWidth={2}
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  )}
-                  {silhouettePoints.map((point) => (
-                    <circle key={point.strike} cx={point.x} cy={point.y} r={1} fill="var(--ink-1)" vectorEffect="non-scaling-stroke" />
-                  ))}
-                </svg>
-              </g>
+              {silhouettePoints.length > 1 && (
+                <polyline
+                  points={silhouettePoints.map((point) => `${point.x},${point.y}`).join(" ")}
+                  fill="none"
+                  stroke="var(--ink-1)"
+                  strokeOpacity={0.42}
+                  strokeWidth={2}
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
             </svg>
           )}
           {items.map((it, idx) => {
@@ -175,6 +168,10 @@ export function StrikeLadder(p: Props) {
                       left: r.value >= 0 ? "50%" : `${50 - w}%`,
                       background: r.value >= 0 ? "var(--cool)" : "var(--warm)",
                     }} />
+                  )}
+                  {p.silhouette?.has(r.strike) && (
+                    <div className="pointer-events-none absolute top-1/2 z-[7] h-[2px] w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                      style={{ left: `${50 + ((p.silhouette.get(r.strike) ?? 0) / silMax) * 48}%`, background: "var(--ink-1)" }} />
                   )}
                   {isLevel && <>
                     <div className="absolute inset-x-0 top-1/2 z-[6]" style={rule(lv[0].style, lvSel)} />
