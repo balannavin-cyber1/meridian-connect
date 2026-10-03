@@ -27,7 +27,7 @@ export function useSessions() {
 // Every "latest cycle" read is capped at the end of the last real trading session
 // (trading_calendar.is_open), so frozen holiday/weekend rows never render as live.
 const nextDay = (d: string) => new Date(new Date(d + "T00:00:00Z").getTime() + 86400_000).toISOString().slice(0, 10);
-type Gate = { session: string | null; prev: string | null; end: string | null };
+type Gate = { session: string | null; prev: string | null; end: string | null; next: string | null };
 let gateCache: { at: number; p: Promise<Gate> } | null = null;
 export function getGate(): Promise<Gate> {
   if (gateCache && Date.now() - gateCache.at < 5 * 60_000) return gateCache.p;
@@ -37,13 +37,30 @@ export function getGate(): Promise<Gate> {
       .order("trade_date", { ascending: false }).limit(2);
     if (error) throw error;
     const session = (data?.[0]?.trade_date as string) ?? null;
-    return { session, prev: (data?.[1]?.trade_date as string) ?? null, end: session ? istAt(nextDay(session), "00:00") : null };
+    const { data: nx } = await supabase.from("trading_calendar").select("trade_date")
+      .eq("is_open", true).gt("trade_date", istToday()).order("trade_date", { ascending: true }).limit(1).maybeSingle();
+    return { session, next: ((nx as any)?.trade_date as string) ?? null, prev: (data?.[1]?.trade_date as string) ?? null, end: session ? istAt(nextDay(session), "00:00") : null };
   })();
   gateCache = { at: Date.now(), p };
   p.catch(() => { gateCache = null; });
   return p;
 }
 /** Apply the session gate to a query builder on `ts`. */
+/** AWAITING_SESSION: the gate excluded the only rows and no trading-session row remains. */
+export const AWAIT = { __awaiting: true } as const;
+export const isAwaiting = (x: any): boolean => !!x && x.__awaiting === true;
+/** Returns AWAIT when an ungated (excluded) row exists for the same filter, else null. */
+async function awaitingOrNull(view: string, symbol: Symbol, end: string | null, extra?: (q: any) => any) {
+  if (!end) return null;
+  let q: any = supabase.from(view).select("ts").eq("symbol", symbol).gte("ts", end);
+  if (extra) q = extra(q);
+  const { data } = await q.limit(1).maybeSingle();
+  return data ? AWAIT : null;
+}
+export function useNextOpen() {
+  return useQuery({ queryKey: ["board", "nextopen", istToday()], staleTime: 10 * 60_000, queryFn: async () => (await getGate()).next });
+}
+
 // Sync on purpose: awaiting a query builder would execute it.
 export const applyGate = (q: any, end: string | null) => (end ? q.lt("ts", end) : q);
 
@@ -54,7 +71,8 @@ const latestBySymbol = (view: string, symbol: Symbol, extra?: (q: any) => any) =
     if (extra) q = extra(q);
     const { data, error } = await q.order("ts", { ascending: false }).limit(1).maybeSingle();
     if (error) throw error;
-    return data as any;
+    if (data) return data as any;
+    return (await awaitingOrNull(view, symbol, gate.end, extra)) as any;
   };
 
 export const useGammaNow = (s: Symbol) =>
@@ -212,7 +230,7 @@ export function useIvTerm(s: Symbol) {
     queryFn: async () => {
       const { data: top } = await applyGate(supabase.from("v_iv_term_structure").select("ts").eq("symbol", s), (await getGate()).end)
         .order("ts", { ascending: false }).limit(1).maybeSingle();
-      if (!top) return [];
+      if (!top) return (await awaitingOrNull("v_iv_term_structure", s, (await getGate()).end)) ? AWAIT as any : [];
       const { data, error } = await supabase.from("v_iv_term_structure").select("leg, expiry_date, atm_iv, dte_sessions")
         .eq("symbol", s).eq("ts", (top as any).ts).order("leg");
       if (error) throw error;
@@ -235,4 +253,30 @@ export function useDailyContext(s: Symbol) {
       return { env: env as any, wcb: wcb as any };
     },
   });
+}
+
+/** Every strike of the latest gated γ run (gex_strike_snapshots). */
+export function useLadderStrikes(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "ladder", s], ...opts,
+    queryFn: async () => {
+      const { data: top, error: e1 } = await applyGate(supabase.from("gex_strike_snapshots").select("run_id, ts, spot")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
+      if (e1) throw e1;
+      if (!top) return null;
+      const { data, error } = await supabase.from("gex_strike_snapshots")
+        .select("strike, gex_cr, gamma_call, gamma_put, oi_call, oi_put")
+        .eq("run_id", (top as any).run_id).order("strike", { ascending: true }).limit(1000);
+      if (error) throw error;
+      const rows = ((data ?? []) as any[]).map((r) => {
+        const has = r.gamma_call != null || r.gamma_put != null;
+        return { strike: Number(r.strike), gex: has && r.gex_cr != null ? Number(r.gex_cr) : null };
+      });
+      return { ts: (top as any).ts as string, rows };
+    },
+  });
+}
+
+export function usePinBand(s: Symbol) {
+  return useQuery({ queryKey: ["board", "pinband", s], ...opts, queryFn: latestBySymbol("v_gex_strike_pin_zone", s) });
 }

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useSymbol } from "@/contexts/SymbolContext";
 import {
   useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useWalls, useStrikeRank,
-  useIvFront, useOpenGap, useMaxPain, useFlowSim, useIvTerm, useDailyContext,
+  useIvFront, useOpenGap, useMaxPain, useFlowSim, useIvTerm, useDailyContext, isAwaiting, useNextOpen,
 } from "@/lib/board";
 import { useBoardRead } from "@/lib/read";
 import { SplitBar } from "@/components/board/SplitBar";
@@ -97,7 +97,10 @@ export default function Home() {
   const og = useOpenGap(symbol, session, prev).data;
   const mp = useMaxPain(symbol).data as any;
   const flows = (useFlowSim(symbol).data ?? []) as any[];
-  const term = (useIvTerm(symbol).data ?? []) as any[];
+  const termRaw = useIvTerm(symbol).data as any;
+  const ivAwait = isAwaiting(termRaw);
+  const term = (Array.isArray(termRaw) ? termRaw : []) as any[];
+  const nextOpen = useNextOpen().data ?? null;
   const ctx = useDailyContext(symbol).data;
   const read = useBoardRead(symbol);
 
@@ -114,6 +117,8 @@ export default function Home() {
   const pw = n(walls?.put_wall), cw = n(walls?.call_wall), cState = walls?.corridor_state as string | undefined;
   const fOk = flip?.status === "OK", fv = fOk ? n(flip?.flip) : null;
   const fPct = fOk && n(flip?.flip_minus_spot) != null && n(flip?.spot) ? (n(flip.flip_minus_spot)! / n(flip.spot)!) * 100 : null;
+  const flipAwait = isAwaiting(flip);
+  const closedWord = `market closed${nextOpen ? ` · next ${dShort(nextOpen)}` : ""}`;
   const flipWord: Record<string, string> = { NO_CROSSING: "no flip in grid", SKIPPED_EXPIRY: "skipped · expiry day", UNMEASURABLE_R: "carry unmeasurable" };
   const r1 = rank.find((r) => r.strike_rank === 1), r2 = rank.find((r) => r.strike_rank === 2);
   const sh1 = n(r1?.share_of_abs), sh2 = n(r2?.share_of_abs), pin = n(r1?.strike);
@@ -126,7 +131,7 @@ export default function Home() {
   const cards: CardDef[] = [
     { key: 1, tab: "Overview", sel: "s5", q: "What kind of day, and where are the edges?",
       answer: cState === "UNDEFINED" || pw == null || cw == null ? <Absent word="corridor undefined" /> :
-        <>corridor {num(pw)}–{num(cw)} · {fPct != null ? `flip ${pctS(fPct)}` : flipWord[flip?.status] ?? "no flip run"}</>,
+        <>corridor {num(pw)}–{num(cw)} · {fPct != null ? `flip ${pctS(fPct)}` : flipAwait ? <Absent word={closedWord} /> : flipWord[flip?.status] ?? "no flip run"}</>,
       pic: spot != null ? <TrackPic spot={spot} ticks={[
         ...(pw != null && cw != null && cState !== "UNDEFINED" ? [{ at: 0, color: "", span: [pw, cw] as [number, number] }, { at: pw, color: "var(--put)" }, { at: cw, color: "var(--call)" }] : []),
         ...(fv != null ? [{ at: fv, color: "var(--rule)", dashed: true }] : []),
@@ -148,7 +153,7 @@ export default function Home() {
         <>−1 %: {f1.direction} {num(Math.abs(Number(f1.flow_cr)))} Cr · +1 %: {f2.direction} {num(Math.abs(Number(f2.flow_cr)))} Cr</>,
       pic: f1 && f2 ? <FlowPic dn={Number(f1.flow_cr)} up={Number(f2.flow_cr)} /> : null },
     { key: 6, tab: "IV", sel: "s7", q: "What do time and cover cost?",
-      answer: n(front?.atm_iv) == null ? <Absent word="no chain" /> :
+      answer: ivAwait ? <Absent word={closedWord} /> : n(front?.atm_iv) == null ? <Absent word="no chain" /> :
         <>front {Number(front.atm_iv).toFixed(1)}{n(back?.atm_iv) != null ? ` · back ${Number(back.atm_iv).toFixed(1)}` : ""}{strad != null ? ` · straddle ±${num(strad)}` : ""}</>,
       pic: n(front?.atm_iv) != null ? <IvPic front={Number(front.atm_iv)} back={n(back?.atm_iv)} /> : null },
   ];
@@ -181,6 +186,7 @@ export default function Home() {
         <div className="min-w-0">
           <div className="text-[11px] font-medium uppercase tracking-[0.16em]" style={{ color: "var(--ink-3)" }}>
             {[symbol, g?.expiry_date ? dShort(g.expiry_date)!.toUpperCase() : null, leftWord].filter(Boolean).join(" · ")}
+            {isAwaiting(iv) && nextOpen && <span className="ml-2 normal-case tracking-normal" style={{ color: "var(--ink-3)" }}>next {dShort(nextOpen)}</span>}
           </div>
           <div className="mt-1 text-[44px] font-semibold leading-none md:text-[56px]" style={{ fontFamily: "var(--font-plex-cond)", color: "var(--ink-1)" }}>
             {spot != null ? num(spot, 1) : <Absent word="no run" />}
