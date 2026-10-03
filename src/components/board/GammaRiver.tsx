@@ -17,7 +17,8 @@ export function GammaRiver({ days }: { days: RiverDay[] }) {
     return () => ro.disconnect();
   }, []);
 
-  const view = useMemo(() => (all ? days : days.slice(-30)), [days, all]);
+  // fixed 30-session window (data source holds exactly 30)
+  const view = useMemo(() => days.slice(-30), [days]);
   const H = 170, padL = 52, padR = 52, padT = 10, padB = 22;
   if (!days.length) return null;
 
