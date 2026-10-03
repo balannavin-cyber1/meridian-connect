@@ -46,12 +46,9 @@ export function GammaRiver({ days }: { days: RiverDay[] }) {
         <span className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Gamma river</span>
         <span className="text-[12px]" style={{ color: "var(--ink-2)" }}>settled net γ per session · history, not today's read</span>
         <div className="flex-1" />
-        {(["30", "all"] as const).map((k) => (
-          <button key={k} onClick={() => setAll(k === "all")} className="rounded px-2 py-0.5 text-[11px]"
-            style={{ background: (k === "all") === all ? "var(--s2)" : "transparent", color: (k === "all") === all ? "var(--ink-1)" : "var(--ink-3)" }}>
-            {k === "30" ? "30 sessions" : `all · ${days.length}`}
-          </button>
-        ))}
+        <span className="rounded px-2 py-0.5 text-[11px]" style={{ background: "var(--s2)", color: "var(--ink-1)" }} title="fixed 30-session window">
+          30 sessions
+        </span>
       </div>
       <div ref={ref} className="relative w-full" onMouseLeave={() => setHover(null)}>
         <svg width={W} height={H} className="block">
