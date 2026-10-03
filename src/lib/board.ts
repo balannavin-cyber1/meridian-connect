@@ -44,11 +44,13 @@ export function getGate(): Promise<Gate> {
   return p;
 }
 /** Apply the session gate to a query builder on `ts`. */
-export const gated = async (q: any) => { const g = await getGate(); return g.end ? q.lt("ts", g.end) : q; };
+// Sync on purpose: awaiting a query builder would execute it.
+export const applyGate = (q: any, end: string | null) => (end ? q.lt("ts", end) : q);
 
 const latestBySymbol = (view: string, symbol: Symbol, extra?: (q: any) => any) =>
   async () => {
-    let q: any = await gated(supabase.from(view).select("*").eq("symbol", symbol));
+    const gate = await getGate();
+    let q: any = applyGate(supabase.from(view).select("*").eq("symbol", symbol), gate.end);
     if (extra) q = extra(q);
     const { data, error } = await q.order("ts", { ascending: false }).limit(1).maybeSingle();
     if (error) throw error;
@@ -72,8 +74,8 @@ export function useStrikeRank(s: Symbol) {
   return useQuery({
     queryKey: ["board", "rank", s], ...opts,
     queryFn: async () => {
-      const { data: top, error: e1 } = await (await gated(supabase.from("v_gex_strike_rank").select("run_id")
-        .eq("symbol", s))).order("ts", { ascending: false }).limit(1).maybeSingle();
+      const { data: top, error: e1 } = await applyGate(supabase.from("v_gex_strike_rank").select("run_id")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
       if (e1) throw e1;
       if (!top) return [];
       const { data, error } = await supabase.from("v_gex_strike_rank").select("strike, strike_rank, share_of_abs, ts")
@@ -89,8 +91,8 @@ export function useSpotPocket(s: Symbol) {
   return useQuery({
     queryKey: ["board", "pocket", s], ...opts,
     queryFn: async () => {
-      const { data: top, error: e1 } = await (await gated(supabase.from("gex_strike_snapshots").select("run_id, spot, ts")
-        .eq("symbol", s))).order("ts", { ascending: false }).limit(1).maybeSingle();
+      const { data: top, error: e1 } = await applyGate(supabase.from("gex_strike_snapshots").select("run_id, spot, ts")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
       if (e1) throw e1;
       if (!top) return null;
       const t: any = top;
@@ -178,8 +180,8 @@ export function useMaxPain(s: Symbol) {
   return useQuery({
     queryKey: ["board", "maxpain", s], ...opts,
     queryFn: async () => {
-      const { data, error } = await (await gated(supabase.from("v_gex_max_pain").select("max_pain_strike, ts, is_fresh")
-        .eq("symbol", s))).order("ts", { ascending: false }).limit(1).maybeSingle();
+      const { data, error } = await applyGate(supabase.from("v_gex_max_pain").select("max_pain_strike, ts, is_fresh")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
       if (error) throw error;
       return data as any;
     },
@@ -191,8 +193,8 @@ export function useFlowSim(s: Symbol) {
   return useQuery({
     queryKey: ["board", "flowsim", s], ...opts,
     queryFn: async () => {
-      const { data: top, error: e1 } = await (await gated(supabase.from("v_dealer_flow_sim").select("run_id")
-        .eq("symbol", s))).order("ts", { ascending: false }).limit(1).maybeSingle();
+      const { data: top, error: e1 } = await applyGate(supabase.from("v_dealer_flow_sim").select("run_id")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
       if (e1) throw e1;
       if (!top) return [];
       const { data, error } = await supabase.from("v_dealer_flow_sim").select("spot_pct, flow_cr, direction")
@@ -208,7 +210,7 @@ export function useIvTerm(s: Symbol) {
   return useQuery({
     queryKey: ["board", "ivterm2", s], ...opts,
     queryFn: async () => {
-      const { data: top } = await (await gated(supabase.from("v_iv_term_structure").select("ts").eq("symbol", s)))
+      const { data: top } = await applyGate(supabase.from("v_iv_term_structure").select("ts").eq("symbol", s), (await getGate()).end)
         .order("ts", { ascending: false }).limit(1).maybeSingle();
       if (!top) return [];
       const { data, error } = await supabase.from("v_iv_term_structure").select("leg, expiry_date, atm_iv, dte_sessions")
@@ -227,8 +229,8 @@ export function useDailyContext(s: Symbol) {
       const { data: env } = await supabase.from("market_environment_snapshots")
         .select("as_of_date, ambient_regime, lens_alignment").eq("symbol", s)
         .order("as_of_date", { ascending: false }).limit(1).maybeSingle();
-      const { data: wcb } = await (await gated(supabase.from("weighted_constituent_breadth_snapshots")
-        .select("ts, wcb_score, wcb_regime, weighted_advances_pct, weighted_declines_pct").eq("index_symbol", s)))
+      const { data: wcb } = await applyGate(supabase.from("weighted_constituent_breadth_snapshots")
+        .select("ts, wcb_score, wcb_regime, weighted_advances_pct, weighted_declines_pct").eq("index_symbol", s), (await getGate()).end)
         .order("ts", { ascending: false }).limit(1).maybeSingle();
       return { env: env as any, wcb: wcb as any };
     },
