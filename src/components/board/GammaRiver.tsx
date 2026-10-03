@@ -7,7 +7,6 @@ const lak = (v: number) => (Math.abs(v) >= 1e5 ? `${v < 0 ? "−" : v > 0 ? "+" 
 const dShort = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 
 export function GammaRiver({ days }: { days: RiverDay[] }) {
-  const [all, setAll] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(800);
@@ -18,7 +17,8 @@ export function GammaRiver({ days }: { days: RiverDay[] }) {
     return () => ro.disconnect();
   }, []);
 
-  const view = useMemo(() => (all ? days : days.slice(-30)), [days, all]);
+  // fixed 30-session window (data source holds exactly 30)
+  const view = useMemo(() => days.slice(-30), [days]);
   const H = 170, padL = 52, padR = 52, padT = 10, padB = 22;
   if (!days.length) return null;
 
@@ -46,12 +46,9 @@ export function GammaRiver({ days }: { days: RiverDay[] }) {
         <span className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Gamma river</span>
         <span className="text-[12px]" style={{ color: "var(--ink-2)" }}>settled net γ per session · history, not today's read</span>
         <div className="flex-1" />
-        {(["30", "all"] as const).map((k) => (
-          <button key={k} onClick={() => setAll(k === "all")} className="rounded px-2 py-0.5 text-[11px]"
-            style={{ background: (k === "all") === all ? "var(--s2)" : "transparent", color: (k === "all") === all ? "var(--ink-1)" : "var(--ink-3)" }}>
-            {k === "30" ? "30 sessions" : `all · ${days.length}`}
-          </button>
-        ))}
+        <span className="rounded px-2 py-0.5 text-[11px]" style={{ background: "var(--s2)", color: "var(--ink-1)" }} title="fixed 30-session window">
+          30 sessions
+        </span>
       </div>
       <div ref={ref} className="relative w-full" onMouseLeave={() => setHover(null)}>
         <svg width={W} height={H} className="block">
