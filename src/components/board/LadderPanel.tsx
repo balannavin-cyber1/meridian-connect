@@ -164,13 +164,13 @@ export function LadderPanel(p: Props) {
       <div className="rounded-lg p-3 md:p-4" style={{ background: "var(--s1)", border: "1px solid var(--line)" }}>
         {/* Header controls */}
         <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]" style={{ color: "var(--ink-3)" }}>
-          {(["near", "all", "full"] as Mode[]).map((m) => (
+          {p.tab !== "IV" && (["near", "all", "full"] as Mode[]).map((m) => (
             <button key={m} onClick={() => setMode(m)} className="rounded px-2 py-1"
               style={{ background: mode === m ? "var(--s2)" : "transparent", color: mode === m ? "var(--ink-1)" : "var(--ink-3)" }}>
               {modeLabel[m]} <span style={{ color: "var(--ink-3)" }}>{m === "near" ? "0" : m === "all" ? "L" : "F"}</span>
             </button>
           ))}
-          {mode === "custom" && <span className="rounded px-2 py-1" style={{ background: "var(--s2)", color: "var(--ink-1)" }}>Custom</span>}
+          {p.tab !== "IV" && mode === "custom" && <span className="rounded px-2 py-1" style={{ background: "var(--s2)", color: "var(--ink-1)" }}>Custom</span>}
           <button onClick={() => zoom(0.7)} className="rounded px-2 py-1 hover:bg-[var(--s2)]">+</button>
           <button onClick={() => zoom(1.4)} className="rounded px-2 py-1 hover:bg-[var(--s2)]">−</button>
           {search != null && (
