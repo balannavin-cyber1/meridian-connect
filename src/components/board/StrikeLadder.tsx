@@ -43,7 +43,13 @@ export function StrikeLadder(p: Props) {
   const dense = rowH < 14;
   const maxAbs = Math.max(1e-9, ...win.map((r) => Math.abs(r.value ?? 0)));
   const barH = Math.max(6, rowH - 8);
-  const silMax = p.silhouette ? Math.max(1e-9, ...win.map((r) => Math.abs(p.silhouette!.get(r.strike) ?? 0))) : 1;
+  // The cumulative silhouette owns a stable full-series scale. Strike bars above
+  // remain scaled only to their largest visible per-strike magnitude.
+  const silMax = p.silhouette ? Math.max(1e-9, ...Array.from(p.silhouette.values(), Math.abs)) : 1;
+  const silhouettePoints = p.silhouette ? win.flatMap((r, i) => {
+    const value = p.silhouette?.get(r.strike);
+    return value == null ? [] : [{ strike: r.strike, x: 50 + (value / silMax) * 48, y: i * rowH + rowH / 2 }];
+  }) : [];
 
   // group levels: on-strike (coincidence joins) vs between strikes
   const strikeSet = new Set(p.rows.map((r) => r.strike));
@@ -99,7 +105,25 @@ export function StrikeLadder(p: Props) {
     <div className="min-w-0">
       <div className="mb-1 flex min-h-[22px] flex-wrap gap-1">{above.map((l) => <Chip key={l.id} l={l} dir="▲" />)}</div>
       <div className="flex gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1">
+          {silhouettePoints.length > 0 && (
+            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-[70px] right-[74px] z-[5]">
+              <svg className="h-full w-full" viewBox={`0 0 100 ${win.length * rowH}`} preserveAspectRatio="none">
+                {silhouettePoints.length > 1 && (
+                  <polyline
+                    points={silhouettePoints.map((point) => `${point.x},${point.y}`).join(" ")}
+                    fill="none"
+                    stroke="var(--ink-1)"
+                    strokeOpacity={0.5}
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+              </svg>
+            </div>
+          )}
           {items.map((it, idx) => {
             if (it.kind === "mark") {
               const ls = it.ls.sort((a, b) => rank[a.style] - rank[b.style]);
@@ -112,7 +136,7 @@ export function StrikeLadder(p: Props) {
                   </div>
                   <div /><div />
                   <div className="relative">
-                    <div className="absolute inset-x-0 top-0" style={rule(ls[0].style, sel)} />
+                    <div className="absolute inset-x-0 top-0 z-[6]" style={rule(ls[0].style, sel)} />
                     <div className="absolute inset-x-0 top-0"><Pill ls={ls} sel={sel} /></div>
                   </div>
                 </div>
@@ -144,11 +168,11 @@ export function StrikeLadder(p: Props) {
                     }} />
                   )}
                   {p.silhouette?.has(r.strike) && (
-                    <div className="pointer-events-none absolute top-1/2 z-[5] h-[5px] w-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full"
-                      style={{ left: `${50 + (p.silhouette.get(r.strike)! / silMax) * 48}%`, background: "var(--ink-1)" }} />
+                    <div className="pointer-events-none absolute top-1/2 z-[7] h-[2px] w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                      style={{ left: `${50 + ((p.silhouette.get(r.strike) ?? 0) / silMax) * 48}%`, background: "var(--ink-1)" }} />
                   )}
                   {isLevel && <>
-                    <div className="absolute inset-x-0 top-1/2" style={rule(lv[0].style, lvSel)} />
+                    <div className="absolute inset-x-0 top-1/2 z-[6]" style={rule(lv[0].style, lvSel)} />
                     <Pill ls={lv} sel={lvSel} />
                   </>}
                 </div>
