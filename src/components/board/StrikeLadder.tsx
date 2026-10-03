@@ -27,6 +27,7 @@ type Props = {
   onInclude: (at: number) => void;
   onRecentre: (strike: number) => void;
   phone: boolean;
+  silhouette?: Map<number, number> | null; // running Σ gex_cr from the highest strike down
 };
 
 function rule(style: LevelStyle, sel: boolean) {
@@ -42,6 +43,7 @@ export function StrikeLadder(p: Props) {
   const dense = rowH < 14;
   const maxAbs = Math.max(1e-9, ...win.map((r) => Math.abs(r.value ?? 0)));
   const barH = Math.max(6, rowH - 8);
+  const silMax = p.silhouette ? Math.max(1e-9, ...win.map((r) => Math.abs(p.silhouette!.get(r.strike) ?? 0))) : 1;
 
   // group levels: on-strike (coincidence joins) vs between strikes
   const strikeSet = new Set(p.rows.map((r) => r.strike));
@@ -140,6 +142,10 @@ export function StrikeLadder(p: Props) {
                       left: r.value >= 0 ? "50%" : `${50 - w}%`,
                       background: r.value >= 0 ? "var(--cool)" : "var(--warm)",
                     }} />
+                  )}
+                  {p.silhouette?.has(r.strike) && (
+                    <div className="pointer-events-none absolute top-1/2 z-[5] h-[5px] w-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                      style={{ left: `${50 + (p.silhouette.get(r.strike)! / silMax) * 48}%`, background: "var(--ink-1)" }} />
                   )}
                   {isLevel && <>
                     <div className="absolute inset-x-0 top-1/2" style={rule(lv[0].style, lvSel)} />
