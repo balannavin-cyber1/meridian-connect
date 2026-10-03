@@ -80,7 +80,7 @@ export default function Board() {
   const { symbol } = useSymbol();
   const [params] = useSearchParams();
   const fromParam = (v: string | null) => (v ? CELL_TO_ITEM[v] ?? v : null);
-  const [sel, setSel] = useState<string | null>(fromParam(params.get("sel")) ?? "net");
+  const [sel, setSel] = useState<string | null>(fromParam(params.get("sel")) ?? (params.get("tab") === "gamma" ? "g_top" : "net"));
   const [tab, setTabRaw] = useState<Tab>(() => TABS.find((t) => t.toLowerCase() === params.get("tab")) ?? "Overview");
   const FIRST: Partial<Record<Tab, string>> = { Overview: "net", Gamma: "g_top" };
   const setTab = (t: Tab) => { setTabRaw(t); if (t !== tab && FIRST[t]) setSel(FIRST[t]!); };
