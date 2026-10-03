@@ -1,4 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useBoardRead } from "@/lib/read";
+import { SplitBar } from "@/components/board/SplitBar";
 import { useSymbol } from "@/contexts/SymbolContext";
 import {
   useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useWalls, useStrikeRank,
@@ -69,7 +72,9 @@ function Cell({ id, label, value, color, sub, viz, sel, onSel }: CellProps) {
 // ---------- page ----------
 export default function Board() {
   const { symbol } = useSymbol();
-  const [sel, setSel] = useState<string | null>(null);
+  const [params] = useSearchParams();
+  const [sel, setSel] = useState<string | null>(params.get("sel"));
+  useEffect(() => { const s = params.get("sel"); if (s) setSel(s); }, [params]);
   const sess = useSessions();
   const session = sess.data?.session ?? null, prev = sess.data?.prev ?? null;
 
@@ -153,29 +158,7 @@ export default function Board() {
   // S10
   const clockDiff = walls?.ts && flip?.ts ? Math.abs(new Date(walls.ts).getTime() - new Date(flip.ts).getTime()) / 60000 : 0;
 
-  // ---------- the read ----------
-  const read = useMemo(() => {
-    if (spot == null) return null;
-    let out = "";
-    if (pocket) out += `Spot ${num(spot, 1)} sits in ${pocket.gex_cr >= 0 ? "a dampening" : "an amplifying"} pocket`;
-    else out += `Spot ${num(spot, 1)}`;
-    if (cState && cState !== "UNDEFINED" && pw != null && cw != null) {
-      const dC = Math.abs(cw - spot), dP = Math.abs(spot - pw);
-      const useCall = dC <= dP;
-      const wall = useCall ? cw : pw;
-      const side = spot < wall ? "under" : "above";
-      out += `, ${((Math.abs(wall - spot) / spot) * 100).toFixed(1)}% ${side} the ${useCall ? "call" : "put"} OI wall at ${num(wall)}`;
-      if (pin != null && pin === wall) out += ", which is also the largest gamma strike";
-    }
-    if (fStatus === "OK" && fPct != null && fms != null) {
-      out += `. Flip is ${fPct >= 0 ? "+" : "−"}${Math.abs(fPct).toFixed(2)}% away`;
-      if (strad != null) out += `, ${Math.abs(fms) <= strad ? "inside" : "outside"} the ±${num(strad, 0)} the straddle is pricing by expiry`;
-    } else if (fStatus && flipAbsent[fStatus]) {
-      out += fStatus === "NO_CROSSING" ? ". There is no flip in the grid" : fStatus === "SKIPPED_EXPIRY" ? ". Flip is skipped on expiry day" : ". Flip carry is unmeasurable";
-    }
-    if (ratio != null) out += `. Net gamma is ${ratio.toFixed(2)} of gross`;
-    return out + ".";
-  }, [spot, pocket, cState, pw, cw, pin, fStatus, fPct, fms, strad, ratio]);
+  const read = useBoardRead(symbol);
 
   const C = { sel, onSel: setSel };
   return (
@@ -193,11 +176,7 @@ export default function Board() {
           value={net != null ? crLakh(net) : <Absent word="no run" />} color={hue(net)}
           sub={net != null ? `${net >= 0 ? "long γ" : "short γ"}${ratio != null ? ` · ${ratio.toFixed(2)} of gross` : ""} · unit definition pending` : undefined}
           viz={net != null && gross ? (
-            <div className="relative mt-2 flex h-1.5 w-full overflow-hidden rounded-sm" style={{ background: "var(--s2)" }}>
-              <div style={{ width: `${((gross + net) / 2 / gross) * 100}%`, background: "var(--cool)" }} />
-              <div style={{ width: `${((gross - net) / 2 / gross) * 100}%`, background: "var(--warm)" }} />
-              <div className="absolute left-1/2 top-0 h-full w-px" style={{ background: "var(--ink-1)" }} />
-            </div>
+            <SplitBar net={net} gross={gross} />
           ) : undefined} />
 
         <Cell id="s4" label="Flip" {...C}
