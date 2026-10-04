@@ -29,8 +29,8 @@ export function IVPanel({ data }: { data: Data }) {
   const back = data.term.find((r) => r.leg === 2);
   const slope = n(back?.term_slope ?? front?.term_slope);
   const isBack = back?.is_back;
-  const structure = isBack == null && slope == null ? null
-    : (isBack === true || (isBack == null && (slope ?? 0) > 0)) ? "contango" : "backwardation";
+  const structure = slope == null ? null
+    : (slope > 0.05) ? "contango" : (slope < -0.05) ? "backwardation" : "flat";
 
   return (
     <div className="space-y-4">
@@ -45,7 +45,7 @@ export function IVPanel({ data }: { data: Data }) {
           <span className="text-[14px] font-semibold" style={{ color: "var(--ink-1)" }}>Term structure</span>
           <span className="text-[11px]" style={{ color: "var(--ink-3)" }}>front vs back · 2 legs captured</span>
           {structure && (
-            <span className="ml-auto text-[13px] font-semibold" style={{ fontFamily: "var(--font-plex-cond)", color: structure === "contango" ? "var(--cool)" : "var(--warm)" }}>
+            <span className="ml-auto text-[13px] font-semibold" style={{ fontFamily: "var(--font-plex-cond)", color: structure === "contango" ? "var(--cool)" : structure === "backwardation" ? "var(--warm)" : "var(--ink-3)" }}>
               {structure.toUpperCase()} · slope {sgn(slope)} vol pts
             </span>
           )}
