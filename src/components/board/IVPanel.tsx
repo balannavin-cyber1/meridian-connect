@@ -45,7 +45,7 @@ export function IVPanel({ data }: { data: Data }) {
           <span className="text-[14px] font-semibold" style={{ color: "var(--ink-1)" }}>Term structure</span>
           <span className="text-[11px]" style={{ color: "var(--ink-3)" }}>front vs back · 2 legs captured</span>
           {structure && (
-            <span className="ml-auto text-[13px] font-semibold" style={{ fontFamily: "var(--font-plex-cond)", color: structure === "contango" ? "var(--cool)" : "var(--warm)" }}>
+            <span className="ml-auto text-[13px] font-semibold" style={{ fontFamily: "var(--font-plex-cond)", color: structure === "contango" ? "var(--cool)" : structure === "backwardation" ? "var(--warm)" : "var(--ink-3)" }}>
               {structure.toUpperCase()} · slope {sgn(slope)} vol pts
             </span>
           )}
