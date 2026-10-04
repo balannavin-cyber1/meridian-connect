@@ -29,8 +29,8 @@ export function IVPanel({ data }: { data: Data }) {
   const back = data.term.find((r) => r.leg === 2);
   const slope = n(back?.term_slope ?? front?.term_slope);
   const isBack = back?.is_back;
-  const structure = isBack == null && slope == null ? null
-    : (isBack === true || (isBack == null && (slope ?? 0) > 0)) ? "contango" : "backwardation";
+  const structure = slope == null ? null
+    : (slope > 0.05) ? "contango" : (slope < -0.05) ? "backwardation" : "flat";
 
   return (
     <div className="space-y-4">
