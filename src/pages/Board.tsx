@@ -130,7 +130,9 @@ export default function Board() {
   const fVal = fStatus === "OK" ? n(flip?.flip) : null;
   const fms = n(flip?.flip_minus_spot);
   const fSpot = n(flip?.spot) ?? spot;
-  const fPct = fVal != null && fms != null && fSpot ? (fms / fSpot) * 100 : null;
+  // S90 MV-2: measure against the displayed spot (gamma clock), not the L3 row's own spot (chain clock),
+  // so the % and the ladder can never put flip and spot on opposite sides. fms/fSpot kept for the tooltip.
+  const fPct = fVal != null && spot ? ((fVal - spot) / spot) * 100 : null;
   const flipAbsent: Record<string, string> = { NO_CROSSING: "no flip in grid", SKIPPED_EXPIRY: "skipped · expiry day", UNMEASURABLE_R: "carry unmeasurable" };
 
   // S5
@@ -241,7 +243,7 @@ export default function Board() {
   const gammaItems: OverviewItem[] = [
     { id: "g_top", label: "Top-strike share", sub: bucket ? `${bucket === "0" ? "0" : bucket} DTE bucket${n(conc?.top_strike_net) != null ? ` · at ${num(n(conc.top_strike_net))}` : ""}` : "",
       value: hN != null ? pct(hN) : <Absent word="no run" />, levelIds: [],
-      caption: hN != null ? `The largest strike carries ${pct(hN)} of net γ (calls ${pct(hC)}, puts ${pct(hP)}); ${bucket ?? "—"} DTE bucket.` : "No concentration run.",
+      caption: hN != null ? `The largest strike carries ${pct(hN)} of gross |γ| (calls ${pct(hC)}, puts ${pct(hP)}); ${bucket ?? "—"} DTE bucket.` : "No concentration run.",
       extra: hN != null ? (
         <div>
           <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Call / put split</div>

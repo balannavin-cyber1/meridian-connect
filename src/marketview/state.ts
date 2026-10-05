@@ -91,7 +91,8 @@ export function useMvData(symbol: MSymbol) {
   }, [zones.data, spot]);
 
   const maxPainStrike = maxPain.data?.[0]?.max_pain_strike ?? null;
-  const painSpotDistPct = maxPainStrike && spot ? ((spot - maxPainStrike) / maxPainStrike) * 100 : null;
+  // S90 MV-3: signed distance FROM spot TO max pain, same convention as the Board OI tab.
+  const painSpotDistPct = maxPainStrike && spot ? ((maxPainStrike - spot) / spot) * 100 : null;
   const gammaPainGap = maxPainStrike && maxGammaStrike ? Math.abs(maxGammaStrike - maxPainStrike) : null;
 
   return {

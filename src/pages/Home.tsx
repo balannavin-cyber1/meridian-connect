@@ -116,7 +116,8 @@ export default function Home() {
   // card values
   const pw = n(walls?.put_wall), cw = n(walls?.call_wall), cState = walls?.corridor_state as string | undefined;
   const fOk = flip?.status === "OK", fv = fOk ? n(flip?.flip) : null;
-  const fPct = fOk && n(flip?.flip_minus_spot) != null && n(flip?.spot) ? (n(flip.flip_minus_spot)! / n(flip.spot)!) * 100 : null;
+  // S90 MV-2: distance from the displayed spot (same clock as the number on screen).
+  const fPct = fv != null && spot ? ((fv - spot) / spot) * 100 : null;
   const flipAwait = isAwaiting(flip);
   const closedWord = `market closed${nextOpen ? ` · next ${dShort(nextOpen)}` : ""}`;
   const flipWord: Record<string, string> = { NO_CROSSING: "no flip in grid", SKIPPED_EXPIRY: "skipped · expiry day", UNMEASURABLE_R: "carry unmeasurable" };

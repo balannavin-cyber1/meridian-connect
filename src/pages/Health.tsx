@@ -32,13 +32,13 @@ const TRACKED_WRITERS: WriterDef[] = [
   { script: "compute_gamma_metrics_local.py", cadence: 5, symbol_scoped: true },
   { script: "capture_spot_1m_v2.py", cadence: 1, symbol_scoped: false },
   { script: "build_wcb_snapshot_local.py", cadence: 5, symbol_scoped: true },
-  { script: "detect_ict_patterns_runner.py", cadence: 5, symbol_scoped: false },
+  { script: "detect_ict_patterns_runner.py", cadence: 1440, symbol_scoped: false }, // S90: EOD job (crontab 20/22 10 UTC), not 5-minute
   { script: "build_market_state_snapshot_local.py", cadence: 5, symbol_scoped: false },
   { script: "build_momentum_features_local.py", cadence: 5, symbol_scoped: false },
   { script: "compute_volatility_metrics_local.py", cadence: 5, symbol_scoped: false },
   { script: "compute_options_flow_local.py", cadence: 5, symbol_scoped: false },
   { script: "ingest_breadth_from_ticks.py", cadence: 5, symbol_scoped: false },
-  { script: "merdian_pipeline_alert_daemon", cadence: 1, symbol_scoped: false },
+  // S90: merdian_pipeline_alert_daemon removed — unscheduled, last run 116 d ago; tracking it pins OVERALL to CRITICAL.
   { script: "build_ict_htf_zones.py", cadence: 1440, symbol_scoped: false },
   { script: "compile_market_environment_local.py", cadence: 1440, symbol_scoped: false },
   { script: "relate_ambient_to_open_local.py", cadence: 1440, symbol_scoped: false },
