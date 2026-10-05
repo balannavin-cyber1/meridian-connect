@@ -10,6 +10,7 @@ import { Sparkline } from "@/components/primitives/Sparkline";
 import { Gauge } from "@/components/primitives/Gauge";
 import { IVSmile } from "@/components/primitives/IVSmile";
 import type { MvState } from "./state";
+import { istTime } from "@/lib/board";
 
 /* --------------------------------------------------------- */
 export function LiveTag() {
@@ -329,6 +330,12 @@ export function BreadthVolSection({ s }: { s: MvState }) {
                 </div>
                 {w.active_weight_pct != null && (
                   <div className="mt-3 text-[10px]" style={{ color: MV.weak, fontFamily: MV.mono }}>coverage {Number(w.active_weight_pct).toFixed(1)}%</div>
+                )}
+                <div className="mt-1 text-[10px]" style={{ color: MV.weak, fontFamily: MV.mono }}>as of {istTime(w.ts)}</div>
+                {w.unchanged_rows >= 6 && (
+                  <div className="mt-1 text-[10px] font-semibold" style={{ color: MV.amber, fontFamily: MV.mono }}>
+                    values unchanged since {istTime(w.unchanged_since)} ({w.unchanged_rows} rows)
+                  </div>
                 )}
               </>
             );

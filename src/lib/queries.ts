@@ -487,6 +487,10 @@ export function useBreadthIntraday(symbol: Symbol) {
 }
 
 // Weighted Constituent Breadth (separate table; symbol column is index_symbol)
+// S90 MV-9: rows arrive every 5 min even when the writer's inputs are frozen, so a
+// fresh ts does not mean fresh values. Read the recent run and report since when the
+// headline values have been unchanged. Errors are thrown (not swallowed as "no data").
+const WCB_KEYS = ["wcb_score", "weighted_advances_pct", "active_weight_pct"] as const;
 export function useWcbLatest(symbol: Symbol) {
   return useQuery({
     queryKey: ["wcbLatest", symbol],
@@ -500,10 +504,15 @@ export function useWcbLatest(symbol: Symbol) {
         )
         .eq("index_symbol", symbol)
         .order("ts", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) return null;
-      return data;
+        .limit(80);
+      if (error) throw error;
+      const rows = (data ?? []) as any[];
+      if (!rows.length) return null;
+      const head = rows[0];
+      const same = (r: any) => WCB_KEYS.every((k) => r[k] === head[k]);
+      let i = 0;
+      while (i + 1 < rows.length && same(rows[i + 1])) i++;
+      return { ...head, unchanged_since: rows[i].ts as string, unchanged_rows: i + 1 };
     },
   });
 }
