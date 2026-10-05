@@ -512,7 +512,8 @@ export function useWcbLatest(symbol: Symbol) {
       const same = (r: any) => WCB_KEYS.every((k) => r[k] === head[k]);
       let i = 0;
       while (i + 1 < rows.length && same(rows[i + 1])) i++;
-      return { ...head, unchanged_since: rows[i].ts as string, unchanged_rows: i + 1 };
+      // unchanged_capped: the run reaches the end of the read window, so the true start is earlier.
+      return { ...head, unchanged_since: rows[i].ts as string, unchanged_rows: i + 1, unchanged_capped: i + 1 === rows.length };
     },
   });
 }
