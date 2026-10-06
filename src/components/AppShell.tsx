@@ -93,7 +93,7 @@ export default function AppShell() {
 
   const Wordmark = (
     <Link to="/home" className="text-[15px] font-bold uppercase tracking-[0.18em]"
-      style={{ fontFamily: "var(--font-plex-cond)", color: "var(--ink-1)" }}>MERDIAN</Link>
+      style={{ fontFamily: "var(--font-plex-cond)", color: "var(--ink-1)" }}>MERIDIAN</Link>
   );
   const Frozen = frozen && (
     <button onClick={() => setFrozen(false)} title="Space to resume"

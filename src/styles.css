@@ -30,7 +30,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* MERDIAN semantic tokens */
+  /* MERIDIAN semantic tokens */
   --color-bg-primary: var(--bg-primary);
   --color-bg-secondary: var(--bg-secondary);
   --color-bg-tertiary: var(--bg-tertiary);
@@ -56,7 +56,7 @@
 }
 
 :root {
-  /* MERDIAN instrument tokens (Phase 1a) */
+  /* MERIDIAN instrument tokens (Phase 1a) */
   --bg: #0D0F12; --strip: #12151A; --s1: #15191E; --s2: #1C2127; --s-sel-row: #20262E;
   --line: #22272E; --line-2: #2A3038; --axis: #2F363F;
   --ink-1: #ECEEF1; --ink-2: #A0A8B3; --ink-3: #7F8893; --rule: #B8BEC6;
