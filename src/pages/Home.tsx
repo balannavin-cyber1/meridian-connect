@@ -4,6 +4,7 @@ import { useSymbol } from "@/contexts/SymbolContext";
 import {
   useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useWalls, useStrikeRank,
   useIvFront, useOpenGap, useMaxPain, useFlowSim, useIvTerm, useDailyContext, isAwaiting, useNextOpen,
+  useLiveSpot, istTime,
 } from "@/lib/board";
 import { useBoardRead } from "@/lib/read";
 import { SplitBar } from "@/components/board/SplitBar";
@@ -104,9 +105,11 @@ export default function Home() {
   const ctx = useDailyContext(symbol).data;
   const read = useBoardRead(symbol);
 
-  const spot = n(g?.spot);
+  const spot = n(g?.spot);  // γ-run spot: every board figure is measured against it (MV-2)
+  const live = useLiveSpot(symbol).data ?? null;  // S90: headline = live 1-min spot, with its time
+  const headSpot = live?.spot ?? spot;
   const prevClose = og?.prevClose ?? null;
-  const chg = spot != null && prevClose != null ? spot - prevClose : null;
+  const chg = headSpot != null && prevClose != null ? headSpot - prevClose : null;
   const openRef = og?.open ?? og?.preOpen ?? null;
   const gap = openRef != null && prevClose != null ? ((openRef - prevClose) / prevClose) * 100 : null;
   const dteS = n(iv?.dte_sessions);
@@ -190,7 +193,11 @@ export default function Home() {
             {isAwaiting(iv) && nextOpen && <span className="ml-2 normal-case tracking-normal" style={{ color: "var(--ink-3)" }}>next {dShort(nextOpen)}</span>}
           </div>
           <div className="mt-1 text-[44px] font-semibold leading-none md:text-[56px]" style={{ fontFamily: "var(--font-plex-cond)", color: "var(--ink-1)" }}>
-            {spot != null ? num(spot, 1) : <Absent word="no run" />}
+            {headSpot != null ? num(headSpot, 1) : <Absent word="no run" />}
+          </div>
+          <div className="mt-1 text-[11px]" style={{ color: "var(--ink-3)" }}>
+            {live ? `live ${istTime(live.ts)}` : spot != null ? `γ run ${istTime(g?.ts)}` : ""}
+            {live && spot != null ? ` · board as of ${istTime(g?.ts)} · spot ${num(spot, 1)}` : ""}
           </div>
           <div className="mt-2 text-[14px]" style={{ fontFamily: "var(--font-plex-cond)" }}>
             {chg != null && prevClose ? (

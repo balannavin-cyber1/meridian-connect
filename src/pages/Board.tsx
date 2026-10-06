@@ -8,7 +8,7 @@ import {
   useIvFront, useFutures, useSpotPocket, useGammaSession, useOpenGap, usePrevBasis,
   istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, usePinBand,
   useConcentration, useNetGammaToday, useGammaRiver,
-  useMaxPainRun,
+  useMaxPainRun, useLiveSpot,
 } from "@/lib/board";
 import { LadderPanel, TABS, type Tab, type OverviewItem } from "@/components/board/LadderPanel";
 import type { Level } from "@/components/board/StrikeLadder";
@@ -107,7 +107,9 @@ export default function Board() {
   const og = useOpenGap(symbol, session, prev).data;
   const prevBasis = usePrevBasis(symbol, prev).data ?? null;
 
-  const spot = n(g?.spot);
+  const spot = n(g?.spot);  // γ-run spot: flip / walls / pin / ladder are measured against it (MV-2)
+  const liveSpot = useLiveSpot(symbol).data ?? null;  // S90: the Spot cell shows the live 1-min spot, with its time
+  const headSpot = liveSpot?.spot ?? spot;
   const prevClose = og?.prevClose ?? null;
   const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
 
@@ -117,7 +119,7 @@ export default function Board() {
   const s1sub = isAwaiting(iv) ? (nextOpen ? `next ${new Date(nextOpen + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}` : undefined) : expiry && expiry === today ? "expiry today" : dteS != null ? `${dteS} DTE` : undefined;
 
   // S2
-  const spotChg = spot != null && prevClose != null ? spot - prevClose : null;
+  const spotChg = headSpot != null && prevClose != null ? headSpot - prevClose : null;
   const series = gs?.series ?? [];
   const sparkPts = series.map((p) => p.spot);
 
@@ -214,7 +216,7 @@ export default function Board() {
       caption: strad != null ? `The straddle prices ±${num(strad)} to expiry; the left gutter marks strikes inside it.` : "No straddle." },
     { id: "spot", label: "Spot", sub: spotChg != null && prevClose ? `${sgn(spotChg, 1)} · ${sgn((spotChg / prevClose) * 100, 2)} %` : "",
       value: spot != null ? num(spot, 1) : <Absent word="no run" />, levelIds: ["spot"],
-      caption: spot != null ? `Spot ${num(spot, 1)} at the γ run of ${istTime(g?.ts)}.` : "No spot." },
+      caption: spot != null ? `${liveSpot ? `Live ${num(liveSpot.spot, 1)} at ${istTime(liveSpot.ts)}. ` : ""}The board is measured against spot ${num(spot, 1)} at the γ run of ${istTime(g?.ts)}.` : "No spot." },
     { id: "dte", label: "Time to expiry", sub: expiry ? `front ${expShort(expiry)}` : "",
       value: dteS != null ? `${dteS} sess` : isAwaiting(iv) ? <Absent word={closedWord} /> : <Absent word="no chain" />, levelIds: [],
       caption: dteS != null ? `${dteS} trading session${dteS === 1 ? "" : "s"} to the front expiry.` : isAwaiting(iv) ? `Time to expiry: ${closedWord}.` : "No chain." },
@@ -306,9 +308,9 @@ export default function Board() {
         <Cell id="dte" label="Symbol · Expiry" {...C}
           value={expiry ? `${expShort(expiry)}` : <Absent word="no expiry" />} sub={[symbol, s1sub].filter(Boolean).join(" · ")} />
 
-        <Cell id="spot" label="Spot" {...C}
-          value={spot != null ? num(spot, 1) : <Absent word="no run" />}
-          sub={spotChg != null && prevClose ? <><Mark delta={spotChg} />{sgn(spotChg, 1)} · {sgn((spotChg / prevClose) * 100, 2)} %</> : undefined}
+        <Cell id="spot" label={liveSpot ? `Spot · live ${istTime(liveSpot.ts)}` : "Spot"} {...C}
+          value={headSpot != null ? num(headSpot, 1) : <Absent word="no run" />}
+          sub={spotChg != null && prevClose ? <><Mark delta={spotChg} />{sgn(spotChg, 1)} · {sgn((spotChg / prevClose) * 100, 2)} %{liveSpot && spot != null ? ` · board ${istTime(g?.ts)} @ ${num(spot, 1)}` : ""}</> : undefined}
           viz={sparkPts.length >= 3 ? <Spark pts={sparkPts} /> : undefined} />
 
         <Cell id="net" label="Net Γ" {...C}

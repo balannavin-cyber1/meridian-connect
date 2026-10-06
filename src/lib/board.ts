@@ -104,6 +104,26 @@ export function useStrikeRank(s: Symbol) {
   });
 }
 
+/** S90 live spot: newest 1-minute capture (dhan_charts_intraday), refreshed every 30 s.
+ *  The board's figures stay on the γ run's spot (one clock for flip / walls / pin, MV-2); the headline
+ *  shows this one, with its time. Older than 10 min (capture stops 15:14, CAS window) => null, and the
+ *  caller falls back to the γ spot. */
+export function useLiveSpot(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "livespot", s], staleTime: 15_000, refetchInterval: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("market_spot_snapshots").select("ts, spot")
+        .eq("symbol", s).eq("source_table", "dhan_charts_intraday")
+        .order("ts", { ascending: false }).limit(1).maybeSingle();
+      if (error) throw error;
+      const r: any = data;
+      if (!r || r.spot == null) return null;
+      if (Date.now() - new Date(r.ts).getTime() > 10 * 60_000) return null;
+      return { spot: Number(r.spot), ts: r.ts as string };
+    },
+  });
+}
+
 /** gex_cr at the strike nearest spot, from the latest gex_strike_snapshots run. */
 export function useSpotPocket(s: Symbol) {
   return useQuery({
