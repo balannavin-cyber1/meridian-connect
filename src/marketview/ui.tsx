@@ -166,7 +166,7 @@ export function PageTitle({ title, subtitle, right }: { title: string; subtitle?
   return (
     <div className="mb-4 flex items-end justify-between gap-4">
       <div>
-        <div className="text-[9px] font-semibold uppercase tracking-[0.18em]" style={{ color: MV.weak }}>MERDIAN</div>
+        <div className="text-[9px] font-semibold uppercase tracking-[0.18em]" style={{ color: MV.weak }}>MERIDIAN</div>
         <h1 className="mt-0.5 text-[22px] font-bold leading-tight" style={{ color: MV.strong }}>{title}</h1>
         {subtitle && <div className="text-[12px]" style={{ color: MV.weak }}>{subtitle}</div>}
       </div>

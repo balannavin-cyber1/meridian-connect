@@ -453,7 +453,7 @@ function ManualTab() {
 
 function AboutTab() {
   const rows = [
-    ["Version", "MERDIAN v0.38.1"],
+    ["Version", "MERIDIAN v0.38.1"],
     ["Last deployment", "2026-05-26 09:02 IST"],
     ["Git commit", "a7c9f3e"],
     ["Active ADRs", "ADR-002, ADR-011, ADR-012, ADR-015, ADR-016, ADR-017"],

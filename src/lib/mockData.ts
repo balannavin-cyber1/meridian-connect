@@ -1,4 +1,4 @@
-// Mock fixtures for MERDIAN Marketview — replace with Supabase wiring later.
+// Mock fixtures for MERIDIAN Marketview — replace with Supabase wiring later.
 
 export type Symbol = "NIFTY" | "SENSEX";
 
