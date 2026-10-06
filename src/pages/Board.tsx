@@ -120,6 +120,7 @@ export default function Board() {
 
   // S2
   const spotChg = headSpot != null && prevClose != null ? headSpot - prevClose : null;
+  const boardChg = spot != null && prevClose != null ? spot - prevClose : null;  // overview item shows the γ-run spot, so its change is from that spot
   const series = gs?.series ?? [];
   const sparkPts = series.map((p) => p.spot);
 
@@ -214,7 +215,7 @@ export default function Board() {
     { id: "priced", label: "Priced move", sub: strad != null && spot ? `±${((strad / spot) * 100).toFixed(2)} % to expiry` : "",
       value: strad != null ? `±${num(strad)}` : <Absent word="no run" />, levelIds: [], priced: true,
       caption: strad != null ? `The straddle prices ±${num(strad)} to expiry; the left gutter marks strikes inside it.` : "No straddle." },
-    { id: "spot", label: "Spot", sub: spotChg != null && prevClose ? `${sgn(spotChg, 1)} · ${sgn((spotChg / prevClose) * 100, 2)} %` : "",
+    { id: "spot", label: `Spot · board ${istTime(g?.ts)}`, sub: boardChg != null && prevClose ? `${sgn(boardChg, 1)} · ${sgn((boardChg / prevClose) * 100, 2)} %` : "",
       value: spot != null ? num(spot, 1) : <Absent word="no run" />, levelIds: ["spot"],
       caption: spot != null ? `${liveSpot ? `Live ${num(liveSpot.spot, 1)} at ${istTime(liveSpot.ts)}. ` : ""}The board is measured against spot ${num(spot, 1)} at the γ run of ${istTime(g?.ts)}.` : "No spot." },
     { id: "dte", label: "Time to expiry", sub: expiry ? `front ${expShort(expiry)}` : "",
