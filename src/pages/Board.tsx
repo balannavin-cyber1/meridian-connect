@@ -417,8 +417,8 @@ export default function Board() {
   const flowChart = flowSim.length >= 2 ? (() => {
     const pts = flowSim.map((r) => ({ x: Number(r.spot_pct) * 100, y: Number(r.flow_cr) })).sort((a, b) => a.x - b.x);
     const yMax = Math.max(1, ...pts.map((p) => Math.abs(p.y)));
-    const VW = 640, VH = 200, L = 40, R = 16, T = 18, B = 26;
-    const X = (x: number) => L + ((x + 2.5) / 5) * (VW - L - R), Y = (y: number) => T + (1 - (y / yMax + 1) / 2) * (VH - T - B);
+    const VW = 640, VH = 210, L = 40, R = 16, T = 22, B = 26;
+    const X = (x: number) => L + ((x + 2.5) / 5) * (VW - L - R), Y = (y: number) => T + (1 - (y / (yMax * 1.18) + 1) / 2) * (VH - T - B);
     const flipX = fPct != null && Math.abs(fPct) <= 2.5 ? X(fPct) : null;
     const tick = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x)}%`;
     return (
