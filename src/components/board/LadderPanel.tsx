@@ -2,12 +2,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StrikeLadder, type Level, type LadderRow } from "./StrikeLadder";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { PinBody, FlowsBody, type Stretch } from "./PinFlowsBody";
 
 export const TABS = ["Overview", "Pin", "Gamma", "OI", "Flows", "IV"] as const;
 export type Tab = (typeof TABS)[number];
 type Mode = "near" | "all" | "full" | "custom";
 
-export type OverviewItem = { id: string; label: string; sub: string; value: React.ReactNode; caption: string; levelIds: string[]; priced?: boolean; extra?: React.ReactNode };
+export type OverviewItem = { id: string; label: string; sub: string; value: React.ReactNode; caption: string; levelIds: string[]; priced?: boolean; extra?: React.ReactNode; ratio?: number | null };
 
 const num = (v: number, d = 0) => v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
 const sgn = (v: number, d = 1) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${num(Math.abs(v), d)}`;
@@ -44,8 +45,8 @@ const DETAIL: Record<string, { title: string; unit: string; what: string; how: s
   p_legacy: { title: "Legacy pin-risk score", unit: "/100", what: "The pre-parity pin-risk score from gamma_metrics.", how: "A number only; its 25/50/75 words were never measured.", computed: "gamma_metrics.pin_risk_score.", scale: "no band (E-D4)", caveat: "Kept for continuity; not part of L12.", withIds: ["p_conv", "p_state"], src: "gamma_metrics" },
   // ---- S92 Flows tab (L7/L8; rulings S92-C, S92-E) ----
   f_hedge: { title: "Hedge per 1 %", unit: "₹ Cr (unit definition pending)", what: "What dealers must trade to stay hedged if spot moves, from net Γ at the latest run.", how: "The chart is the hedge line through zero at ±0.5/1/2 %. A long-γ book buys falls and sells rises.", computed: "v_dealer_flow_sim: flow_cr = −net_gex × move (sign fixed S90, MV-1).", scale: "linear by construction — the six points lie on one slope", caveat: "First-order only: ignores the second-order terms below. The dashed line is the L3 repriced flip, not the engine flip_level the view's own crosses_flip column uses (MV-12).", withIds: ["f_ddt", "f_ddiv"], src: "v_dealer_flow_sim" },
-  f_ddt: { title: "∂Δ/∂t · delta drift per day", unit: "₹ Cr delta-notional per calendar day", what: "Textbook charm: how dealer delta-notional changes as one calendar day passes with spot and IV unchanged.", how: "Net is meaningfully signed for this pair (|net/gross| ≥ 0.957 on 7 of 8 measured arms). Bars show each strike's contribution.", computed: "v_gex_greeks_l2_net.net_delta_drift_time_cr_per_day; analytic Black-Scholes, q = 0, exact/365, PE legs negated (dealer long calls, short puts).", scale: "no measured band", caveat: "PROVISIONAL — flow-vs-book (D-4) not built. dte 0 is skipped, never floored.", withIds: ["f_ddiv", "f_gdt"], src: "v_gex_greeks_l2_net · COMMENT live" },
-  f_ddiv: { title: "∂Δ/∂σ · delta drift per vol point", unit: "₹ Cr delta-notional per +1 IV point", what: "Textbook vanna: how dealer delta-notional changes for a +1 implied-vol point, spot and time fixed.", how: "Net is meaningfully signed for this pair. Bars show each strike's contribution.", computed: "v_gex_greeks_l2_net.net_delta_drift_iv_cr_per_volpt (per +0.01 of σ, not per 1.00).", scale: "no measured band", caveat: "PROVISIONAL — flow-vs-book (D-4) not built.", withIds: ["f_ddt", "f_gdiv"], src: "v_gex_greeks_l2_net · COMMENT live" },
+  f_ddt: { title: "∂Δ/∂t · delta drift per day", unit: "₹ Cr delta-notional per calendar day", what: "How dealer delta-notional changes as one calendar day passes with spot and IV unchanged.", how: "Net is meaningfully signed for this pair (|net/gross| ≥ 0.957 on 7 of 8 measured arms). Bars show each strike's contribution.", computed: "v_gex_greeks_l2_net.net_delta_drift_time_cr_per_day; analytic Black-Scholes, q = 0, exact/365, PE legs negated (dealer long calls, short puts).", scale: "no measured band", caveat: "PROVISIONAL — flow-vs-book (D-4) not built. dte 0 is skipped, never floored.", withIds: ["f_ddiv", "f_gdt"], src: "v_gex_greeks_l2_net · COMMENT live" },
+  f_ddiv: { title: "∂Δ/∂σ · delta drift per vol point", unit: "₹ Cr delta-notional per +1 IV point", what: "How dealer delta-notional changes for a +1 implied-vol point, spot and time fixed.", how: "Net is meaningfully signed for this pair. Bars show each strike's contribution.", computed: "v_gex_greeks_l2_net.net_delta_drift_iv_cr_per_volpt (per +0.01 of σ, not per 1.00).", scale: "no measured band", caveat: "PROVISIONAL — flow-vs-book (D-4) not built.", withIds: ["f_ddt", "f_gdiv"], src: "v_gex_greeks_l2_net · COMMENT live" },
   f_gdt: { title: "∂Γ/∂t · gamma drift per day", unit: "₹ Cr GEX per calendar day", what: "The parity target's ∂gamma construct: how gamma exposure changes as a day passes.", how: "Net is a small residue of large opposing terms — ALWAYS read it with its gross, which is shown beside it.", computed: "v_gex_greeks_l2_net.net_gex_drift_time_cr_per_day with gross_strike_gex_drift_time.", scale: "no measured band", caveat: "PROVISIONAL — flow-vs-book (D-4) not built. Never read the net alone (L7/L8 spec §6).", withIds: ["f_gdiv", "f_ddt"], src: "v_gex_greeks_l2_net · COMMENT live" },
   f_gdiv: { title: "∂Γ/∂σ · gamma drift per vol point", unit: "₹ Cr GEX per +1 IV point", what: "The parity target's ∂gamma construct: how gamma exposure changes for a +1 implied-vol point.", how: "Net is a small residue — ALWAYS read it with its gross, shown beside it.", computed: "v_gex_greeks_l2_net.net_gex_drift_iv_cr_per_volpt with gross_strike_gex_drift_iv.", scale: "no measured band", caveat: "PROVISIONAL — flow-vs-book (D-4) not built. Never read the net alone.", withIds: ["f_gdt", "f_ddiv"], src: "v_gex_greeks_l2_net · COMMENT live" },
   f_leg: { title: "Expiry leg", unit: "expiry · DTE · status", what: "Which captured expiry the second-order figures and bars are for.", how: "The front leg by default; on its expiry day it is skipped and the next leg is shown.", computed: "v_gex_greeks_l2_net, every leg at the latest chain ts.", scale: "—", caveat: "Chain clock (not the γ clock). Status values: OK · SKIPPED_EXPIRY · UNMEASURABLE_R · NO_LEGS.", withIds: ["f_ddt", "f_hedge"], src: "v_gex_greeks_l2_net · COMMENT live" },
@@ -83,6 +84,8 @@ type Props = {
   flowsBadge: React.ReactNode;
   flowsNote: string;
   pinNote: string;
+  pinStretches?: Stretch[];
+  flowsTop?: React.ReactNode;
   tab: Tab;
   setTab: (t: Tab) => void;
 };
@@ -222,11 +225,14 @@ export function LadderPanel(p: Props) {
         </div>
 
         {p.tab === "IV" && p.ivPanel}
-        <div className={`grid gap-4 lg:grid-cols-[280px_1fr] ${p.tab === "IV" ? "hidden" : ""}`}>
+        {isFlows && p.flowsBadge}
+        {isFlows && p.flowsTop}
+        <div className={`grid gap-4 ${isPin || isFlows ? "lg:grid-cols-[360px_1fr]" : "lg:grid-cols-[280px_1fr]"} ${p.tab === "IV" ? "hidden" : ""}`}>
           {/* Value list */}
-          <div className="order-2 lg:order-1">
-            {isFlows && p.flowsBadge}
-            {layered ? items.map((it) => {
+          <div className="order-2 min-w-0 lg:order-1">
+            {isPin ? <PinBody items={items} sel={p.sel} setSel={p.setSel} stretches={p.pinStretches ?? []} />
+            : isFlows ? <FlowsBody items={items} sel={p.sel} setSel={p.setSel} />
+            : layered ? items.map((it) => {
               const on = it.id === p.sel;
               return (
                 <button key={it.id} onClick={() => p.setSel(it.id)}
