@@ -481,7 +481,7 @@ export default function Board() {
         </div>) : undefined },
   ];
   const flowsBadge = (
-    <div className="mb-3 rounded border border-dashed px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.08em]" style={{ borderColor: "var(--rule)", color: "var(--ink-1)" }}>
+    <div className="mb-3 rounded border border-dashed px-3 py-2 text-[12px] font-semibold" style={{ borderColor: "var(--rule)", color: "var(--ink-1)" }}>
       PROVISIONAL — flow-vs-book (D-4) not built
     </div>);
   const layerName: Record<string, string> = { d_dt: "∂Δ/∂t", d_div: "∂Δ/∂σ", g_dt: "∂Γ/∂t", g_div: "∂Γ/∂σ" };
