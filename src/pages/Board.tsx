@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useBoardRead } from "@/lib/read";
 import { SplitBar } from "@/components/board/SplitBar";
@@ -391,17 +391,6 @@ export default function Board() {
 
   // ---------- Flows tab (S92: L7/L8 — rulings S92-C, S92-E) ----------
   const flowSim = (useFlowSim(symbol).data ?? []) as any[];
-  const hedgeSvg = useRef<SVGSVGElement>(null);
-  const [hedgeWidth, setHedgeWidth] = useState(640);
-  useEffect(() => {
-    const svg = hedgeSvg.current;
-    if (!svg) return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry && entry.contentRect.width > 0) setHedgeWidth(entry.contentRect.width);
-    });
-    observer.observe(svg);
-    return () => observer.disconnect();
-  }, [tab, flowSim.length]);
   const l78raw = useGreeksNet(symbol).data as any;
   const l78 = (Array.isArray(l78raw) ? l78raw : []) as any[];
   const l78Leg = l78.find((r) => r.status === "OK") ?? l78[0] ?? null;
@@ -428,16 +417,14 @@ export default function Board() {
   const flowChart = flowSim.length >= 2 ? (() => {
     const pts = flowSim.map((r) => ({ x: Number(r.spot_pct) * 100, y: Number(r.flow_cr) })).sort((a, b) => a.x - b.x);
     const yMax = Math.max(1, ...pts.map((p) => Math.abs(p.y)));
-    const compact = hedgeWidth < 480;
-    const labelSize = Math.max(10, 10 * 640 / hedgeWidth);
-    const VW = 640, VH = compact ? 300 : 210, L = 40, R = 16, T = compact ? 65 : 22, B = compact ? 42 : 26;
+    const chart = (compact: boolean) => {
+    const labelSize = compact ? 12 : 10;
+    const VW = compact ? 300 : 640, VH = compact ? 170 : 210, L = compact ? 20 : 40, R = compact ? 8 : 16, T = compact ? 36 : 22, B = compact ? 24 : 26;
     const X = (x: number) => L + ((x + 2.5) / 5) * (VW - L - R), Y = (y: number) => T + (1 - (y / (yMax * 1.18) + 1) / 2) * (VH - T - B);
     const flipX = fPct != null && Math.abs(fPct) <= 2.5 ? X(fPct) : null;
     const tick = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x)}%`;
     return (
-      <div className="mb-3 rounded-md p-3" style={{ border: "1px solid var(--line)" }}>
-        <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Hedge flow vs spot move (₹ Cr)</div>
-        <svg ref={hedgeSvg} viewBox={`0 0 ${VW} ${VH}`} className="mt-1 block h-auto w-full max-w-[760px]" style={{ fontFamily: "var(--font-plex-cond)" }}>
+        <svg viewBox={`0 0 ${VW} ${VH}`} className={`mt-1 h-auto w-full max-w-[760px] ${compact ? "block sm:hidden" : "hidden sm:block"}`} style={{ fontFamily: "var(--font-plex-cond)" }}>
           <line x1={L} x2={VW - R} y1={Y(0)} y2={Y(0)} stroke="var(--axis)" />
           <text x={L - 6} y={Y(0) + 3} fontSize={labelSize} textAnchor="end" fill="var(--ink-3)">0</text>
           <line x1={X(0)} x2={X(0)} y1={T} y2={VH - B} stroke="var(--axis)" />
@@ -451,9 +438,15 @@ export default function Board() {
                <text x={X(p.x)} y={Y(p.y) + (compact ? (p.y >= 0 ? -12 - (i % 2) * labelSize * 1.5 : labelSize * (1.2 + (i % 2) * 1.5)) : p.y >= 0 ? -8 : 15)} fontSize={labelSize} textAnchor={compact && i === 0 ? "start" : compact && i === pts.length - 1 ? "end" : "middle"} fill="var(--ink-2)">{flowWord(p.y)}</text>
             </g>
           ))}
-        </svg>
+        </svg>);
+    };
+    const hasFlip = fPct != null && Math.abs(fPct) <= 2.5;
+    return (
+      <div className="mb-3 rounded-md p-3" style={{ border: "1px solid var(--line)" }}>
+        <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Hedge flow vs spot move (₹ Cr)</div>
+        {chart(true)}{chart(false)}
         <div className="mt-1 text-[11px]" style={{ color: "var(--ink-3)" }}>
-          {flipX != null ? "Dashed = L3 repriced flip at its distance from spot." : fPct != null ? `L3 flip is ${sgn(fPct, 2)}% away — outside ±2.5%.` : "L3 flip not available."}
+           {hasFlip ? "Dashed = L3 repriced flip at its distance from spot." : fPct != null ? `L3 flip is ${sgn(fPct, 2)}% away — outside ±2.5%.` : "L3 flip not available."}
         </div>
       </div>);
   })() : undefined;
