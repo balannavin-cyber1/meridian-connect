@@ -419,7 +419,7 @@ export default function Board() {
     const yMax = Math.max(1, ...pts.map((p) => Math.abs(p.y)));
     const chart = (compact: boolean) => {
     const labelSize = compact ? 12 : 10;
-    const VW = compact ? 300 : 640, VH = compact ? 170 : 210, L = compact ? 20 : 40, R = compact ? 8 : 16, T = compact ? 36 : 22, B = compact ? 24 : 26;
+    const VW = compact ? 300 : 640, VH = compact ? 220 : 210, L = compact ? 20 : 40, R = compact ? 8 : 16, T = compact ? 64 : 22, B = compact ? 70 : 26;
     const X = (x: number) => L + ((x + 2.5) / 5) * (VW - L - R), Y = (y: number) => T + (1 - (y / (yMax * 1.18) + 1) / 2) * (VH - T - B);
     const flipX = fPct != null && Math.abs(fPct) <= 2.5 ? X(fPct) : null;
     const tick = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x)}%`;
@@ -433,9 +433,9 @@ export default function Board() {
           {pts.map((p, i) => (
             <g key={i}>
               <line x1={X(p.x)} x2={X(p.x)} y1={VH - B} y2={VH - B + 4} stroke="var(--axis)" />
-               <text x={X(p.x)} y={VH - 8} fontSize={labelSize} textAnchor={compact && i === 0 ? "start" : compact && i === pts.length - 1 ? "end" : "middle"} fill="var(--ink-3)">{tick(p.x)}</text>
+               {(!compact || (i !== 1 && i !== pts.length - 2)) && <text x={X(p.x)} y={VH - 8} fontSize={labelSize} textAnchor={compact && i === 0 ? "start" : compact && i === pts.length - 1 ? "end" : "middle"} fill="var(--ink-3)">{tick(p.x)}</text>}
               <circle cx={X(p.x)} cy={Y(p.y)} r="3.5" fill={p.y >= 0 ? "var(--cool)" : "var(--warm)"} />
-               <text x={X(p.x)} y={Y(p.y) + (compact ? (p.y >= 0 ? -12 - (i % 2) * labelSize * 1.5 : labelSize * (1.2 + (i % 2) * 1.5)) : p.y >= 0 ? -8 : 15)} fontSize={labelSize} textAnchor={compact && i === 0 ? "start" : compact && i === pts.length - 1 ? "end" : "middle"} fill="var(--ink-2)">{flowWord(p.y)}</text>
+               <text x={X(p.x)} y={compact ? (p.y >= 0 ? 14 + i * 16 : VH - B + 16 + (i - 3) * 16) : Y(p.y) + (p.y >= 0 ? -8 : 15)} fontSize={labelSize} textAnchor={compact && i === 0 ? "start" : compact && i === pts.length - 1 ? "end" : "middle"} fill="var(--ink-2)">{flowWord(p.y)}</text>
             </g>
           ))}
         </svg>);
