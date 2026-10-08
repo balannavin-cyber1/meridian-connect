@@ -429,3 +429,82 @@ export function useIvTab(s: Symbol) {
     },
   });
 }
+
+// ---------- S92: Pin tab (L12) and Flows tab (L7/L8) ----------
+
+/** Pin history for the latest OPEN session, front leg (v_pin_board, ruling S92-D).
+ *  The view already returns one session; the caller compares session_date_ist with the
+ *  trading-calendar session before calling it "today". Rows ascending by ts. */
+export function usePinBoard(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "pinboard", s], ...opts,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("v_pin_board")
+        .select("symbol, expiry_date, session_date_ist, ts, is_latest, dte, spot, pin_leader_strike, gamma_at_pin, runnerup_share_ratio, top5_share, top5_share_n_ranks, conc_top1_share, conc_hhi, max_pain_strike, pin_state, pin_state_reason, held_for_cycles, conviction, conviction_reason, is_fresh, reconciled_at")
+        .eq("symbol", s).order("ts", { ascending: true }).limit(500);
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+}
+
+/** Every ranked strike of the latest gated γ run (v_gex_strike_rank, ENH-125). */
+export function useStrikeRankAll(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "rankall", s], ...opts,
+    queryFn: async () => {
+      const { data: top, error: e1 } = await applyGate(supabase.from("v_gex_strike_rank").select("run_id")
+        .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
+      if (e1) throw e1;
+      if (!top) return [];
+      const { data, error } = await supabase.from("v_gex_strike_rank")
+        .select("strike, strike_rank, share_of_abs, cum_share_of_abs, gex_cr, side, ts")
+        .eq("symbol", s).eq("run_id", (top as any).run_id).order("strike_rank").limit(1000);
+      if (error) throw error;
+      return ((data ?? []) as any[]).map((r) => ({
+        strike: Number(r.strike), rank: Number(r.strike_rank), share: Number(r.share_of_abs),
+        cum: r.cum_share_of_abs != null ? Number(r.cum_share_of_abs) : null,
+        gex: Number(r.gex_cr), side: r.side as string | null, ts: r.ts as string,
+      }));
+    },
+  });
+}
+
+/** L7/L8 net roll-up, every expiry leg at the latest gated chain ts (v_gex_greeks_l2_net). */
+export function useGreeksNet(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "l78net", s], ...opts,
+    queryFn: async () => {
+      const gate = await getGate();
+      const { data: top, error: e1 } = await applyGate(supabase.from("v_gex_greeks_l2_net").select("ts")
+        .eq("symbol", s), gate.end).order("ts", { ascending: false }).limit(1).maybeSingle();
+      if (e1) throw e1;
+      if (!top) return (await awaitingOrNull("v_gex_greeks_l2_net", s, gate.end)) ? AWAIT as any : [];
+      const { data, error } = await supabase.from("v_gex_greeks_l2_net").select("*")
+        .eq("symbol", s).eq("ts", (top as any).ts).order("expiry_date", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+}
+
+/** L7/L8 per-strike rows for one leg at one chain ts (v_gex_greeks_l2_strike). */
+export function useGreeksStrike(s: Symbol, ts: string | null, expiry: string | null) {
+  return useQuery({
+    queryKey: ["board", "l78strike", s, ts, expiry], ...opts, enabled: !!ts && !!expiry,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("v_gex_greeks_l2_strike")
+        .select("strike, n_legs, delta_drift_iv_cr_per_volpt, delta_drift_time_cr_per_day, gex_drift_iv_cr_per_volpt, gex_drift_time_cr_per_day, status")
+        .eq("symbol", s).eq("ts", ts as string).eq("expiry_date", expiry as string)
+        .not("strike", "is", null).order("strike", { ascending: true }).limit(1000);
+      if (error) throw error;
+      return ((data ?? []) as any[]).map((r) => ({
+        strike: Number(r.strike), nLegs: r.n_legs != null ? Number(r.n_legs) : null,
+        d_div: r.delta_drift_iv_cr_per_volpt != null ? Number(r.delta_drift_iv_cr_per_volpt) : null,
+        d_dt: r.delta_drift_time_cr_per_day != null ? Number(r.delta_drift_time_cr_per_day) : null,
+        g_div: r.gex_drift_iv_cr_per_volpt != null ? Number(r.gex_drift_iv_cr_per_volpt) : null,
+        g_dt: r.gex_drift_time_cr_per_day != null ? Number(r.gex_drift_time_cr_per_day) : null,
+      }));
+    },
+  });
+}

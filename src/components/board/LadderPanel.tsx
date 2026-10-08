@@ -31,6 +31,24 @@ const DETAIL: Record<string, { title: string; unit: string; what: string; how: s
   oi_putwall: { title: "Put OI wall", unit: "strike", what: "The eligible strike carrying the largest put open interest.", how: "Puts extend left from the strike axis in the butterfly.", computed: "v_gex_strike_walls.put_wall.", scale: "raw contracts", caveat: "OI is positional; grey does not encode pressure sign.", withIds: ["oi_callwall", "oi_total"], src: "sql/ file · COMMENT not live" },
   oi_total: { title: "Total OI", unit: "contracts", what: "Call plus put open interest across the stored chain.", how: "Use the butterfly to see which strikes and sides carry that stock.", computed: "Σ oi_call + Σ oi_put at the latest gamma run.", scale: "raw, lot-agnostic", caveat: "Do not compare contract counts across products without context.", withIds: ["oi_callwall", "oi_putwall"], src: "sql/ file · COMMENT not live" },
   oi_delta: { title: "ΔOI net", unit: "contracts since first run", what: "Net change in call plus put OI since today's first gamma run.", how: "Cool ticks rose; warm ticks fell. The value sums both sides across strikes.", computed: "latest OI − first gamma-run OI for the trading session.", scale: "raw, lot-agnostic", caveat: "Unavailable for SENSEX (TD-S84-NEW-4); one run cannot form a change.", withIds: ["oi_total", "oi_max"], src: "sql/ file · COMMENT not live" },
+  // ---- S92 Pin tab (L12; rulings S92-D, S92-F) ----
+  p_pin: { title: "Pin (γ-conc)", unit: "strike · share of gross |γ|", what: "The strike carrying the largest share of absolute gamma at the latest γ run.", how: "Bars show every ranked strike's share of gross |γ| from the left edge, top 10 at full strength. Cool = dampening, warm = amplifying.", computed: "v_gex_strike_rank rank 1 (ENH-125).", scale: "share of gross; no measured band", caveat: "Concentration is not a forecast of the close (S74: the pin renders, it does not predict).", withIds: ["p_runner", "p_state"], src: "v_gex_strike_rank · COMMENT live" },
+  p_runner: { title: "Runner-up", unit: "strike · ratio to #1", what: "The strike with the second-largest share of gross |γ|.", how: "#2/#1 near 1 means two strikes share the centre; near 0 means one dominates.", computed: "v_gex_strike_rank rank 2; ratio = share₂ ÷ share₁ (gex_cycle_history.runnerup_share_ratio).", scale: "no measured band", caveat: "The ranked-PRESSURE key is DECLINED-ON-EVIDENCE (D-5a); ranking here is by |γ| only.", withIds: ["p_pin", "p_lead"], src: "v_gex_strike_rank · COMMENT live" },
+  p_lead: { title: "Lead", unit: "share points", what: "How far #1's share of gross |γ| sits above #2's.", how: "Selecting it outlines #1 and #2 on the ladder.", computed: "(share₁ − share₂) × 100 from v_gex_strike_rank.", scale: "band not measured — no LOCKED/CONTESTED word (D-6)", caveat: "A number, not a state.", withIds: ["p_runner", "p_conv"], src: "v_gex_strike_rank · COMMENT live" },
+  p_state: { title: "Pin state", unit: "NO PIN · SHIFTING · STABLE · LOCKED", what: "Whether the pin leader has held, and with how clear a lead, through today's OPEN cycles.", how: "SHIFTING = leader changed recently; STABLE = held; LOCKED = held long with a clear lead. Held-for counts OPEN 5-minute cycles only.", computed: "core/pin_state.py at write time from held_for_cycles, runnerup_share_ratio, top-1 share; thresholds merdian_parameters pin_state.* (seeded S90). Read via v_pin_board.", scale: "thresholds are seeded parameters, not yet re-measured against outcomes (D-6)", caveat: "Frozen or pre-tick cycles never count (ADR-030). Rows are reconciled at end of day; before that a row can still be revised.", withIds: ["p_conv", "p_today"], src: "v_pin_board · COMMENT live" },
+  p_conv: { title: "Conviction", unit: "number (stage 1)", what: "Lead clarity scaled by time to expiry: (1 − #2/#1) × boost(T).", how: "Higher = a clearer leader closer to expiry. Compare within a symbol, not across.", computed: "gex_cycle_history.conviction: (1 − runnerup_share_ratio) × 2.53·T^−0.5, T in trading days, cap 3.70, floor T = 0.47 (D-5b/D-5c). Read via v_pin_board.", scale: "NO MEASURED BAND (D-6) — shown as a number, never a word. Stage 2 (×30-session HHI percentile) needs ~6 weeks of history.", caveat: "An ADR-025 D3 deviation from the parity target, whose formula is undisclosed.", withIds: ["p_state", "p_lead"], src: "v_pin_board · COMMENT live" },
+  p_hhi: { title: "Concentration (HHI)", unit: "Σ share² over ranked strikes", what: "The true Herfindahl index of the gamma book: 1/n when perfectly spread, 1 when one strike holds everything.", how: "Read it beside the top-5 share: both rising means the book is gathering onto fewer strikes.", computed: "gex_cycle_history.conc_hhi (true Σ share²) and top5_share. NOT v_gex_concentration.hhi_net, which is a top-1 share.", scale: "no measured band", caveat: "Time of day and DTE change the natural level; no percentile until ENH-133 has ~30 sessions.", withIds: ["p_pin", "p_today"], src: "v_pin_board · COMMENT live" },
+  p_band: { title: "Pin band", unit: "strikes", what: "The τ-weighted pin zone.", how: "The right gutter fills on strikes inside it.", computed: "v_gex_strike_pin_zone.pin_lower / pin_upper (ENH-81).", scale: "—", caveat: "Renders, does not predict (S74).", withIds: ["p_pin", "p_dist"], src: "v_gex_strike_pin_zone · COMMENT live" },
+  p_dist: { title: "Pin distance", unit: "% of spot", what: "Signed distance from spot to the pin strike.", how: "Positive means the pin is above spot.", computed: "(pin − spot) ÷ spot × 100, both on the γ clock.", scale: "σ not shown until the canonical σ exists (E-2)", caveat: "—", withIds: ["p_pin", "p_band"], src: "derived" },
+  p_today: { title: "Leader today", unit: "leader changes", what: "How the pin leader moved through today's OPEN cycles.", how: "Each line is one stretch with the same leader, its time span and cycle count.", computed: "v_pin_board.pin_leader_strike, consecutive equal values grouped.", scale: "—", caveat: "Front leg only (S90-B).", withIds: ["p_state", "p_conv"], src: "v_pin_board · COMMENT live" },
+  p_legacy: { title: "Legacy pin-risk score", unit: "/100", what: "The pre-parity pin-risk score from gamma_metrics.", how: "A number only; its 25/50/75 words were never measured.", computed: "gamma_metrics.pin_risk_score.", scale: "no band (E-D4)", caveat: "Kept for continuity; not part of L12.", withIds: ["p_conv", "p_state"], src: "gamma_metrics" },
+  // ---- S92 Flows tab (L7/L8; rulings S92-C, S92-E) ----
+  f_hedge: { title: "Hedge per 1 %", unit: "₹ Cr (unit definition pending)", what: "What dealers must trade to stay hedged if spot moves, from net Γ at the latest run.", how: "The chart is the hedge line through zero at ±0.5/1/2 %. A long-γ book buys falls and sells rises.", computed: "v_dealer_flow_sim: flow_cr = −net_gex × move (sign fixed S90, MV-1).", scale: "linear by construction — the six points lie on one slope", caveat: "First-order only: ignores the second-order terms below. The dashed line is the L3 repriced flip, not the engine flip_level the view's own crosses_flip column uses (MV-12).", withIds: ["f_ddt", "f_ddiv"], src: "v_dealer_flow_sim" },
+  f_ddt: { title: "∂Δ/∂t · delta drift per day", unit: "₹ Cr delta-notional per calendar day", what: "Textbook charm: how dealer delta-notional changes as one calendar day passes with spot and IV unchanged.", how: "Net is meaningfully signed for this pair (|net/gross| ≥ 0.957 on 7 of 8 measured arms). Bars show each strike's contribution.", computed: "v_gex_greeks_l2_net.net_delta_drift_time_cr_per_day; analytic Black-Scholes, q = 0, exact/365, PE legs negated (dealer long calls, short puts).", scale: "no measured band", caveat: "PROVISIONAL — flow-vs-book (D-4) not built. dte 0 is skipped, never floored.", withIds: ["f_ddiv", "f_gdt"], src: "v_gex_greeks_l2_net · COMMENT live" },
+  f_ddiv: { title: "∂Δ/∂σ · delta drift per vol point", unit: "₹ Cr delta-notional per +1 IV point", what: "Textbook vanna: how dealer delta-notional changes for a +1 implied-vol point, spot and time fixed.", how: "Net is meaningfully signed for this pair. Bars show each strike's contribution.", computed: "v_gex_greeks_l2_net.net_delta_drift_iv_cr_per_volpt (per +0.01 of σ, not per 1.00).", scale: "no measured band", caveat: "PROVISIONAL — flow-vs-book (D-4) not built.", withIds: ["f_ddt", "f_gdiv"], src: "v_gex_greeks_l2_net · COMMENT live" },
+  f_gdt: { title: "∂Γ/∂t · gamma drift per day", unit: "₹ Cr GEX per calendar day", what: "The parity target's ∂gamma construct: how gamma exposure changes as a day passes.", how: "Net is a small residue of large opposing terms — ALWAYS read it with its gross, which is shown beside it.", computed: "v_gex_greeks_l2_net.net_gex_drift_time_cr_per_day with gross_strike_gex_drift_time.", scale: "no measured band", caveat: "PROVISIONAL — flow-vs-book (D-4) not built. Never read the net alone (L7/L8 spec §6).", withIds: ["f_gdiv", "f_ddt"], src: "v_gex_greeks_l2_net · COMMENT live" },
+  f_gdiv: { title: "∂Γ/∂σ · gamma drift per vol point", unit: "₹ Cr GEX per +1 IV point", what: "The parity target's ∂gamma construct: how gamma exposure changes for a +1 implied-vol point.", how: "Net is a small residue — ALWAYS read it with its gross, shown beside it.", computed: "v_gex_greeks_l2_net.net_gex_drift_iv_cr_per_volpt with gross_strike_gex_drift_iv.", scale: "no measured band", caveat: "PROVISIONAL — flow-vs-book (D-4) not built. Never read the net alone.", withIds: ["f_gdt", "f_ddiv"], src: "v_gex_greeks_l2_net · COMMENT live" },
+  f_leg: { title: "Expiry leg", unit: "expiry · DTE · status", what: "Which captured expiry the second-order figures and bars are for.", how: "The front leg by default; on its expiry day it is skipped and the next leg is shown.", computed: "v_gex_greeks_l2_net, every leg at the latest chain ts.", scale: "—", caveat: "Chain clock (not the γ clock). Status values: OK · SKIPPED_EXPIRY · UNMEASURABLE_R · NO_LEGS.", withIds: ["f_ddt", "f_hedge"], src: "v_gex_greeks_l2_net · COMMENT live" },
   dte: { title: "Time to expiry", unit: "sessions", what: "Trading sessions left to the front expiry.", how: "Fewer sessions concentrate gamma near spot.", computed: "v_iv_term_structure.dte_sessions where leg = 1.", scale: "—", caveat: "Chain clock.", withIds: ["priced", "pin"], src: "sql/ file · COMMENT not live" },
 };
 
@@ -56,6 +74,15 @@ type Props = {
   oiDeltaNote: string;
   river: React.ReactNode;
   ivPanel?: React.ReactNode;
+  pinItems: OverviewItem[];
+  pinRows: LadderRow[];
+  pinLevels: Level[];
+  flowItems: OverviewItem[];
+  flowRows: LadderRow[];
+  flowLevels: Level[];
+  flowsBadge: React.ReactNode;
+  flowsNote: string;
+  pinNote: string;
   tab: Tab;
   setTab: (t: Tab) => void;
 };
@@ -69,10 +96,12 @@ export function LadderPanel(p: Props) {
   const [search, setSearch] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const isOverview = p.tab === "Overview", isGamma = p.tab === "Gamma", isOI = p.tab === "OI";
-  const layered = isOverview || isGamma || isOI;
-  const items = isOverview ? p.items : isGamma ? p.gammaItems : isOI ? p.oiItems : [];
-  const levels = isOverview ? p.levels : isGamma ? p.gammaLevels : isOI ? p.oiLevels : [];
-  const activeRows = isOI ? p.oiRows : p.rows;
+  const isPin = p.tab === "Pin", isFlows = p.tab === "Flows";
+  const layered = isOverview || isGamma || isOI || isPin || isFlows;
+  const items = isOverview ? p.items : isGamma ? p.gammaItems : isOI ? p.oiItems : isPin ? p.pinItems : isFlows ? p.flowItems : [];
+  const levels = isOverview ? p.levels : isGamma ? p.gammaLevels : isOI ? p.oiLevels : isPin ? p.pinLevels : isFlows ? p.flowLevels : [];
+  // Pin and Flows draw their own rows but share the γ-run strike axis; fall back to it while they load.
+  const activeRows = isOI ? p.oiRows : isPin && p.pinRows.length ? p.pinRows : isFlows && p.flowRows.length ? p.flowRows : isPin || isFlows ? p.rows.map((r) => ({ ...r, value: null, tint: null, readout: "" })) : p.rows;
 
   const clamp = (lo: number, hi: number) => ({ lo: Math.max(chainLo, lo), hi: Math.min(chainHi, hi) });
   const snapOut = (lo: number, hi: number) => clamp(Math.floor(lo / p.step) * p.step, Math.ceil(hi / p.step) * p.step);
@@ -185,6 +214,8 @@ export function LadderPanel(p: Props) {
           )}
           <div className="flex-1" />
           {isOI && <span>{p.oiDeltaNote}</span>}
+          {isPin && <span>{p.pinNote}</span>}
+          {isFlows && <span>{p.flowsNote}</span>}
           <label className="flex cursor-not-allowed items-center gap-1 opacity-50" title="pending measurement (E-3)">
             <input type="checkbox" disabled /> γ CEILING / FLOOR · pending measurement
           </label>
@@ -194,6 +225,7 @@ export function LadderPanel(p: Props) {
         <div className={`grid gap-4 lg:grid-cols-[280px_1fr] ${p.tab === "IV" ? "hidden" : ""}`}>
           {/* Value list */}
           <div className="order-2 lg:order-1">
+            {isFlows && p.flowsBadge}
             {layered ? items.map((it) => {
               const on = it.id === p.sel;
               return (
@@ -217,15 +249,15 @@ export function LadderPanel(p: Props) {
           {/* Ladder */}
           <div className="order-1 min-w-0 lg:order-2">
             <div className="mb-1 grid grid-cols-[60px_10px_1fr_10px_64px] text-[9px] uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>
-              <div className="text-right pr-2">strike</div><div /><div className="text-center">{isOI ? "← PUT OI · CALL OI →" : layered ? "← amplifying · dampening →" : ""}</div><div />
-              <div className="pl-2 text-right">{isOI ? "TOTAL OI" : layered ? "net γ" : ""}</div>
+              <div className="text-right pr-2">strike</div><div /><div className="text-center">{isOI ? "← PUT OI · CALL OI →" : isPin ? "share of gross |γ| →" : isFlows ? "← negative · positive →" : layered ? "← amplifying · dampening →" : ""}</div><div />
+              <div className="pl-2 text-right">{isOI ? "TOTAL OI" : isPin ? "rank · share" : isFlows ? "Cr" : layered ? "net γ" : ""}</div>
             </div>
             {p.rows.length ? (
               <StrikeLadder
                  rows={layered ? activeRows : p.rows.map((r) => ({ ...r, value: null, tint: null, readout: "" }))}
                 lo={w.lo} hi={w.hi} step={p.step} spot={p.spot} levels={levels}
                  priced={!isOI && layered && p.spot != null && p.straddle != null ? { lo: p.spot - p.straddle, hi: p.spot + p.straddle } : null}
-                 pin={!isOI && layered ? p.pinBand : null} corridor={!isOI && layered ? p.corridor : null} signed={layered}
+                 pin={!isOI && !isFlows && layered ? p.pinBand : null} corridor={(isOverview || isGamma) ? p.corridor : null} signed={layered} oneSided={isPin}
                 silhouette={isGamma ? p.silhouette : null}
                  curve={isOI ? p.painCurve : null} butterfly={isOI}
                 selected={p.sel} selLevelIds={selItem?.levelIds ?? []} selPriced={!!selItem?.priced}
@@ -239,7 +271,9 @@ export function LadderPanel(p: Props) {
             {/* Legend */}
             {layered && (
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]" style={{ color: "var(--ink-3)" }}>
-                 {isOI ? <><Sw c="var(--put)" l="put OI" /><Sw c="var(--call)" l="call OI" /><Rl s="2px solid var(--ink-1)" l="max pain" />{p.symbol !== "SENSEX" && <><Rl s="2px solid var(--cool)" l="ΔOI rose" /><Rl s="2px solid var(--warm)" l="ΔOI fell" /></>}<Rl s="2px solid color-mix(in srgb, var(--ink-1) 28%, transparent)" l="pain valley" /></> : <>
+                 {isPin ? <><Sw c="var(--cool)" l="dampening strike" /><Sw c="var(--warm)" l="amplifying strike" /><Sw c="color-mix(in srgb, var(--cool) 25%, transparent)" l="rank > 10 (faint)" /><Sw c="color-mix(in srgb, var(--cool) 55%, transparent)" l="pin band" /><Rl s="2px solid var(--ink-1)" l="spot" /><Rl s="1px dotted var(--rule)" l="γ-conc / #2" /></>
+                 : isFlows ? <><Sw c="var(--cool)" l="positive" /><Sw c="var(--warm)" l="negative" /><Rl s="2px solid var(--ink-1)" l="spot" /><Rl s="1px dashed var(--rule)" l="flip (L3)" /></>
+                 : isOI ? <><Sw c="var(--put)" l="put OI" /><Sw c="var(--call)" l="call OI" /><Rl s="2px solid var(--ink-1)" l="max pain" />{p.symbol !== "SENSEX" && <><Rl s="2px solid var(--cool)" l="ΔOI rose" /><Rl s="2px solid var(--warm)" l="ΔOI fell" /></>}<Rl s="2px solid color-mix(in srgb, var(--ink-1) 28%, transparent)" l="pain valley" /></> : <>
                    <Sw c="var(--warm)" l="amplifying γ" /><Sw c="var(--cool)" l="dampening γ" />
                    <Sw c="color-mix(in srgb, var(--ink-1) 30%, transparent)" l="priced move" />
                    <Sw c="color-mix(in srgb, var(--cool) 55%, transparent)" l="pin band" />

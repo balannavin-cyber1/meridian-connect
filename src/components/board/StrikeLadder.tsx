@@ -6,6 +6,7 @@ export type Level = { id: string; name: string; at: number; style: LevelStyle };
 export type LadderRow = {
   strike: number; value: number | null; readout: string; tint?: number | null; full?: string;
   leftValue?: number | null; rightValue?: number | null; deltaLeft?: number | null; deltaRight?: number | null;
+  faint?: boolean;              // S92 Pin: de-emphasised rows (rank > 10)
 };
 
 const fmt = (v: number) => v.toLocaleString("en-IN", { maximumFractionDigits: 1 });
@@ -33,6 +34,7 @@ type Props = {
   silhouette?: Map<number, number> | null; // running Σ gex_cr from the highest strike down
   curve?: Map<number, number> | null;
   butterfly?: boolean;
+  oneSided?: boolean;           // S92 Pin: bars grow from the left edge on one scale; hue by tint sign
 };
 
 function rule(style: LevelStyle, sel: boolean) {
@@ -171,7 +173,7 @@ export function StrikeLadder(p: Props) {
             const isLevel = lv.length > 0;
             const showLabel = !dense || r.strike % (p.step * 4) === 0 || isLevel;
             const inCorr = p.corridor && r.strike >= p.corridor.lo && r.strike <= p.corridor.hi;
-            const tint = r.tint == null || r.tint === 0 ? undefined : mix(r.tint > 0 ? "var(--cool)" : "var(--warm)", inCorr ? 11 : 7);
+            const tint = p.oneSided || r.tint == null || r.tint === 0 ? undefined : mix(r.tint > 0 ? "var(--cool)" : "var(--warm)", inCorr ? 11 : 7);
             const inPriced = p.priced && r.strike >= p.priced.lo && r.strike <= p.priced.hi;
             const inPin = p.pin && r.strike >= p.pin.lo && r.strike <= p.pin.hi;
             const w = r.value != null ? (Math.abs(r.value) / maxAbs) * 50 : 0;
@@ -182,8 +184,14 @@ export function StrikeLadder(p: Props) {
                 <div className="truncate pr-2 text-right text-[10px]" style={{ color: isLevel ? "var(--ink-1)" : "var(--ink-3)" }}>{showLabel ? fmt(r.strike) : ""}</div>
                 <div className="h-full" style={{ background: inPriced ? (p.selPriced ? "var(--sel)" : mix("var(--ink-1)", 30)) : undefined }} />
                 <div className="relative h-full">
-                  {p.signed && <div className="absolute inset-y-0 left-1/2 w-px" style={{ background: "var(--axis)" }} />}
-                  {r.value != null && w > 0 && (
+                  {p.signed && !p.oneSided && <div className="absolute inset-y-0 left-1/2 w-px" style={{ background: "var(--axis)" }} />}
+                  {p.oneSided && r.value != null && w > 0 && (
+                    <div className="absolute top-1/2 -translate-y-1/2" style={{
+                      height: barH, width: `${w * 2}%`, left: 0, opacity: r.faint ? 0.25 : 1,
+                      background: (r.tint ?? 0) >= 0 ? "var(--cool)" : "var(--warm)",
+                    }} />
+                  )}
+                  {!p.oneSided && r.value != null && w > 0 && (
                     <div className="absolute top-1/2 -translate-y-1/2" style={{
                       height: barH, width: `${w}%`,
                       left: r.value >= 0 ? "50%" : `${50 - w}%`,
