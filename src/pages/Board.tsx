@@ -410,28 +410,35 @@ export default function Board() {
   ];
   const fl = (k: string) => n(l78Leg?.[k]);
   const pairVal = (net: number | null, gross: number | null) => net == null ? <Absent word={l78Leg ? (l78Leg.status === "OK" ? "no value" : l78Leg.status.toLowerCase().replace(/_/g, " ")) : "no chain"} /> :
-    <span><span style={{ color: hue(net) }}>{fmtCr(net)}</span>{gross != null && <span className="text-[11px]" style={{ color: "var(--ink-3)" }}> / {fmtCr(gross).replace(/^\+/, "")}</span>}</span>;
+    <span><span style={{ color: hue(net) }}>{fmtCr(net)}</span>{gross != null && <span style={{ color: "var(--ink-2)" }}> / {fmtCr(gross).replace(/^\+/, "")}</span>}</span>;
   const flowAt = (pct: number) => n(flowSim.find((r) => Math.abs(Number(r.spot_pct) - pct) < 1e-9)?.flow_cr);
   const fm1 = flowAt(-0.01), fp1 = flowAt(0.01);
   const flowWord = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "BUY" : "SELL"} ${num(Math.abs(v))}`);
   const flowChart = flowSim.length >= 2 ? (() => {
     const pts = flowSim.map((r) => ({ x: Number(r.spot_pct) * 100, y: Number(r.flow_cr) })).sort((a, b) => a.x - b.x);
     const yMax = Math.max(1, ...pts.map((p) => Math.abs(p.y)));
-    const X = (x: number) => ((x + 2.5) / 5) * 100, Y = (y: number) => 50 - (y / yMax) * 42;
+    const VW = 640, VH = 200, L = 40, R = 16, T = 18, B = 26;
+    const X = (x: number) => L + ((x + 2.5) / 5) * (VW - L - R), Y = (y: number) => T + (1 - (y / yMax + 1) / 2) * (VH - T - B);
     const flipX = fPct != null && Math.abs(fPct) <= 2.5 ? X(fPct) : null;
+    const tick = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x)}%`;
     return (
-      <div>
+      <div className="mb-3 rounded-md p-3" style={{ border: "1px solid var(--line)" }}>
         <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Hedge flow vs spot move (₹ Cr)</div>
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="mt-1 h-40 w-full max-w-[520px]">
-          <line x1="0" x2="100" y1="50" y2="50" stroke="var(--axis)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <line x1={X(0)} x2={X(0)} y1="4" y2="96" stroke="var(--axis)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          {flipX != null && <line x1={flipX} x2={flipX} y1="4" y2="96" stroke="var(--rule)" strokeDasharray="3 3" strokeWidth="1" vectorEffect="non-scaling-stroke" />}
-          <polyline points={pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(" ")} fill="none" stroke="var(--ink-1)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-          {pts.map((p, i) => <circle key={i} cx={X(p.x)} cy={Y(p.y)} r="1.4" fill={p.y >= 0 ? "var(--cool)" : "var(--warm)"} />)}
+        <svg viewBox={`0 0 ${VW} ${VH}`} className="mt-1 block h-auto w-full max-w-[760px]" style={{ fontFamily: "var(--font-plex-cond)" }}>
+          <line x1={L} x2={VW - R} y1={Y(0)} y2={Y(0)} stroke="var(--axis)" />
+          <text x={L - 6} y={Y(0) + 3} fontSize="10" textAnchor="end" fill="var(--ink-3)">0</text>
+          <line x1={X(0)} x2={X(0)} y1={T} y2={VH - B} stroke="var(--axis)" />
+          {flipX != null && <line x1={flipX} x2={flipX} y1={T} y2={VH - B} stroke="var(--rule)" strokeDasharray="4 3" />}
+          <polyline points={pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(" ")} fill="none" stroke="var(--ink-1)" strokeWidth="1.5" />
+          {pts.map((p, i) => (
+            <g key={i}>
+              <line x1={X(p.x)} x2={X(p.x)} y1={VH - B} y2={VH - B + 4} stroke="var(--axis)" />
+              <text x={X(p.x)} y={VH - 8} fontSize="10" textAnchor="middle" fill="var(--ink-3)">{tick(p.x)}</text>
+              <circle cx={X(p.x)} cy={Y(p.y)} r="3.5" fill={p.y >= 0 ? "var(--cool)" : "var(--warm)"} />
+              <text x={X(p.x)} y={Y(p.y) + (p.y >= 0 ? -8 : 15)} fontSize="10" textAnchor="middle" fill="var(--ink-2)">{flowWord(p.y)}</text>
+            </g>
+          ))}
         </svg>
-        <div className="flex max-w-[520px] justify-between text-[10px]" style={{ color: "var(--ink-3)" }}>
-          {pts.map((p, i) => <span key={i}>{p.x > 0 ? "+" : p.x < 0 ? "−" : ""}{Math.abs(p.x)}% · {flowWord(p.y)}</span>)}
-        </div>
         <div className="mt-1 text-[11px]" style={{ color: "var(--ink-3)" }}>
           {flipX != null ? "Dashed = L3 repriced flip at its distance from spot." : fPct != null ? `L3 flip is ${sgn(fPct, 2)}% away — outside ±2.5%.` : "L3 flip not available."}
         </div>
@@ -441,18 +448,17 @@ export default function Board() {
   const flowItems: OverviewItem[] = [
     { id: "f_hedge", label: "Hedge per 1 %", sub: fm1 != null ? `−1 %: ${flowWord(fm1)} · +1 %: ${flowWord(fp1)}` : "",
       value: fp1 != null ? <span style={{ color: hue(fp1) }}>{flowWord(fp1)}</span> : <Absent word="no run" />, levelIds: [],
-      caption: fp1 != null ? `For a +1% move dealers would ${fp1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fp1))} Cr; for −1%, ${fm1 != null && fm1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fm1 ?? 0))} Cr. Bars show ∂Δ/∂t per strike.` : "No flow simulation.",
-      extra: flowChart },
-    { id: "f_ddt", label: "∂Δ/∂t · per day", sub: fl("net_over_gross_delta_drift_time") != null ? `net/gross ${fl("net_over_gross_delta_drift_time")!.toFixed(2)} · Cr Δ-notional` : "Cr Δ-notional",
+      caption: fp1 != null ? `For a +1% move dealers would ${fp1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fp1))} Cr; for −1%, ${fm1 != null && fm1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fm1 ?? 0))} Cr. Bars show ∂Δ/∂t per strike.` : "No flow simulation." },
+    { id: "f_ddt", ratio: fl("net_over_gross_delta_drift_time"), label: "∂Δ/∂t · per day", sub: fl("net_over_gross_delta_drift_time") != null ? `net/gross ${fl("net_over_gross_delta_drift_time")!.toFixed(2)} · Cr Δ-notional` : "Cr Δ-notional",
       value: pairVal(fl("net_delta_drift_time_cr_per_day"), fl("gross_strike_delta_drift_time")), levelIds: [],
       caption: fl("net_delta_drift_time_cr_per_day") != null ? `Dealer delta-notional drifts ${fmtCr(fl("net_delta_drift_time_cr_per_day"))} per calendar day (gross ${fmtCr(fl("gross_strike_delta_drift_time")).replace(/^\+/, "")}); bars per strike.` : "No ∂Δ/∂t for this leg." },
-    { id: "f_ddiv", label: "∂Δ/∂σ · per vol pt", sub: fl("net_over_gross_delta_drift_iv") != null ? `net/gross ${fl("net_over_gross_delta_drift_iv")!.toFixed(2)} · Cr Δ-notional` : "Cr Δ-notional",
+    { id: "f_ddiv", ratio: fl("net_over_gross_delta_drift_iv"), label: "∂Δ/∂σ · per vol pt", sub: fl("net_over_gross_delta_drift_iv") != null ? `net/gross ${fl("net_over_gross_delta_drift_iv")!.toFixed(2)} · Cr Δ-notional` : "Cr Δ-notional",
       value: pairVal(fl("net_delta_drift_iv_cr_per_volpt"), fl("gross_strike_delta_drift_iv")), levelIds: [],
       caption: fl("net_delta_drift_iv_cr_per_volpt") != null ? `A +1 IV point moves dealer delta-notional ${fmtCr(fl("net_delta_drift_iv_cr_per_volpt"))} (gross ${fmtCr(fl("gross_strike_delta_drift_iv")).replace(/^\+/, "")}); bars per strike.` : "No ∂Δ/∂σ for this leg." },
-    { id: "f_gdt", label: "∂Γ/∂t · per day", sub: fl("net_over_gross_gex_drift_time") != null ? `net / gross · ratio ${fl("net_over_gross_gex_drift_time")!.toFixed(2)} — read together` : "net / gross — read together",
+    { id: "f_gdt", ratio: fl("net_over_gross_gex_drift_time"), label: "∂Γ/∂t · per day", sub: fl("net_over_gross_gex_drift_time") != null ? `net / gross · ratio ${fl("net_over_gross_gex_drift_time")!.toFixed(2)} — read together` : "net / gross — read together",
       value: pairVal(fl("net_gex_drift_time_cr_per_day"), fl("gross_strike_gex_drift_time")), levelIds: [],
       caption: fl("net_gex_drift_time_cr_per_day") != null ? `∂Γ/∂t net ${fmtCr(fl("net_gex_drift_time_cr_per_day"))} against gross ${fmtCr(fl("gross_strike_gex_drift_time")).replace(/^\+/, "")} — a residue of opposing strikes; read the bars.` : "No ∂Γ/∂t for this leg." },
-    { id: "f_gdiv", label: "∂Γ/∂σ · per vol pt", sub: fl("net_over_gross_gex_drift_iv") != null ? `net / gross · ratio ${fl("net_over_gross_gex_drift_iv")!.toFixed(2)} — read together` : "net / gross — read together",
+    { id: "f_gdiv", ratio: fl("net_over_gross_gex_drift_iv"), label: "∂Γ/∂σ · per vol pt", sub: fl("net_over_gross_gex_drift_iv") != null ? `net / gross · ratio ${fl("net_over_gross_gex_drift_iv")!.toFixed(2)} — read together` : "net / gross — read together",
       value: pairVal(fl("net_gex_drift_iv_cr_per_volpt"), fl("gross_strike_gex_drift_iv")), levelIds: [],
       caption: fl("net_gex_drift_iv_cr_per_volpt") != null ? `∂Γ/∂σ net ${fmtCr(fl("net_gex_drift_iv_cr_per_volpt"))} against gross ${fmtCr(fl("gross_strike_gex_drift_iv")).replace(/^\+/, "")}; read the bars.` : "No ∂Γ/∂σ for this leg." },
     { id: "f_leg", label: "Expiry leg", sub: l78Leg ? `${l78FrontSkipped ? "front skipped · expiry day · " : ""}chain ${istTime(l78Leg.ts)}` : "",
@@ -559,8 +565,8 @@ export default function Board() {
         gammaItems={gammaItems} gammaLevels={gammaLevels} silhouette={silhouette}
         oiRows={oiRows} oiItems={oiItems} oiLevels={oiLevels} painCurve={painCurve} oiDeltaNote={oiDeltaNote}
         river={<GammaRiver days={river} />} ivPanel={<IVPanel data={ivTab} />}
-        pinItems={pinItems} pinRows={pinRows} pinLevels={pinLevels} pinNote={pinNote}
-        flowItems={flowItems} flowRows={flowRows} flowLevels={flowLevels} flowsBadge={flowsBadge} flowsNote={flowsNote} />
+        pinItems={pinItems} pinRows={pinRows} pinLevels={pinLevels} pinNote={pinNote} pinStretches={stretches}
+        flowItems={flowItems} flowRows={flowRows} flowLevels={flowLevels} flowsBadge={flowsBadge} flowsNote={flowsNote} flowsTop={flowChart} />
     </div>
   );
 }
