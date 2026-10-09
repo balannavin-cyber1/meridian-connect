@@ -173,7 +173,7 @@ function PainBowl({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; step:
       {path.length > 1 && <Line points={path} color={pal.ink1} lineWidth={2} />}
       {path.map((p, j) => <mesh key={j} position={p}><sphereGeometry args={[0.06, 10, 10]} /><meshBasicMaterial color={pal.ink1} /></mesh>)}
       {last >= 0 && <Tag p={[xi(last), 0.45, yOf(ny - 1)]} c="var(--ink-1)" strong>MAX PAIN {num(ks[last])}</Tag>}
-      {hist.map((s, j) => mins[j] < 0 && s.maxPainStrike != null ? <Tag key={`o${j}`} p={[W / 2 + 1.4, 0, yOf(j)]}>max pain {num(s.maxPainStrike)} · outside window</Tag> : null)}
+      {hist.map((s, j) => mins[j] < 0 && s.maxPainStrike != null ? <Tag key={`o${j}`} p={[W / 2 + 1.4, 0, yOf(j)]} align="right">max pain {num(s.maxPainStrike)} · outside window</Tag> : null)}
     </group>
   );
 }
