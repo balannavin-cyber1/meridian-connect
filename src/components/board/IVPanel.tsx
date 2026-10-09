@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { istTime, istDateOf } from "@/lib/board";
 
 type Data = { ts: string; awaiting: boolean; next: string | null; term: any[]; surface: any[] } | null | undefined;
@@ -141,6 +142,7 @@ function Smile({ rows, leg, setLeg, legs }: { rows: any[]; leg: number; setLeg: 
           <button onClick={() => panX(1)} className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }}>▶</button>
           <button onClick={fitAll} className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: xHalf >= 149.9 ? "var(--ink-1)" : "var(--line-2)", color: "var(--ink-2)" }}>full</button>
         </div>
+        <Link to="/board/3d?v=iv" className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }} title="3D drill-down">3D ›</Link>
         <div className="ml-auto flex flex-wrap gap-4 text-[12px]">
           <span><span style={{ color: "var(--ink-3)" }}>ATM </span>{r0?.leg_atm_strike?.toLocaleString("en-IN") ?? "—"} · {pct(r0?.leg_atm_iv)}</span>
           <span><span style={{ color: "var(--ink-3)" }}>skew 98 </span>{sgn(r0?.leg_skew_98)} vol pts <span style={{ color: "var(--ink-3)" }}>@ {r0?.leg_k98?.toLocaleString("en-IN") ?? "—"}</span></span>
