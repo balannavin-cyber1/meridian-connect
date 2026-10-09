@@ -7,6 +7,7 @@ export type Level = { id: string; name: string; at: number; style: LevelStyle };
 export type LadderRow = {
   strike: number; value: number | null; readout: string; tint?: number | null; full?: string;
   leftValue?: number | null; rightValue?: number | null; deltaLeft?: number | null; deltaRight?: number | null;
+  ncLeft?: boolean; ncRight?: boolean; // L13: side present at only one of anchor/latest — not comparable
   faint?: boolean;              // S92 Pin: de-emphasised rows (rank > 10)
 };
 
@@ -208,6 +209,10 @@ export function StrikeLadder(p: Props) {
                       right: `${50 + ((r.leftValue ?? 0) / wingMax) * 50}%`, background: r.deltaLeft >= 0 ? "var(--cool)" : "var(--warm)" }} />}
                     {r.deltaRight != null && <div className="absolute top-1/2 z-[6] h-[2px] w-[7px] -translate-y-1/2" style={{
                       left: `${50 + ((r.rightValue ?? 0) / wingMax) * 50}%`, background: r.deltaRight >= 0 ? "var(--cool)" : "var(--warm)" }} />}
+                    {r.ncLeft && <span className="absolute top-1/2 z-[6] -translate-y-1/2 text-[8px] leading-none" style={{
+                      right: `calc(${50 + ((r.leftValue ?? 0) / wingMax) * 50}% + 2px)`, color: "var(--ink-3)" }}>n/c</span>}
+                    {r.ncRight && <span className="absolute top-1/2 z-[6] -translate-y-1/2 text-[8px] leading-none" style={{
+                      left: `calc(${50 + ((r.rightValue ?? 0) / wingMax) * 50}% + 2px)`, color: "var(--ink-3)" }}>n/c</span>}
                   </>}
                   {p.silhouette?.has(r.strike) && (
                     <div className="pointer-events-none absolute top-1/2 z-[7] h-[2px] w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full"

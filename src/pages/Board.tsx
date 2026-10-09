@@ -16,7 +16,7 @@ import { Sym } from "@/components/board/Sym";
 import type { Level } from "@/components/board/StrikeLadder";
 import { GammaRiver } from "@/components/board/GammaRiver";
 import { IVPanel } from "@/components/board/IVPanel";
-import { useIvTab } from "@/lib/board";
+import { useIvTab, istToday } from "@/lib/board";
 
 const CELL_TO_ITEM: Record<string, string> = { s1: "dte", s2: "spot", s3: "net", s4: "flip", s5: "corridor", s6: "pin", s7: "priced" };
 
