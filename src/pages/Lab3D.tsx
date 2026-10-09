@@ -83,10 +83,10 @@ const Tag = ({ p, children, c = "var(--ink-3)", strong, align = "center" }: { p:
   const small = useSmallLabel();
   // drei's Html keeps its DOM in a side root; under StrictMode the StrictMode double-invoke can
   // unmount that root mid-commit and leave the label empty. One extra commit re-renders every root.
-  const [, bump] = useState(0);
+  const [tick, bump] = useState(0);
   useEffect(() => { const t = setTimeout(() => bump((n) => n + 1), 60); return () => clearTimeout(t); }, []);
   return (
-    <Html position={p} center={align === "center"} calculatePosition={clampPos} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
+    <Html key={tick} position={p} center={align === "center"} calculatePosition={clampPos} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
       <span className="whitespace-nowrap font-[family-name:var(--font-plex)] tabular-nums"
         style={{ display: "inline-block", fontSize: small ? 8 : 10, color: c, fontWeight: strong ? 600 : 400, letterSpacing: ".04em",
           transform: align === "right" ? "translate(-100%, -50%)" : align === "left" ? "translate(0, -50%)" : undefined }}>{children}</span>
