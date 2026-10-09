@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppShell from "./components/AppShell";
 import { SymbolProvider } from "./contexts/SymbolContext";
@@ -14,6 +15,8 @@ import Health from "./pages/Health";
 import Journal from "./pages/Journal";
 import NotFound from "./pages/NotFound";
 
+const Lab3D = lazy(() => import("./pages/Lab3D"));
+
 export default function App() {
   return (
     <SymbolProvider>
@@ -23,6 +26,7 @@ export default function App() {
           <Route path="/marketview" element={<Navigate to="/home" replace />} />
           <Route path="/home" element={<Home />} />
           <Route path="/board" element={<Board />} />
+          <Route path="/board/3d" element={<Suspense fallback={null}><Lab3D /></Suspense>} />
           <Route path="/context" element={<Breadth />} />
           <Route path="/positioning" element={<Positioning />} />
           <Route path="/max-pain" element={<MaxPainOI />} />
