@@ -1,5 +1,6 @@
 // Board tabs + shared ladder + Overview value list, caption and detail panel (Phase 1b).
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { StrikeLadder, type Level, type LadderRow } from "./StrikeLadder";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PinBody, FlowsBody, type Stretch } from "./PinFlowsBody";
@@ -279,7 +280,7 @@ export function LadderPanel(p: Props) {
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]" style={{ color: "var(--ink-3)" }}>
                  {isPin ? <><Sw c="var(--cool)" l="dampening strike" /><Sw c="var(--warm)" l="amplifying strike" /><Sw c="color-mix(in srgb, var(--cool) 25%, transparent)" l="rank > 10 (faint)" /><Sw c="color-mix(in srgb, var(--cool) 55%, transparent)" l="pin band" /><Rl s="2px solid var(--ink-1)" l="spot" /><Rl s="1px dotted var(--rule)" l="γ-conc / #2" /></>
                  : isFlows ? <><Sw c="var(--cool)" l="positive" /><Sw c="var(--warm)" l="negative" /><Rl s="2px solid var(--ink-1)" l="spot" /><Rl s="1px dashed var(--rule)" l="flip (L3)" /></>
-                 : isOI ? <><Sw c="var(--put)" l="put OI" /><Sw c="var(--call)" l="call OI" /><Rl s="2px solid var(--ink-1)" l="max pain" />{p.symbol !== "SENSEX" && <><Rl s="2px solid var(--cool)" l="ΔOI rose" /><Rl s="2px solid var(--warm)" l="ΔOI fell" /></>}<Rl s="2px solid color-mix(in srgb, var(--ink-1) 28%, transparent)" l="pain valley" /></> : <>
+                 : isOI ? <><Sw c="var(--put)" l="put OI" /><Sw c="var(--call)" l="call OI" /><Rl s="2px solid var(--ink-1)" l="max pain" />{p.symbol !== "SENSEX" && <><Rl s="2px solid var(--cool)" l="ΔOI rose" /><Rl s="2px solid var(--warm)" l="ΔOI fell" /></>}<Rl s="2px solid color-mix(in srgb, var(--ink-1) 28%, transparent)" l="pain valley" /><Link to="/board/3d?v=pain" className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }} title="3D drill-down">3D ›</Link></> : <>
                    <Sw c="var(--warm)" l="amplifying γ" /><Sw c="var(--cool)" l="dampening γ" />
                    <Sw c="color-mix(in srgb, var(--ink-1) 30%, transparent)" l="priced move" />
                    <Sw c="color-mix(in srgb, var(--cool) 55%, transparent)" l="pin band" />
