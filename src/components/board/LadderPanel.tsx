@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { StrikeLadder, type Level, type LadderRow } from "./StrikeLadder";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PinBody, FlowsBody, type Stretch } from "./PinFlowsBody";
+import { Sym } from "./Sym";
 
 export const TABS = ["Overview", "Pin", "Gamma", "OI", "Flows", "IV"] as const;
 export type Tab = (typeof TABS)[number];
@@ -185,11 +186,11 @@ export function LadderPanel(p: Props) {
     <div className="space-y-3">
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-1 border-b" style={{ borderColor: "var(--line)" }}>
-        {TABS.map((t, i) => (
+        {TABS.map((t) => (
           <button key={t} onClick={() => p.setTab(t)}
             className="-mb-px border-b-2 px-3 py-2 text-[12px] font-medium"
             style={{ borderColor: p.tab === t ? "var(--ink-1)" : "transparent", color: p.tab === t ? "var(--ink-1)" : "var(--ink-3)" }}>
-            <span className="mr-1.5" style={{ color: "var(--ink-3)" }}>{i + 1}</span>{t}
+            {t}
           </button>
         ))}
       </div>
@@ -256,8 +257,8 @@ export function LadderPanel(p: Props) {
           {/* Ladder */}
           <div className="order-1 min-w-0 lg:order-2">
             <div className="mb-1 grid grid-cols-[60px_10px_1fr_10px_64px] text-[9px] uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>
-              <div className="text-right pr-2">strike</div><div /><div className="text-center">{isOI ? "← PUT OI · CALL OI →" : isPin ? "share of gross |γ| →" : isFlows ? "← negative · positive →" : layered ? "← amplifying · dampening →" : ""}</div><div />
-              <div className="pl-2 text-right">{isOI ? "TOTAL OI" : isPin ? "rank · share" : isFlows ? "Cr" : layered ? "net γ" : ""}</div>
+              <div className="text-right pr-2">strike</div><div /><div className="text-center"><Sym text={isOI ? "← PUT OI · CALL OI →" : isPin ? "share of gross |γ| →" : isFlows ? "← negative · positive →" : layered ? "← amplifying · dampening →" : ""} /></div><div />
+              <div className="pl-2 text-right"><Sym text={isOI ? "TOTAL OI" : isPin ? "rank · share" : isFlows ? "Cr" : layered ? "net γ" : ""} /></div>
             </div>
             {p.rows.length ? (
               <StrikeLadder
