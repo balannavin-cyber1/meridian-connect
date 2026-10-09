@@ -62,12 +62,37 @@ function GridSurface({ z, colors, opacity = 0.62 }: { z: (number | null)[][]; co
   );
 }
 
-const Tag = ({ p, children, c = "var(--ink-3)", strong }: { p: [number, number, number]; children: React.ReactNode; c?: string; strong?: boolean }) => (
-  <Html position={p} center zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
-    <span className="whitespace-nowrap font-[family-name:var(--font-plex)] tabular-nums"
-      style={{ fontSize: 10, color: c, fontWeight: strong ? 600 : 400, letterSpacing: ".04em" }}>{children}</span>
-  </Html>
-);
+type Align = "center" | "left" | "right";
+const useSmallLabel = () => {
+  const [small, setSmall] = useState(() => typeof window !== "undefined" && window.innerWidth < 480);
+  useEffect(() => {
+    const f = () => setSmall(window.innerWidth < 480);
+    f();
+    window.addEventListener("resize", f);
+    return () => window.removeEventListener("resize", f);
+  }, []);
+  return small;
+};
+/** Projected label anchor, clamped to a small margin inside the canvas so aligned text never spills off the edges. */
+const clampPos = (obj: THREE.Object3D, camera: THREE.Camera, size: { width: number; height: number }): [number, number] => {
+  const v = obj.getWorldPosition(new THREE.Vector3()).project(camera);
+  const x = (v.x * 0.5 + 0.5) * size.width, y = (-v.y * 0.5 + 0.5) * size.height;
+  return [Math.min(Math.max(x, 6), size.width - 6), Math.min(Math.max(y, 12), size.height - 16)];
+};
+const Tag = ({ p, children, c = "var(--ink-3)", strong, align = "center" }: { p: [number, number, number]; children: React.ReactNode; c?: string; strong?: boolean; align?: Align }) => {
+  const small = useSmallLabel();
+  // drei's Html keeps its DOM in a side root; under StrictMode the StrictMode double-invoke can
+  // unmount that root mid-commit and leave the label empty. One extra commit re-renders every root.
+  const [tick, bump] = useState(0);
+  useEffect(() => { const t = setTimeout(() => bump((n) => n + 1), 60); return () => clearTimeout(t); }, []);
+  return (
+    <Html key={tick} position={p} center={align === "center"} calculatePosition={clampPos} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
+      <span className="whitespace-nowrap font-[family-name:var(--font-plex)] tabular-nums"
+        style={{ display: "inline-block", fontSize: small ? 8 : 10, color: c, fontWeight: strong ? 600 : 400, letterSpacing: ".04em",
+          transform: align === "right" ? "translate(-100%, -50%)" : align === "left" ? "translate(0, -50%)" : undefined }}>{children}</span>
+    </Html>
+  );
+};
 
 function Floor({ pal, nx, labelsX, labelsY }: { pal: Pal; nx: number; labelsX: { i: number; t: string }[]; labelsY: { j: number; n: number; t: string; strong?: boolean }[] }) {
   const xi = (i: number) => (nx > 1 ? -W / 2 + (i / (nx - 1)) * W : 0);
@@ -78,8 +103,8 @@ function Floor({ pal, nx, labelsX, labelsY }: { pal: Pal; nx: number; labelsX: {
         <meshBasicMaterial color={pal.bg} />
       </mesh>
       <Line points={[[-W / 2, 0, D / 2 + 0.3], [W / 2, 0, D / 2 + 0.3]]} color={pal.axis} lineWidth={1} />
-      {labelsX.map((l) => <Tag key={l.i} p={[xi(l.i), 0, D / 2 + 0.75]}>{l.t}</Tag>)}
-      {labelsY.map((l) => <Tag key={l.j} p={[-W / 2 - 0.9, 0, l.n > 1 ? -D / 2 + (l.j / (l.n - 1)) * D : 0]} c={l.strong ? "var(--ink-1)" : undefined} strong={l.strong}>{l.t}</Tag>)}
+      {labelsX.map((l) => <Tag key={l.i} p={[xi(l.i), 0, D / 2 + 0.75]} align={l.i <= 0 ? "left" : l.i >= nx - 1 ? "right" : "center"}>{l.t}</Tag>)}
+      {labelsY.map((l) => <Tag key={l.j} p={[-W / 2 - 0.9, 0, l.n > 1 ? -D / 2 + (l.j / (l.n - 1)) * D : 0]} align="left" c={l.strong ? "var(--ink-1)" : undefined} strong={l.strong}>{l.t}</Tag>)}
     </group>
   );
 }
@@ -119,7 +144,7 @@ function GammaTerrain({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; s
       ))}
       {spotPath.length > 1 && <Line points={spotPath} color={pal.ink1} lineWidth={1.4} dashed dashSize={0.12} gapSize={0.08} />}
       {spotPath.map((p, j) => <mesh key={j} position={p}><sphereGeometry args={[0.05, 10, 10]} /><meshBasicMaterial color={pal.ink1} /></mesh>)}
-      <Tag p={[W / 2 + 0.2, H + 0.2, -D / 2]}>peak |γ| {num(max / 1e5, 1)}L · unit pending</Tag>
+      <Tag p={[W / 2 + 0.2, H + 0.2, -D / 2]} align="right">peak |γ| {num(max / 1e5, 1)}L · unit pending</Tag>
     </group>
   );
 }
@@ -158,7 +183,7 @@ function PainBowl({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; step:
       {path.length > 1 && <Line points={path} color={pal.ink1} lineWidth={2} />}
       {path.map((p, j) => <mesh key={j} position={p}><sphereGeometry args={[0.06, 10, 10]} /><meshBasicMaterial color={pal.ink1} /></mesh>)}
       {last >= 0 && <Tag p={[xi(last), 0.45, yOf(ny - 1)]} c="var(--ink-1)" strong>MAX PAIN {num(ks[last])}</Tag>}
-      {hist.map((s, j) => mins[j] < 0 && s.maxPainStrike != null ? <Tag key={`o${j}`} p={[W / 2 + 1.4, 0, yOf(j)]}>max pain {num(s.maxPainStrike)} · outside window</Tag> : null)}
+      {hist.map((s, j) => mins[j] < 0 && s.maxPainStrike != null ? <Tag key={`o${j}`} p={[W / 2 + 1.4, 0, yOf(j)]} align="right">max pain {num(s.maxPainStrike)} · outside window</Tag> : null)}
     </group>
   );
 }
@@ -185,7 +210,7 @@ function IvFence({ surface, pal, mWin }: { surface: any[]; pal: Pal; mWin: numbe
   return (
     <group>
       <Floor pal={pal} nx={2} labelsX={[]} labelsY={[]} />
-      {[-mWin, -mWin / 2, 0, mWin / 2, mWin].map((m) => <Tag key={m} p={[xOf(m), 0, D / 2 + 0.75]}>{m > 0 ? "+" : m < 0 ? "−" : ""}{num(Math.abs(m), 1)} %</Tag>)}
+      {[-mWin, -mWin / 2, 0, mWin / 2, mWin].map((m) => <Tag key={`mx${m}`} p={[xOf(m), 0, D / 2 + 0.75]} align={m === -mWin ? "left" : m === mWin ? "right" : "center"}>{m > 0 ? "+" : m < 0 ? "−" : ""}{num(Math.abs(m), 1)} %</Tag>)}
       {legs.map((pts, li) => {
         if (!pts.length) return <Tag key={li} p={[0, 0.4, yLeg[li]]}>{li === 0 ? "W1" : "W2"} · pending measurement</Tag>;
         const leg = pts[0].row;
@@ -203,20 +228,20 @@ function IvFence({ surface, pal, mWin }: { surface: any[]; pal: Pal; mWin: numbe
             <mesh geometry={ribbon}><meshBasicMaterial color={pal.ink3} transparent opacity={li === 0 ? 0.16 : 0.1} side={THREE.DoubleSide} depthWrite={false} /></mesh>
             <Line points={pts.map((p) => [xOf(p.m), zOf(p.iv), yLeg[li]] as [number, number, number])} color={c} lineWidth={li === 0 ? 2 : 1.4} />
             {atmIv != null && <mesh position={[0, zOf(atmIv), yLeg[li]]}><torusGeometry args={[0.1, 0.022, 8, 24]} /><meshBasicMaterial color={c} /></mesh>}
-            <Tag p={[-W / 2 - 0.9, zOf(pts[0].iv), yLeg[li]]} c={li === 0 ? "var(--ink-1)" : "var(--ink-2)"} strong={li === 0}>
+            <Tag p={[-W / 2 - 0.9, zOf(pts[0].iv), yLeg[li]]} c={li === 0 ? "var(--ink-1)" : "var(--ink-2)"} strong={li === 0} align="left">
               {li === 0 ? "W1 front" : "W2 back"} · {dShort(leg.expiry_date)}
             </Tag>
             {atmIv != null && <Tag p={[0.1, zOf(atmIv) + 0.35, yLeg[li]]} c={li === 0 ? "var(--ink-1)" : "var(--ink-2)"}>ATM {num(atmIv, 2)} %</Tag>}
-            {leg.leg_skew_98 != null && <Tag p={[W / 2 + 0.6, zOf(pts[pts.length - 1].iv), yLeg[li]]}>skew98 {Number(leg.leg_skew_98) >= 0 ? "+" : "−"}{num(Math.abs(Number(leg.leg_skew_98)), 2)}</Tag>}
+            {leg.leg_skew_98 != null && <Tag p={[W / 2 + 0.6, zOf(pts[pts.length - 1].iv), yLeg[li]]} align="right">skew98 {Number(leg.leg_skew_98) >= 0 ? "+" : "−"}{num(Math.abs(Number(leg.leg_skew_98)), 2)}</Tag>}
           </group>
         );
       })}
       {legs[0].length > 1 && legs[1].length > 1 && rungs.map((m) => {
         const a = interp(legs[0], m), b = interp(legs[1], m);
         if (a == null || b == null) return null;
-        return <Line key={m} points={[[xOf(m), zOf(a), yLeg[0]], [xOf(m), zOf(b), yLeg[1]]]} color={pal.ink3} lineWidth={0.8} dashed dashSize={0.08} gapSize={0.06} />;
+        return <Line key={`r${m}`} points={[[xOf(m), zOf(a), yLeg[0]], [xOf(m), zOf(b), yLeg[1]]]} color={pal.ink3} lineWidth={0.8} dashed dashSize={0.08} gapSize={0.06} />;
       })}
-      <Tag p={[W / 2 + 0.2, H + 0.5, -D / 2]}>IV {num(lo, 1)}–{num(hi, 1)} % · own scale</Tag>
+      <Tag p={[W / 2 + 0.2, H + 0.5, -D / 2]} align="right">IV {num(lo, 1)}–{num(hi, 1)} % · own scale</Tag>
     </group>
   );
 }
@@ -302,7 +327,7 @@ export default function Lab3D() {
         {view === "gamma" && <><Sw c="var(--cool)" l="dampening · long γ" /><Sw c="var(--warm)" l="amplifying" /><Sw c="var(--ink-1)" l="latest session · spot" /></>}
         {view === "iv" && <><Sw c="var(--ink-1)" l="W1 front" /><Sw c="var(--ink-2)" l="W2 back" /><Sw c="var(--ink-3)" l="equal-moneyness rung" /></>}
         {view === "pain" && <><Sw c="var(--ink-3)" l="pain (own scale per row)" /><Sw c="var(--ink-1)" l="max-pain path" /></>}
-        <span className="text-[10px] uppercase tracking-[0.08em]">prototype · not live</span>
+        <span className="text-[10px] uppercase tracking-[0.08em]">optional view</span>
       </div>
       <p className="mt-1 max-w-[900px] text-[12px] leading-relaxed" style={{ color: "var(--ink-2)" }}>{NOTES[view]}</p>
     </div>
