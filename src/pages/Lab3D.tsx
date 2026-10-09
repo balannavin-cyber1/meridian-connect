@@ -12,7 +12,7 @@ import { useIvTab, istTime } from "@/lib/board";
 
 type View = "gamma" | "iv" | "pain";
 const VIEWS: { id: View; key: string; label: string; back: string }[] = [
-  { id: "gamma", key: "1", label: "Γ terrain", back: "/board" },
+  { id: "gamma", key: "1", label: "γ terrain", back: "/board" },
   { id: "iv", key: "2", label: "IV fence", back: "/board" },
   { id: "pain", key: "3", label: "Pain bowl", back: "/board" },
 ];
@@ -85,17 +85,13 @@ function Floor({ pal, nx, labelsX, labelsY }: { pal: Pal; nx: number; labelsX: {
 }
 
 // ---------- 1 · Gamma terrain ----------
-function strikeAxis(hist: TerrainSession[], step: number, pct: number) {
-  const last = hist[hist.length - 1];
-  const spot = last?.spot ?? 0;
-  const lo = Math.floor((spot * (1 - pct)) / step) * step, hi = Math.ceil((spot * (1 + pct)) / step) * step;
-  const ks: number[] = []; for (let k = lo; k <= hi; k += step) ks.push(k);
-  return ks;
+function strikeAxis(hist: TerrainSession[]) {
+  return [...new Set(hist.flatMap((s) => s.rows.map((r) => r.strike)))].sort((x, y) => x - y);
 }
 const xLabels = (ks: number[], every: number) => ks.map((k, i) => ({ i, k })).filter(({ i }) => i % every === 0).map(({ i, k }) => ({ i, t: num(k) }));
 
 function GammaTerrain({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; step: number }) {
-  const ks = useMemo(() => strikeAxis(hist, step, 0.06), [hist, step]);
+  const ks = useMemo(() => strikeAxis(hist), [hist, step]);
   const { z, colors, max } = useMemo(() => {
     let max = 0;
     const maps = hist.map((s) => new Map(s.rows.map((r) => [r.strike, r.gex])));
@@ -115,7 +111,7 @@ function GammaTerrain({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; s
   return (
     <group>
       <Floor pal={pal} nx={ks.length} labelsX={xLabels(ks, Math.ceil(ks.length / 6))}
-        labelsY={hist.map((s, j) => ({ j, n: ny, t: `${dShort(s.date)}${s.dte === 0 ? " · 0" : ""}`, strong: j === ny - 1 })).filter((l) => l.j % 2 === (ny - 1) % 2)} />
+        labelsY={hist.map((s, j) => ({ j, n: ny, t: `${dShort(s.date)}${s.dte === 0 ? " · 0" : ""}${s.complete ? "" : " · partial"}`, strong: j === ny - 1 })).filter((l) => l.j % 2 === (ny - 1) % 2)} />
       <GridSurface z={z} colors={colors} />
       {hist.map((_, j) => (
         <Line key={j} points={ks.map((k, i) => [xOf(k), z[i][j] ?? 0, yOf(j)] as [number, number, number])}
@@ -123,25 +119,26 @@ function GammaTerrain({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; s
       ))}
       {spotPath.length > 1 && <Line points={spotPath} color={pal.ink1} lineWidth={1.4} dashed dashSize={0.12} gapSize={0.08} />}
       {spotPath.map((p, j) => <mesh key={j} position={p}><sphereGeometry args={[0.05, 10, 10]} /><meshBasicMaterial color={pal.ink1} /></mesh>)}
-      <Tag p={[W / 2 + 0.2, H + 0.2, -D / 2]}>peak |Γ| {num(max / 1e5, 1)}L · unit pending</Tag>
+      <Tag p={[W / 2 + 0.2, H + 0.2, -D / 2]}>peak |γ| {num(max / 1e5, 1)}L · unit pending</Tag>
     </group>
   );
 }
 
 // ---------- 3 · Pain bowl ----------
 function PainBowl({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; step: number }) {
-  const ks = useMemo(() => strikeAxis(hist, step, 0.05), [hist, step]);
+  const ks = useMemo(() => strikeAxis(hist), [hist, step]);
   const { z, colors, mins } = useMemo(() => {
-    const rows = hist.map((s) => {
-      const chain = s.rows.filter((r) => r.oiCall != null || r.oiPut != null);
-      if (!chain.length) return null;
-      return ks.map((K) => chain.reduce((a, r) => a + (r.oiCall ?? 0) * Math.max(0, K - r.strike) + (r.oiPut ?? 0) * Math.max(0, r.strike - K), 0));
+    const norm = hist.map((s) => {
+      const m = new Map(s.rows.map((r) => [r.strike, r.pain]));
+      const vals = ks.map((k) => m.get(k) ?? null);
+      const pres = vals.filter((v): v is number => v != null);
+      if (!pres.length) return null;
+      const lo = Math.min(...pres), hi = Math.max(...pres);
+      return vals.map((v) => (v == null ? null : (v - lo) / (hi - lo || 1)));
     });
-    // each session on its own min→max scale: the bowl's shape, not its depth, is the comparison
-    const norm = rows.map((r) => { if (!r) return null; const lo = Math.min(...r), hi = Math.max(...r); return r.map((v) => (v - lo) / (hi - lo || 1)); });
-    const z = ks.map((_, i) => norm.map((r) => (r ? r[i] * H : null)));
-    const colors = ks.map((_, i) => norm.map((r) => (r ? pal.s2.clone().lerp(pal.ink3, 0.25 + 0.6 * r[i]) : null)));
-    const mins = norm.map((r) => (r ? r.indexOf(0) : -1));
+    const z = ks.map((_, i) => norm.map((r) => (r && r[i] != null ? r[i]! * H : null)));
+    const colors = ks.map((_, i) => norm.map((r) => (r && r[i] != null ? pal.s2.clone().lerp(pal.ink3, 0.25 + 0.6 * r[i]!) : null)));
+    const mins = hist.map((s) => { const r = s.rows.find((x) => x.isMaxPain); return r ? ks.indexOf(r.strike) : -1; });
     return { z, colors, mins };
   }, [hist, ks, pal]);
   const ny = hist.length;
@@ -152,7 +149,7 @@ function PainBowl({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; step:
   return (
     <group>
       <Floor pal={pal} nx={ks.length} labelsX={xLabels(ks, Math.ceil(ks.length / 6))}
-        labelsY={hist.map((s, j) => ({ j, n: ny, t: `${dShort(s.date)} · ${s.dte ?? "—"}d`, strong: j === ny - 1 })).filter((l) => l.j % 2 === (ny - 1) % 2)} />
+        labelsY={hist.map((s, j) => ({ j, n: ny, t: `${dShort(s.date)}${s.dte === 0 ? " · 0" : ""}${s.complete ? "" : " · partial"}`, strong: j === ny - 1 })).filter((l) => l.j % 2 === (ny - 1) % 2)} />
       <GridSurface z={z} colors={colors} opacity={0.7} />
       {hist.map((_, j) => (
         <Line key={j} points={ks.map((_, i) => [xi(i), z[i][j] ?? 0, yOf(j)] as [number, number, number])}
@@ -161,6 +158,7 @@ function PainBowl({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; step:
       {path.length > 1 && <Line points={path} color={pal.ink1} lineWidth={2} />}
       {path.map((p, j) => <mesh key={j} position={p}><sphereGeometry args={[0.06, 10, 10]} /><meshBasicMaterial color={pal.ink1} /></mesh>)}
       {last >= 0 && <Tag p={[xi(last), 0.45, yOf(ny - 1)]} c="var(--ink-1)" strong>MAX PAIN {num(ks[last])}</Tag>}
+      {hist.map((s, j) => mins[j] < 0 && s.maxPainStrike != null ? <Tag key={`o${j}`} p={[W / 2 + 1.4, 0, yOf(j)]}>max pain {num(s.maxPainStrike)} · outside window</Tag> : null)}
     </group>
   );
 }
@@ -225,9 +223,9 @@ function IvFence({ surface, pal, mWin }: { surface: any[]; pal: Pal; mWin: numbe
 
 // ---------- page ----------
 const NOTES: Record<View, string> = {
-  gamma: "Height = |net γ| per strike at each session's settled run (≤ 15:30 IST); hue = sign (cool dampening · warm amplifying). Dashed white = spot. Holes are missing strikes, never zero. Front expiry rolls between rows.",
+  gamma: "Height = |net γ| per strike at each session's settled run (≤ 15:15 IST, v_gex_strike_terrain); hue = sign (cool dampening · warm amplifying). Dashed white = spot. Holes are missing strikes, never zero. Front expiry rolls between rows.",
   iv: "Two legs only (W1 + W2) — a two-rail fence, not a surface. Zero-OI strikes excluded; ±9 % moneyness. Rings = server ATM; dashed rungs join equal moneyness so the front→back smile rotation shows. Grey: IV is unsigned.",
-  pain: "Total holder pain per candidate strike from each session's settled OI (contracts × points, lot-agnostic) — computed in the browser for this prototype, not v_gex_max_pain. Each row on its own scale; white path = the minimum. Grey: positional.",
+  pain: "Writer pain per strike from v_gex_strike_terrain at each session's settled run. Each row on its own scale; white path = the view's max-pain strike. Grey: positional.",
 };
 
 export default function Lab3D() {
