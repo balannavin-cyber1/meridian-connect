@@ -62,12 +62,27 @@ function GridSurface({ z, colors, opacity = 0.62 }: { z: (number | null)[][]; co
   );
 }
 
-const Tag = ({ p, children, c = "var(--ink-3)", strong }: { p: [number, number, number]; children: React.ReactNode; c?: string; strong?: boolean }) => (
-  <Html position={p} center zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
-    <span className="whitespace-nowrap font-[family-name:var(--font-plex)] tabular-nums"
-      style={{ fontSize: 10, color: c, fontWeight: strong ? 600 : 400, letterSpacing: ".04em" }}>{children}</span>
-  </Html>
-);
+type Align = "center" | "left" | "right";
+const useSmallLabel = () => {
+  const [small, setSmall] = useState(() => typeof window !== "undefined" && window.innerWidth < 480);
+  useEffect(() => {
+    const f = () => setSmall(window.innerWidth < 480);
+    f();
+    window.addEventListener("resize", f);
+    return () => window.removeEventListener("resize", f);
+  }, []);
+  return small;
+};
+const Tag = ({ p, children, c = "var(--ink-3)", strong, align = "center" }: { p: [number, number, number]; children: React.ReactNode; c?: string; strong?: boolean; align?: Align }) => {
+  const small = useSmallLabel();
+  return (
+    <Html position={p} center={align === "center"} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
+      <span className="whitespace-nowrap font-[family-name:var(--font-plex)] tabular-nums"
+        style={{ display: "inline-block", fontSize: small ? 8 : 10, color: c, fontWeight: strong ? 600 : 400, letterSpacing: ".04em",
+          transform: align === "right" ? "translate(-100%, -50%)" : align === "left" ? "translate(0, -50%)" : undefined }}>{children}</span>
+    </Html>
+  );
+};
 
 function Floor({ pal, nx, labelsX, labelsY }: { pal: Pal; nx: number; labelsX: { i: number; t: string }[]; labelsY: { j: number; n: number; t: string; strong?: boolean }[] }) {
   const xi = (i: number) => (nx > 1 ? -W / 2 + (i / (nx - 1)) * W : 0);
@@ -78,8 +93,8 @@ function Floor({ pal, nx, labelsX, labelsY }: { pal: Pal; nx: number; labelsX: {
         <meshBasicMaterial color={pal.bg} />
       </mesh>
       <Line points={[[-W / 2, 0, D / 2 + 0.3], [W / 2, 0, D / 2 + 0.3]]} color={pal.axis} lineWidth={1} />
-      {labelsX.map((l) => <Tag key={l.i} p={[xi(l.i), 0, D / 2 + 0.75]}>{l.t}</Tag>)}
-      {labelsY.map((l) => <Tag key={l.j} p={[-W / 2 - 0.9, 0, l.n > 1 ? -D / 2 + (l.j / (l.n - 1)) * D : 0]} c={l.strong ? "var(--ink-1)" : undefined} strong={l.strong}>{l.t}</Tag>)}
+      {labelsX.map((l) => <Tag key={l.i} p={[xi(l.i), 0, D / 2 + 0.75]} align={l.i <= 0 ? "left" : l.i >= nx - 1 ? "right" : "center"}>{l.t}</Tag>)}
+      {labelsY.map((l) => <Tag key={l.j} p={[-W / 2 - 0.9, 0, l.n > 1 ? -D / 2 + (l.j / (l.n - 1)) * D : 0]} align="left" c={l.strong ? "var(--ink-1)" : undefined} strong={l.strong}>{l.t}</Tag>)}
     </group>
   );
 }
@@ -119,7 +134,7 @@ function GammaTerrain({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; s
       ))}
       {spotPath.length > 1 && <Line points={spotPath} color={pal.ink1} lineWidth={1.4} dashed dashSize={0.12} gapSize={0.08} />}
       {spotPath.map((p, j) => <mesh key={j} position={p}><sphereGeometry args={[0.05, 10, 10]} /><meshBasicMaterial color={pal.ink1} /></mesh>)}
-      <Tag p={[W / 2 + 0.2, H + 0.2, -D / 2]}>peak |γ| {num(max / 1e5, 1)}L · unit pending</Tag>
+      <Tag p={[W / 2 + 0.2, H + 0.2, -D / 2]} align="right">peak |γ| {num(max / 1e5, 1)}L · unit pending</Tag>
     </group>
   );
 }
