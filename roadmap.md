@@ -5,4 +5,5 @@
 - [x] Gamma ladder: cumulative series uses its own full-chain scale with connected dots
 - [x] Phase 1d: OI tab — butterfly, max-pain rule/valley, ΔOI ticks and SENSEX n/a state
 - [x] IV tab (term structure + smile)
-- [ ] Pin / Flows tab layers
+- [x] Pin / Flows tabs: S92 presentation pass (grouped bodies, hedge chart, 2×2 ratio grid)
+- [x] Pin / Flows polish: ruled names render exactly (∂Δ/∂t not ∂Δ/∂T, γ not Γ); tab numbers removed
