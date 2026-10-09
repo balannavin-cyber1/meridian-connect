@@ -1,6 +1,5 @@
 // Board tabs + shared ladder + Overview value list, caption and detail panel (Phase 1b).
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { StrikeLadder, type Level, type LadderRow } from "./StrikeLadder";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PinBody, FlowsBody, type Stretch } from "./PinFlowsBody";

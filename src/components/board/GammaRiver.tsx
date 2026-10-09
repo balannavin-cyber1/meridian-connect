@@ -1,7 +1,6 @@
 // Gamma river (Phase 1c): settled daily net γ — min–max band per session, settled point, price on its own scale.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RiverDay } from "@/lib/board";
-import { Link } from "react-router-dom";
 
 const num = (v: number, d = 0) => v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
 const lak = (v: number) => (Math.abs(v) >= 1e5 ? `${v < 0 ? "−" : v > 0 ? "+" : ""}${num(Math.abs(v) / 1e5, 1)}L` : `${v < 0 ? "−" : "+"}${num(Math.abs(v))}`);
