@@ -13,6 +13,7 @@ import Order from "./pages/Order";
 import Health from "./pages/Health";
 import Journal from "./pages/Journal";
 import NotFound from "./pages/NotFound";
+import Lab3D from "./pages/Lab3D";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/marketview" element={<Navigate to="/home" replace />} />
           <Route path="/home" element={<Home />} />
           <Route path="/board" element={<Board />} />
+          <Route path="/board/3d" element={<Lab3D />} />
           <Route path="/context" element={<Breadth />} />
           <Route path="/positioning" element={<Positioning />} />
           <Route path="/max-pain" element={<MaxPainOI />} />

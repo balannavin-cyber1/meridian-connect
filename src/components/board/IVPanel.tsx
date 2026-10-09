@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { istTime, istDateOf } from "@/lib/board";
 
 type Data = { ts: string; awaiting: boolean; next: string | null; term: any[]; surface: any[] } | null | undefined;
@@ -133,6 +134,7 @@ function Smile({ rows, leg, setLeg, legs }: { rows: any[]; leg: number; setLeg: 
           style={{ borderColor: norm ? "var(--ink-1)" : "var(--line-2)", color: norm ? "var(--ink-1)" : "var(--ink-3)" }}>
           {norm ? "IV ÷ ATM" : "IV %"}
         </button>
+        <Link to="/board/3d?v=iv" className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }} title="3D drill-down">3D ›</Link>
         <div className="flex gap-1" title="x-window: moneyness range">
           <button onClick={() => panX(-1)} className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }}>◀</button>
           <button onClick={() => zoomX(1 / 1.6)} className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }}>+</button>
