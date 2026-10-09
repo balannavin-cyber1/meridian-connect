@@ -6,7 +6,7 @@ import { useSymbol } from "@/contexts/SymbolContext";
 import {
   useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useWalls, useStrikeRank,
   useIvFront, useFutures, useSpotPocket, useGammaSession, useOpenGap, usePrevBasis,
-  istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, usePinBand,
+  istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, useOiRotation, usePinBand,
   useConcentration, useNetGammaToday, useGammaRiver,
   useMaxPainRun, useLiveSpot,
   usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useFlowSim,
@@ -16,7 +16,7 @@ import { Sym } from "@/components/board/Sym";
 import type { Level } from "@/components/board/StrikeLadder";
 import { GammaRiver } from "@/components/board/GammaRiver";
 import { IVPanel } from "@/components/board/IVPanel";
-import { useIvTab } from "@/lib/board";
+import { useIvTab, istToday } from "@/lib/board";
 
 const CELL_TO_ITEM: Record<string, string> = { s1: "dte", s2: "spot", s3: "net", s4: "flip", s5: "corridor", s6: "pin", s7: "priced" };
 
@@ -93,6 +93,7 @@ export default function Board() {
   const nextOpen = useNextOpen().data ?? null;
   const closedWord = `market closed${nextOpen ? ` · next ${new Date(nextOpen + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}` : ""}`;
   const ladder = useLadderStrikes(symbol).data;
+  const rotQ = useOiRotation(symbol);
   const pinBandRow = usePinBand(symbol).data as any;
   const sess = useSessions();
   const session = sess.data?.session ?? null, prev = sess.data?.prev ?? null;
@@ -282,27 +283,49 @@ export default function Board() {
   const totalPut = oiRaw.reduce((sum, r) => sum + (r.oiPut ?? 0), 0);
   const totalOI = totalCall + totalPut;
   const oiFmt = (v: number) => Math.abs(v) >= 1e5 ? `${sgn(v / 1e5, 1)}L` : Math.abs(v) >= 1e3 ? `${sgn(v / 1e3, 1)}K` : sgn(v, 0);
-  const deltaAvailable = symbol !== "SENSEX" && (ladder?.runCount ?? 0) >= 2;
-  const deltaNet = deltaAvailable ? oiRaw.reduce((sum, r) => sum + (r.deltaCall ?? 0) + (r.deltaPut ?? 0), 0) : null;
+  const rot = (rotQ.data ?? []) as any[];
+  const rotExp: string | null = rot[0]?.expiry_date ?? null;
+  const rotExpDiffers = rot.length > 0 && ladder?.expiry != null && rotExp != null && rotExp !== ladder.expiry;
+  const deltaAvailable = symbol !== "SENSEX" && rot.length > 0 && !rotExpDiffers;
+  const rotBy = new Map(rot.map((r) => [Number(r.strike), r]));
+  const sideD = (r: any, side: "ce" | "pe") => r && r[`${side}_presence`] === "BOTH" && r[`${side}_oi_delta_qty`] != null ? Number(r[`${side}_oi_delta_qty`]) : null;
+  const sumC = deltaAvailable ? rot.reduce((a, r) => a + (sideD(r, "ce") ?? 0), 0) : null;
+  const sumP = deltaAvailable ? rot.reduce((a, r) => a + (sideD(r, "pe") ?? 0), 0) : null;
   const maxPain = painRows[0]?.maxPain ?? null;
   const maxPainPct = maxPain != null && spot ? ((maxPain - spot) / spot) * 100 : null;
-  const oiRows = oiRaw.map((r) => ({
-    strike: r.strike, value: null, tint: null,
-    leftValue: r.oiPut, rightValue: r.oiCall,
-    deltaLeft: deltaAvailable ? r.deltaPut : null, deltaRight: deltaAvailable ? r.deltaCall : null,
-    readout: oiFmt((r.oiCall ?? 0) + (r.oiPut ?? 0)),
-    full: `put ${oiFmt(r.oiPut ?? 0)} · call ${oiFmt(r.oiCall ?? 0)}`,
-  }));
+  const oiRows = oiRaw.map((r) => {
+    const v = deltaAvailable ? rotBy.get(r.strike) : undefined;
+    const dl = v ? sideD(v, "pe") : null, dr = v ? sideD(v, "ce") : null;
+    return {
+      strike: r.strike, value: null, tint: null,
+      leftValue: r.oiPut, rightValue: r.oiCall,
+      deltaLeft: dl, deltaRight: dr,
+      ncLeft: !!v && dl == null, ncRight: !!v && dr == null,
+      readout: oiFmt((r.oiCall ?? 0) + (r.oiPut ?? 0)),
+      full: `put ${oiFmt(r.oiPut ?? 0)} · call ${oiFmt(r.oiCall ?? 0)}`,
+    };
+  });
   const painCurve = painRows.length ? new Map(painRows.map((r) => [r.strike, r.pain])) : null;
   const oiLevels: Level[] = maxPain != null ? [{ id: "maxpain", name: `MAX PAIN ${num(maxPain)}`, at: maxPain, style: "spot" }] : [];
-  const oiDeltaNote = symbol === "SENSEX" ? "ΔOI · n/a (SENSEX)" : (ladder?.runCount ?? 0) < 2 ? "ΔOI · 1 run" : "ΔOI · since first run";
+  const rotLatest: string | null = rot[0]?.latest_ts ?? null;
+  const rotSub = (() => {
+    if (!rot.length) return "ΔOI · no 09:15 anchor yet";
+    if (rotExpDiffers) return `ΔOI · expiry differs (chain ${expShort(rotExp)} vs γ ${expShort(ladder!.expiry)})`;
+    let s = `since 09:15 · chain ${rotLatest ? istTime(rotLatest) : "—"}`;
+    if (rotLatest && istDateOf(rotLatest) !== istToday()) s += ` · session ${istDateOf(rotLatest)}`;
+    if (rot[0]?.is_fresh === false) s += ` · not fresh (age ${Math.round(Number(rot[0]?.snapshot_age_min ?? 0))} min)`;
+    return s;
+  })();
+  const oiDeltaNote = symbol === "SENSEX" ? "ΔOI · n/a (SENSEX · TD-S84-NEW-4)" : rotSub;
   const oiItems: OverviewItem[] = [
     { id: "oi_max", label: "Max pain", sub: "γ clock · pain minimum", value: maxPain != null ? num(maxPain) : <Absent word="no run" />, levelIds: ["maxpain"], caption: maxPain != null ? `Max pain is ${num(maxPain)}; the ink rule marks the minimum of the faint pain valley.` : "No max-pain run." },
     { id: "oi_dist", label: "Distance to max pain", sub: maxPainPct == null ? "" : maxPainPct > 0 ? "above spot" : maxPainPct < 0 ? "below spot" : "at spot", value: maxPainPct != null ? `${sgn(maxPainPct, 2)} %` : <Absent word="no run" />, levelIds: ["maxpain"], caption: maxPainPct != null ? `Max pain is ${Math.abs(maxPainPct).toFixed(2)}% ${maxPainPct > 0 ? "above" : maxPainPct < 0 ? "below" : "at"} spot.` : "Distance unavailable." },
     { id: "oi_callwall", label: "Call OI wall", sub: "calls · right wing", value: cw != null ? num(cw) : <Absent word="no wall" />, levelIds: [], caption: cw != null ? `Call OI wall is ${num(cw)}; call contracts extend right from the strike axis.` : "No call wall." },
     { id: "oi_putwall", label: "Put OI wall", sub: "puts · left wing", value: pw != null ? num(pw) : <Absent word="no wall" />, levelIds: [], caption: pw != null ? `Put OI wall is ${num(pw)}; put contracts extend left from the strike axis.` : "No put wall." },
     { id: "oi_total", label: "Total OI", sub: `calls ${oiFmt(totalCall)} · puts ${oiFmt(totalPut)}`, value: totalOI ? oiFmt(totalOI).replace(/^\+/, "") : <Absent word="no run" />, levelIds: [], caption: `Stored chain OI totals ${oiFmt(totalOI).replace(/^\+/, "")} contracts: calls ${oiFmt(totalCall).replace(/^\+/, "")}, puts ${oiFmt(totalPut).replace(/^\+/, "")}.` },
-    ...(symbol !== "SENSEX" ? [{ id: "oi_delta", label: "ΔOI net", sub: oiDeltaNote, value: deltaNet != null ? <span style={{ color: hue(deltaNet) }}>{oiFmt(deltaNet)}</span> : <span style={{ color: "var(--ink-3)" }}>—</span>, levelIds: [], caption: deltaNet != null ? `Net OI changed ${oiFmt(deltaNet)} contracts since today's first gamma run.` : "One run today — ΔOI ticks are hidden." }] : []),
+    ...(symbol !== "SENSEX" ? [{ id: "oi_delta", label: "ΔOI net", sub: oiDeltaNote,
+      value: sumC != null && sumP != null ? <span>C <span style={{ color: hue(sumC) }}>{oiFmt(sumC)}</span> · P <span style={{ color: hue(sumP) }}>{oiFmt(sumP)}</span></span> : <Absent word="—" />,
+      levelIds: [], caption: "Open interest added (+) or unwound (−) since the 09:15 anchor, per side, in quantity." }] : []),
   ];
 
   // ---------- Pin tab (S92: L12 — rulings S92-D, S92-F) ----------

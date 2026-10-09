@@ -289,44 +289,34 @@ export function useLadderStrikes(s: Symbol) {
         .eq("run_id", (top as any).run_id).order("strike", { ascending: true }).limit(1000);
       if (error) throw error;
       const current = (data ?? []) as any[];
-      const gate = await getGate();
-      let firstRows: any[] = [];
-      let runCount = 0;
-      if (gate.session && s !== "SENSEX") {
-        const expiry = (current[0]?.expiry_date as string | undefined) ?? null;
-        let runsQ: any = supabase.from("gex_strike_snapshots").select("run_id, ts").eq("symbol", s)
-          .gte("ts", istAt(gate.session, "00:00")).lt("ts", istAt(nextDay(gate.session), "00:00"));
-        if (expiry) runsQ = runsQ.eq("expiry_date", expiry);
-        const { data: runRows, error: runError } = await runsQ.order("ts", { ascending: true }).limit(5000);
-        if (runError) throw runError;
-        const runIds = [...new Set(((runRows ?? []) as any[]).map((r) => r.run_id as string))];
-        runCount = runIds.length;
-        const firstRunId = runIds[0];
-        if (firstRunId) {
-          const { data: first, error: firstError } = await supabase.from("gex_strike_snapshots")
-            .select("strike, oi_call, oi_put").eq("symbol", s).eq("run_id", firstRunId).order("strike", { ascending: true }).limit(1000);
-          if (firstError) throw firstError;
-          firstRows = (first ?? []) as any[];
-        }
-      }
-      const firstByStrike = new Map(firstRows.map((r) => [Number(r.strike), r]));
       const rows = current.map((r) => {
         const has = r.gamma_call != null || r.gamma_put != null;
-        const strike = Number(r.strike);
-        const first = firstByStrike.get(strike);
-        const oiCall = r.oi_call != null ? Number(r.oi_call) : null;
-        const oiPut = r.oi_put != null ? Number(r.oi_put) : null;
         return {
-          strike, gex: has && r.gex_cr != null ? Number(r.gex_cr) : null,
-          oiCall, oiPut,
-          deltaCall: runCount >= 2 && oiCall != null && first?.oi_call != null ? oiCall - Number(first.oi_call) : null,
-          deltaPut: runCount >= 2 && oiPut != null && first?.oi_put != null ? oiPut - Number(first.oi_put) : null,
+          strike: Number(r.strike), gex: has && r.gex_cr != null ? Number(r.gex_cr) : null,
+          oiCall: r.oi_call != null ? Number(r.oi_call) : null,
+          oiPut: r.oi_put != null ? Number(r.oi_put) : null,
         };
       });
-      return { runId: (top as any).run_id as string, ts: (top as any).ts as string, runCount, rows };
+      const expiry = (current[0]?.expiry_date as string | undefined) ?? null;
+      return { runId: (top as any).run_id as string, ts: (top as any).ts as string, expiry, rows };
     },
   });
 }
+
+/** L13: OI rotation since the 09:15 anchor (chain clock). SENSEX not fetched. */
+export function useOiRotation(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "rotation", s], ...opts, enabled: s !== "SENSEX",
+    queryFn: async () => {
+      const { data, error } = await supabase.from("v_oi_rotation_since_open")
+        .select("symbol, expiry_date, dte, anchor_ts, latest_ts, strike, ce_oi_anchor_qty, ce_oi_latest_qty, ce_oi_delta_qty, ce_presence, pe_oi_anchor_qty, pe_oi_latest_qty, pe_oi_delta_qty, pe_presence, snapshot_age_min, stale_floor_min_used, is_fresh")
+        .eq("symbol", s).order("strike", { ascending: true }).limit(1000);
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+}
+
 
 /** Max-pain candidate valley at the exact γ-clock run used by the ladder. */
 export function useMaxPainRun(s: Symbol, runId: string | null) {
