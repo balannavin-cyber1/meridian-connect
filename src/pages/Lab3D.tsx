@@ -206,7 +206,7 @@ function IvFence({ surface, pal, mWin }: { surface: any[]; pal: Pal; mWin: numbe
   return (
     <group>
       <Floor pal={pal} nx={2} labelsX={[]} labelsY={[]} />
-      {[-mWin, -mWin / 2, 0, mWin / 2, mWin].map((m) => <Tag key={m} p={[xOf(m), 0, D / 2 + 0.75]} align={m === -mWin ? "left" : m === mWin ? "right" : "center"}>{m > 0 ? "+" : m < 0 ? "−" : ""}{num(Math.abs(m), 1)} %</Tag>)}
+      {[-mWin, -mWin / 2, 0, mWin / 2, mWin].map((m) => <Tag key={`mx${m}`} p={[xOf(m), 0, D / 2 + 0.75]} align={m === -mWin ? "left" : m === mWin ? "right" : "center"}>{m > 0 ? "+" : m < 0 ? "−" : ""}{num(Math.abs(m), 1)} %</Tag>)}
       {legs.map((pts, li) => {
         if (!pts.length) return <Tag key={li} p={[0, 0.4, yLeg[li]]}>{li === 0 ? "W1" : "W2"} · pending measurement</Tag>;
         const leg = pts[0].row;
@@ -235,7 +235,7 @@ function IvFence({ surface, pal, mWin }: { surface: any[]; pal: Pal; mWin: numbe
       {legs[0].length > 1 && legs[1].length > 1 && rungs.map((m) => {
         const a = interp(legs[0], m), b = interp(legs[1], m);
         if (a == null || b == null) return null;
-        return <Line key={m} points={[[xOf(m), zOf(a), yLeg[0]], [xOf(m), zOf(b), yLeg[1]]]} color={pal.ink3} lineWidth={0.8} dashed dashSize={0.08} gapSize={0.06} />;
+        return <Line key={`r${m}`} points={[[xOf(m), zOf(a), yLeg[0]], [xOf(m), zOf(b), yLeg[1]]]} color={pal.ink3} lineWidth={0.8} dashed dashSize={0.08} gapSize={0.06} />;
       })}
       <Tag p={[W / 2 + 0.2, H + 0.5, -D / 2]} align="right">IV {num(lo, 1)}–{num(hi, 1)} % · own scale</Tag>
     </group>
