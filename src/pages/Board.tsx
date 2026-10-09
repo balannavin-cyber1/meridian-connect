@@ -6,7 +6,7 @@ import { useSymbol } from "@/contexts/SymbolContext";
 import {
   useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useWalls, useStrikeRank,
   useIvFront, useFutures, useSpotPocket, useGammaSession, useOpenGap, usePrevBasis,
-  istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, usePinBand,
+  istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, useOiRotation, usePinBand,
   useConcentration, useNetGammaToday, useGammaRiver,
   useMaxPainRun, useLiveSpot,
   usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useFlowSim,
@@ -93,6 +93,7 @@ export default function Board() {
   const nextOpen = useNextOpen().data ?? null;
   const closedWord = `market closed${nextOpen ? ` · next ${new Date(nextOpen + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}` : ""}`;
   const ladder = useLadderStrikes(symbol).data;
+  const rotQ = useOiRotation(symbol);
   const pinBandRow = usePinBand(symbol).data as any;
   const sess = useSessions();
   const session = sess.data?.session ?? null, prev = sess.data?.prev ?? null;
@@ -322,7 +323,9 @@ export default function Board() {
     { id: "oi_callwall", label: "Call OI wall", sub: "calls · right wing", value: cw != null ? num(cw) : <Absent word="no wall" />, levelIds: [], caption: cw != null ? `Call OI wall is ${num(cw)}; call contracts extend right from the strike axis.` : "No call wall." },
     { id: "oi_putwall", label: "Put OI wall", sub: "puts · left wing", value: pw != null ? num(pw) : <Absent word="no wall" />, levelIds: [], caption: pw != null ? `Put OI wall is ${num(pw)}; put contracts extend left from the strike axis.` : "No put wall." },
     { id: "oi_total", label: "Total OI", sub: `calls ${oiFmt(totalCall)} · puts ${oiFmt(totalPut)}`, value: totalOI ? oiFmt(totalOI).replace(/^\+/, "") : <Absent word="no run" />, levelIds: [], caption: `Stored chain OI totals ${oiFmt(totalOI).replace(/^\+/, "")} contracts: calls ${oiFmt(totalCall).replace(/^\+/, "")}, puts ${oiFmt(totalPut).replace(/^\+/, "")}.` },
-    ...(symbol !== "SENSEX" ? [{ id: "oi_delta", label: "ΔOI net", sub: oiDeltaNote, value: deltaNet != null ? <span style={{ color: hue(deltaNet) }}>{oiFmt(deltaNet)}</span> : <span style={{ color: "var(--ink-3)" }}>—</span>, levelIds: [], caption: deltaNet != null ? `Net OI changed ${oiFmt(deltaNet)} contracts since today's first gamma run.` : "One run today — ΔOI ticks are hidden." }] : []),
+    ...(symbol !== "SENSEX" ? [{ id: "oi_delta", label: "ΔOI net", sub: oiDeltaNote,
+      value: sumC != null && sumP != null ? <span>C <span style={{ color: hue(sumC) }}>{oiFmt(sumC)}</span> · P <span style={{ color: hue(sumP) }}>{oiFmt(sumP)}</span></span> : <Absent word="—" />,
+      levelIds: [], caption: "Open interest added (+) or unwound (−) since the 09:15 anchor, per side, in quantity." }] : []),
   ];
 
   // ---------- Pin tab (S92: L12 — rulings S92-D, S92-F) ----------
