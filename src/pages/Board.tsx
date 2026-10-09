@@ -282,20 +282,40 @@ export default function Board() {
   const totalPut = oiRaw.reduce((sum, r) => sum + (r.oiPut ?? 0), 0);
   const totalOI = totalCall + totalPut;
   const oiFmt = (v: number) => Math.abs(v) >= 1e5 ? `${sgn(v / 1e5, 1)}L` : Math.abs(v) >= 1e3 ? `${sgn(v / 1e3, 1)}K` : sgn(v, 0);
-  const deltaAvailable = symbol !== "SENSEX" && (ladder?.runCount ?? 0) >= 2;
-  const deltaNet = deltaAvailable ? oiRaw.reduce((sum, r) => sum + (r.deltaCall ?? 0) + (r.deltaPut ?? 0), 0) : null;
+  const rot = (rotQ.data ?? []) as any[];
+  const rotExp: string | null = rot[0]?.expiry_date ?? null;
+  const rotExpDiffers = rot.length > 0 && ladder?.expiry != null && rotExp != null && rotExp !== ladder.expiry;
+  const deltaAvailable = symbol !== "SENSEX" && rot.length > 0 && !rotExpDiffers;
+  const rotBy = new Map(rot.map((r) => [Number(r.strike), r]));
+  const sideD = (r: any, side: "ce" | "pe") => r && r[`${side}_presence`] === "BOTH" && r[`${side}_oi_delta_qty`] != null ? Number(r[`${side}_oi_delta_qty`]) : null;
+  const sumC = deltaAvailable ? rot.reduce((a, r) => a + (sideD(r, "ce") ?? 0), 0) : null;
+  const sumP = deltaAvailable ? rot.reduce((a, r) => a + (sideD(r, "pe") ?? 0), 0) : null;
   const maxPain = painRows[0]?.maxPain ?? null;
   const maxPainPct = maxPain != null && spot ? ((maxPain - spot) / spot) * 100 : null;
-  const oiRows = oiRaw.map((r) => ({
-    strike: r.strike, value: null, tint: null,
-    leftValue: r.oiPut, rightValue: r.oiCall,
-    deltaLeft: deltaAvailable ? r.deltaPut : null, deltaRight: deltaAvailable ? r.deltaCall : null,
-    readout: oiFmt((r.oiCall ?? 0) + (r.oiPut ?? 0)),
-    full: `put ${oiFmt(r.oiPut ?? 0)} · call ${oiFmt(r.oiCall ?? 0)}`,
-  }));
+  const oiRows = oiRaw.map((r) => {
+    const v = deltaAvailable ? rotBy.get(r.strike) : undefined;
+    const dl = v ? sideD(v, "pe") : null, dr = v ? sideD(v, "ce") : null;
+    return {
+      strike: r.strike, value: null, tint: null,
+      leftValue: r.oiPut, rightValue: r.oiCall,
+      deltaLeft: dl, deltaRight: dr,
+      ncLeft: !!v && dl == null, ncRight: !!v && dr == null,
+      readout: oiFmt((r.oiCall ?? 0) + (r.oiPut ?? 0)),
+      full: `put ${oiFmt(r.oiPut ?? 0)} · call ${oiFmt(r.oiCall ?? 0)}`,
+    };
+  });
   const painCurve = painRows.length ? new Map(painRows.map((r) => [r.strike, r.pain])) : null;
   const oiLevels: Level[] = maxPain != null ? [{ id: "maxpain", name: `MAX PAIN ${num(maxPain)}`, at: maxPain, style: "spot" }] : [];
-  const oiDeltaNote = symbol === "SENSEX" ? "ΔOI · n/a (SENSEX)" : (ladder?.runCount ?? 0) < 2 ? "ΔOI · 1 run" : "ΔOI · since first run";
+  const rotLatest: string | null = rot[0]?.latest_ts ?? null;
+  const rotSub = (() => {
+    if (!rot.length) return "ΔOI · no 09:15 anchor yet";
+    if (rotExpDiffers) return `ΔOI · expiry differs (chain ${expShort(rotExp)} vs γ ${expShort(ladder!.expiry)})`;
+    let s = `since 09:15 · chain ${rotLatest ? istTime(rotLatest) : "—"}`;
+    if (rotLatest && istDateOf(rotLatest) !== istToday()) s += ` · session ${istDateOf(rotLatest)}`;
+    if (rot[0]?.is_fresh === false) s += ` · not fresh (age ${Math.round(Number(rot[0]?.snapshot_age_min ?? 0))} min)`;
+    return s;
+  })();
+  const oiDeltaNote = symbol === "SENSEX" ? "ΔOI · n/a (SENSEX · TD-S84-NEW-4)" : rotSub;
   const oiItems: OverviewItem[] = [
     { id: "oi_max", label: "Max pain", sub: "γ clock · pain minimum", value: maxPain != null ? num(maxPain) : <Absent word="no run" />, levelIds: ["maxpain"], caption: maxPain != null ? `Max pain is ${num(maxPain)}; the ink rule marks the minimum of the faint pain valley.` : "No max-pain run." },
     { id: "oi_dist", label: "Distance to max pain", sub: maxPainPct == null ? "" : maxPainPct > 0 ? "above spot" : maxPainPct < 0 ? "below spot" : "at spot", value: maxPainPct != null ? `${sgn(maxPainPct, 2)} %` : <Absent word="no run" />, levelIds: ["maxpain"], caption: maxPainPct != null ? `Max pain is ${Math.abs(maxPainPct).toFixed(2)}% ${maxPainPct > 0 ? "above" : maxPainPct < 0 ? "below" : "at"} spot.` : "Distance unavailable." },
