@@ -218,11 +218,11 @@ function IvFence({ surface, pal, mWin }: { surface: any[]; pal: Pal; mWin: numbe
             <mesh geometry={ribbon}><meshBasicMaterial color={pal.ink3} transparent opacity={li === 0 ? 0.16 : 0.1} side={THREE.DoubleSide} depthWrite={false} /></mesh>
             <Line points={pts.map((p) => [xOf(p.m), zOf(p.iv), yLeg[li]] as [number, number, number])} color={c} lineWidth={li === 0 ? 2 : 1.4} />
             {atmIv != null && <mesh position={[0, zOf(atmIv), yLeg[li]]}><torusGeometry args={[0.1, 0.022, 8, 24]} /><meshBasicMaterial color={c} /></mesh>}
-            <Tag p={[-W / 2 - 0.9, zOf(pts[0].iv), yLeg[li]]} c={li === 0 ? "var(--ink-1)" : "var(--ink-2)"} strong={li === 0}>
+            <Tag p={[-W / 2 - 0.9, zOf(pts[0].iv), yLeg[li]]} c={li === 0 ? "var(--ink-1)" : "var(--ink-2)"} strong={li === 0} align="left">
               {li === 0 ? "W1 front" : "W2 back"} · {dShort(leg.expiry_date)}
             </Tag>
             {atmIv != null && <Tag p={[0.1, zOf(atmIv) + 0.35, yLeg[li]]} c={li === 0 ? "var(--ink-1)" : "var(--ink-2)"}>ATM {num(atmIv, 2)} %</Tag>}
-            {leg.leg_skew_98 != null && <Tag p={[W / 2 + 0.6, zOf(pts[pts.length - 1].iv), yLeg[li]]}>skew98 {Number(leg.leg_skew_98) >= 0 ? "+" : "−"}{num(Math.abs(Number(leg.leg_skew_98)), 2)}</Tag>}
+            {leg.leg_skew_98 != null && <Tag p={[W / 2 + 0.6, zOf(pts[pts.length - 1].iv), yLeg[li]]} align="right">skew98 {Number(leg.leg_skew_98) >= 0 ? "+" : "−"}{num(Math.abs(Number(leg.leg_skew_98)), 2)}</Tag>}
           </group>
         );
       })}
@@ -231,7 +231,7 @@ function IvFence({ surface, pal, mWin }: { surface: any[]; pal: Pal; mWin: numbe
         if (a == null || b == null) return null;
         return <Line key={m} points={[[xOf(m), zOf(a), yLeg[0]], [xOf(m), zOf(b), yLeg[1]]]} color={pal.ink3} lineWidth={0.8} dashed dashSize={0.08} gapSize={0.06} />;
       })}
-      <Tag p={[W / 2 + 0.2, H + 0.5, -D / 2]}>IV {num(lo, 1)}–{num(hi, 1)} % · own scale</Tag>
+      <Tag p={[W / 2 + 0.2, H + 0.5, -D / 2]} align="right">IV {num(lo, 1)}–{num(hi, 1)} % · own scale</Tag>
     </group>
   );
 }
@@ -317,7 +317,7 @@ export default function Lab3D() {
         {view === "gamma" && <><Sw c="var(--cool)" l="dampening · long γ" /><Sw c="var(--warm)" l="amplifying" /><Sw c="var(--ink-1)" l="latest session · spot" /></>}
         {view === "iv" && <><Sw c="var(--ink-1)" l="W1 front" /><Sw c="var(--ink-2)" l="W2 back" /><Sw c="var(--ink-3)" l="equal-moneyness rung" /></>}
         {view === "pain" && <><Sw c="var(--ink-3)" l="pain (own scale per row)" /><Sw c="var(--ink-1)" l="max-pain path" /></>}
-        <span className="text-[10px] uppercase tracking-[0.08em]">prototype · not live</span>
+        <span className="text-[10px] uppercase tracking-[0.08em]">optional view</span>
       </div>
       <p className="mt-1 max-w-[900px] text-[12px] leading-relaxed" style={{ color: "var(--ink-2)" }}>{NOTES[view]}</p>
     </div>
