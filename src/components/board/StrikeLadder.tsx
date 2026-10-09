@@ -1,5 +1,6 @@
 // Shared strike ladder (Phase 1b). Every Board tab draws its data layer on this.
 import { useMemo } from "react";
+import { Sym } from "./Sym";
 
 export type LevelStyle = "spot" | "solid" | "dashed" | "dotted";
 export type Level = { id: string; name: string; at: number; style: LevelStyle };
@@ -84,7 +85,7 @@ export function StrikeLadder(p: Props) {
     <button onClick={() => p.onInclude(l.at)}
       className="rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] hover:bg-[var(--s2)]"
       style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }}>
-      {dir} {l.name} {fmt(l.at)}{p.spot ? ` · ${((l.at - p.spot) / p.spot * 100 >= 0 ? "+" : "−")}${Math.abs((l.at - p.spot) / p.spot * 100).toFixed(2)} %` : ""}
+      {dir} <Sym text={l.name} /> {fmt(l.at)}{p.spot ? ` · ${((l.at - p.spot) / p.spot * 100 >= 0 ? "+" : "−")}${Math.abs((l.at - p.spot) / p.spot * 100).toFixed(2)} %` : ""}
     </button>
   );
 
@@ -92,7 +93,7 @@ export function StrikeLadder(p: Props) {
     <button onClick={(e) => { e.stopPropagation(); p.onSelectLevel(ls[0].id); }}
       className="absolute right-1 top-1/2 z-10 -translate-y-1/2 whitespace-nowrap rounded px-1.5 text-[9px] font-semibold uppercase leading-[14px] tracking-[0.06em]"
       style={{ background: "var(--s2)", color: sel ? "var(--sel)" : "var(--ink-2)", border: `1px solid ${sel ? "var(--sel)" : "var(--line-2)"}` }}>
-      {ls.map((l) => l.name).join(" ≡ ")}
+      <Sym text={ls.map((l) => l.name).join(" ≡ ")} />
     </button>
   );
 

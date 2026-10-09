@@ -12,6 +12,7 @@ import {
   usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useFlowSim,
 } from "@/lib/board";
 import { LadderPanel, TABS, type Tab, type OverviewItem } from "@/components/board/LadderPanel";
+import { Sym } from "@/components/board/Sym";
 import type { Level } from "@/components/board/StrikeLadder";
 import { GammaRiver } from "@/components/board/GammaRiver";
 import { IVPanel } from "@/components/board/IVPanel";
@@ -71,7 +72,7 @@ function Cell({ id, label, value, color, sub, viz, sel, onSel }: CellProps) {
     <button onClick={() => onSel(id)} aria-pressed={on}
       className="min-w-0 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--s2)]"
       style={{ background: on ? "var(--s-sel-row)" : "var(--s1)", border: `1px solid ${on ? "var(--sel)" : "var(--line)"}` }}>
-      <div className="truncate text-[10px] font-medium uppercase tracking-[0.10em]" style={{ color: "var(--ink-3)" }}>{label}</div>
+      <div className="truncate text-[10px] font-medium uppercase tracking-[0.10em]" style={{ color: "var(--ink-3)" }}><Sym text={label} /></div>
       <div className="mt-1 truncate text-[20px] font-semibold leading-tight" style={{ fontFamily: "var(--font-plex-cond)", color: color ?? "var(--ink-1)" }}>{value}</div>
       <div className="mt-0.5 truncate text-[11px]" style={{ color: "var(--ink-2)" }}>{sub ?? "\u00a0"}</div>
       {viz}

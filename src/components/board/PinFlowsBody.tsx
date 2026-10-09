@@ -1,12 +1,13 @@
 // S92 design pass: grouped value bodies for the Pin and Flows tabs (presentation only).
 import type { OverviewItem } from "./LadderPanel";
+import { Sym } from "./Sym";
 
 type Sel = { sel: string | null; setSel: (id: string) => void };
 const num = (v: number) => v.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const cond = { fontFamily: "var(--font-plex-cond)" } as const;
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>{children}</div>;
+  return <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>{typeof children === "string" ? <Sym text={children} /> : children}</div>;
 }
 
 /** Clickable value tile; selection = --sel left edge + selected-row surface. */
