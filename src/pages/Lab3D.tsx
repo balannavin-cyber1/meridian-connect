@@ -73,10 +73,16 @@ const useSmallLabel = () => {
   }, []);
   return small;
 };
+/** Projected label anchor, clamped to a small margin inside the canvas so aligned text never spills off the edges. */
+const clampPos = (obj: THREE.Object3D, camera: THREE.Camera, size: { width: number; height: number }): [number, number] => {
+  const v = obj.getWorldPosition(new THREE.Vector3()).project(camera);
+  const x = (v.x * 0.5 + 0.5) * size.width, y = (-v.y * 0.5 + 0.5) * size.height, m = 6;
+  return [Math.min(Math.max(x, m), size.width - m), Math.min(Math.max(y, m), size.height - m)];
+};
 const Tag = ({ p, children, c = "var(--ink-3)", strong, align = "center" }: { p: [number, number, number]; children: React.ReactNode; c?: string; strong?: boolean; align?: Align }) => {
   const small = useSmallLabel();
   return (
-    <Html position={p} center={align === "center"} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
+    <Html position={p} center={align === "center"} calculatePosition={clampPos} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
       <span className="whitespace-nowrap font-[family-name:var(--font-plex)] tabular-nums"
         style={{ display: "inline-block", fontSize: small ? 8 : 10, color: c, fontWeight: strong ? 600 : 400, letterSpacing: ".04em",
           transform: align === "right" ? "translate(-100%, -50%)" : align === "left" ? "translate(0, -50%)" : undefined }}>{children}</span>
