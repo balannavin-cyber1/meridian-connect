@@ -1,7 +1,6 @@
 // Gamma river (Phase 1c): settled daily net γ — min–max band per session, settled point, price on its own scale.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RiverDay } from "@/lib/board";
-import { Link } from "react-router-dom";
 
 const num = (v: number, d = 0) => v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
 const lak = (v: number) => (Math.abs(v) >= 1e5 ? `${v < 0 ? "−" : v > 0 ? "+" : ""}${num(Math.abs(v) / 1e5, 1)}L` : `${v < 0 ? "−" : "+"}${num(Math.abs(v))}`);
@@ -50,7 +49,7 @@ export function GammaRiver({ days }: { days: RiverDay[] }) {
         <span className="rounded px-2 py-0.5 text-[11px]" style={{ background: "var(--s2)", color: "var(--ink-1)" }} title="fixed 30-session window">
           30 sessions
         </span>
-        <Link to="/board/3d?v=gamma" className="rounded border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--line-2)", color: "var(--ink-2)" }} title="3D drill-down">3D ›</Link>
+        
       </div>
       <div ref={ref} className="relative w-full" onMouseLeave={() => setHover(null)}>
         <svg width={W} height={H} className="block">
