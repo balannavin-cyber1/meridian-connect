@@ -76,7 +76,7 @@ export function KeyParametersSection({ s }: { s: MvState }) {
           valueColor={(s.netDealerGamma ?? 0) >= 0 ? MV.green : MV.red}
           badge={<LiveTag />}
           sub={s.dampenTotal != null || s.amplifyTotal != null
-            ? `Σdmp ${fmtNum(s.dampenTotal)}k · Σamp ${fmtNum(s.amplifyTotal)}` : "no flow breakdown"} />
+            ? `Σ+γ ${fmtNum(s.dampenTotal)}k · Σ−γ ${fmtNum(s.amplifyTotal)}` : "no flow breakdown"} />
         <Tile label="Spot Context"
           value={s.sigmaPct != null ? `±${s.sigmaPct.toFixed(2)}%` : "—"}
           sub={s.sigmaPct != null && s.spot ? `σ ${fmtNum(s.spot * (1 - s.sigmaPct / 100), { maximumFractionDigits: 0 })}–${fmtNum(s.spot * (1 + s.sigmaPct / 100), { maximumFractionDigits: 0 })} · ${s.dte}` : s.dte} />
@@ -105,13 +105,13 @@ export function PositioningSection({ s }: { s: MvState }) {
     <div>
       <SectionLabel>Positioning Landscape — Dealer γ by Strike</SectionLabel>
       <Card title="Dealer γ by Strike"
-        subtitle={`dampening (long γ) vs amplifying (short γ) · σ-band to expiry · ${s.strikes.data?.length ?? 0} strikes`}>
+        subtitle={`net +γ vs net −γ (positioning sign: calls +, puts −) · σ-band to expiry · ${s.strikes.data?.length ?? 0} strikes`}>
         <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-[11px]" style={{ fontFamily: MV.mono }}>
           <Scalar label="net γ in window" value={s.netDealerGamma != null ? `${fmtSigned(s.netDealerGamma)} Cr` : "—"} color={(s.netDealerGamma ?? 0) >= 0 ? MV.green : MV.red} />
-          <Scalar label="Σ dampen" value={s.dampenTotal != null ? `${fmtSigned(s.dampenTotal)} Cr` : "—"} color={MV.green} />
-          <Scalar label="Σ amplify" value={s.amplifyTotal != null ? `${fmtSigned(s.amplifyTotal)} Cr` : "—"} color={MV.red} />
-          <Scalar label="strongest dampen" value={fmtNum(s.maxGammaStrike, { maximumFractionDigits: 0 })} />
-          <Scalar label="strongest amplify" value={s.strongestAmplifyStrike != null ? fmtNum(s.strongestAmplifyStrike, { maximumFractionDigits: 0 }) : "—"} color={MV.red} />
+          <Scalar label="Σ net +γ" value={s.dampenTotal != null ? `${fmtSigned(s.dampenTotal)} Cr` : "—"} color={MV.green} />
+          <Scalar label="Σ net −γ" value={s.amplifyTotal != null ? `${fmtSigned(s.amplifyTotal)} Cr` : "—"} color={MV.red} />
+          <Scalar label="largest +γ strike" value={fmtNum(s.maxGammaStrike, { maximumFractionDigits: 0 })} />
+          <Scalar label="largest −γ strike" value={s.strongestAmplifyStrike != null ? fmtNum(s.strongestAmplifyStrike, { maximumFractionDigits: 0 }) : "—"} color={MV.red} />
           <Scalar label="Σ to expiry" value={s.sigmaPct != null ? fmtPct(s.sigmaPct) : "—"} color={MV.blue} />
         </div>
         <HeroChart spot={s.spot} bars={(s.strikes.data ?? []) as any} pin={s.pin.data as any} accel={s.accel.data as any}
@@ -135,7 +135,7 @@ export function NetDealerGammaSection({ s }: { s: MvState }) {
   const dirIcon = dir === "Rising" ? "↑" : dir === "Falling" ? "↓" : "→";
   return (
     <Card title="Net Dealer γ · Intraday"
-      subtitle={`Cr · positive = dampening flows · negative = amplifying flows`}>
+      subtitle={`Cr · positive = net +γ · negative = net −γ (positioning sign)`}>
       <div className="mb-3 flex flex-wrap items-baseline gap-x-6 gap-y-1" style={{ fontFamily: MV.mono }}>
         <div className="flex flex-col">
           <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>current</span>
@@ -147,8 +147,8 @@ export function NetDealerGammaSection({ s }: { s: MvState }) {
           <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>direction</span>
           <span className="text-[14px] font-bold" style={{ color: dirColor }}>{dirIcon} {dir}</span>
         </div>
-        <Scalar label="Σ dampen" value={s.dampenTotal != null ? `${fmtSigned(s.dampenTotal)} Cr` : "—"} color={MV.green} />
-        <Scalar label="Σ amplify" value={s.amplifyTotal != null ? `${fmtSigned(s.amplifyTotal)} Cr` : "—"} color={MV.red} />
+        <Scalar label="Σ net +γ" value={s.dampenTotal != null ? `${fmtSigned(s.dampenTotal)} Cr` : "—"} color={MV.green} />
+        <Scalar label="Σ net −γ" value={s.amplifyTotal != null ? `${fmtSigned(s.amplifyTotal)} Cr` : "—"} color={MV.red} />
       </div>
       <NetGammaIntraday rows={rows} />
     </Card>

@@ -23,7 +23,7 @@ function headline(s: Props["state"]) {
     if ((s.pinScore ?? 0) >= 75) return "Gamma pinning, theta harvest setup";
     return "Long-gamma regime, mean-reverting tape";
   }
-  if (s.regime === "NEGATIVE_γ" || s.regime === "SHORT_GAMMA") return "Short-gamma regime, amplified moves";
+  if (s.regime === "NEGATIVE_γ" || s.regime === "SHORT_GAMMA") return "Net −γ regime (positioning sign)";
   return "Mixed regime, range trading";
 }
 
@@ -88,12 +88,12 @@ export function NarrativeModal({ open, onClose, symbol, expiry, state }: Props) 
             Max γ strike {fmt(state.maxGammaStrike)} sits {state.maxPainStrike != null && state.maxGammaStrike != null
               ? `${Math.abs(state.maxGammaStrike - state.maxPainStrike)} pts from max pain ${fmt(state.maxPainStrike)}`
               : "with no max-pain reference"}.
-            Net dealer γ of {fmt(state.netDealerGamma, " Cr")} indicates {((state.netDealerGamma ?? 0) > 0) ? "dampening flows" : "amplifying flows"}.
+            Net positioning γ of {fmt(state.netDealerGamma, " Cr")} ({((state.netDealerGamma ?? 0) > 0) ? "net +γ" : "net −γ"}; calls +, puts −). Not a dealer reading (P2, S94).
           </p>
           <p>
             {state.regime === "POSITIVE_γ" || state.regime === "LONG_GAMMA"
-              ? "Long-γ dealers buy dips and sell rips, compressing realized vol."
-              : "Short-γ dealers chase price, amplifying directional moves."}
+              ? "Net +γ positioning."
+              : "Net −γ positioning."}
             Pin risk score of {state.pinScore != null ? Math.round(state.pinScore) : "—"} suggests {(state.pinScore ?? 0) >= 75 ? "strong magnetism near max γ" : "limited pin pressure"}.
           </p>
           <p className="text-[11px] text-gray-400">
