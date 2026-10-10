@@ -248,7 +248,7 @@ function IvFence({ surface, pal, mWin }: { surface: any[]; pal: Pal; mWin: numbe
 
 // ---------- page ----------
 const NOTES: Record<View, string> = {
-  gamma: "Height = |net γ| per strike at each session's settled run (≤ 15:15 IST, v_gex_strike_terrain); hue = sign (cool dampening · warm amplifying). Dashed white = spot. Holes are missing strikes, never zero. Front expiry rolls between rows.",
+  gamma: "Height = |net γ| per strike at each session's settled run (≤ 15:15 IST, v_gex_strike_terrain); hue = sign (cool net +γ · warm net −γ). Dashed white = spot. Holes are missing strikes, never zero. Front expiry rolls between rows.",
   iv: "Two legs only (W1 + W2) — a two-rail fence, not a surface. Zero-OI strikes excluded; ±9 % moneyness. Rings = server ATM; dashed rungs join equal moneyness so the front→back smile rotation shows. Grey: IV is unsigned.",
   pain: "Writer pain per strike from v_gex_strike_terrain at each session's settled run. Each row on its own scale; white path = the view's max-pain strike. Grey: positional.",
 };
@@ -324,7 +324,7 @@ export default function Lab3D() {
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]" style={{ color: "var(--ink-3)" }}>
-        {view === "gamma" && <><Sw c="var(--cool)" l="dampening · long γ" /><Sw c="var(--warm)" l="amplifying" /><Sw c="var(--ink-1)" l="latest session · spot" /></>}
+        {view === "gamma" && <><Sw c="var(--cool)" l="net +γ" /><Sw c="var(--warm)" l="net −γ" /><Sw c="var(--ink-1)" l="latest session · spot" /></>}
         {view === "iv" && <><Sw c="var(--ink-1)" l="W1 front" /><Sw c="var(--ink-2)" l="W2 back" /><Sw c="var(--ink-3)" l="equal-moneyness rung" /></>}
         {view === "pain" && <><Sw c="var(--ink-3)" l="pain (own scale per row)" /><Sw c="var(--ink-1)" l="max-pain path" /></>}
         <span className="text-[10px] uppercase tracking-[0.08em]">optional view</span>
