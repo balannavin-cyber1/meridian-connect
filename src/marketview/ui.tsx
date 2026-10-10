@@ -74,8 +74,8 @@ export function formatDTE(expiryISO: string | null | undefined, dteDays?: number
 }
 
 export const REGIME_DISPLAY: Record<string, { label: string; bg: string; fg: string; desc: string }> = {
-  LONG_GAMMA: { label: "POSITIVE_γ", bg: MV.greenBg, fg: MV.green, desc: "net +γ (positioning sign)" },
-  SHORT_GAMMA: { label: "NEGATIVE_γ", bg: MV.redBg, fg: MV.red, desc: "net −γ (positioning sign)" },
+  LONG_GAMMA: { label: "POSITIVE_γ", bg: MV.greenBg, fg: MV.green, desc: "long dealer γ · mean-reverting" },
+  SHORT_GAMMA: { label: "NEGATIVE_γ", bg: MV.redBg, fg: MV.red, desc: "short dealer γ · trend-amplifying" },
   NO_FLIP: { label: "NO_FLIP", bg: MV.blueBg, fg: MV.blue, desc: "no flip in window" },
 };
 

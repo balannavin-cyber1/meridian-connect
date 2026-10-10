@@ -263,7 +263,7 @@ export default function Board() {
         </div>) : undefined },
     { id: "g_gross", label: "Gross |Γ|", sub: "₹ Cr · unit pending (E-D1)", value: gross != null ? crLakh(gross).replace(/^\+/, "") : <Absent word="no run" />, levelIds: [],
       caption: gross != null ? `Gross absolute gamma is ${crLakh(gross).replace(/^\+/, "")}${ratio != null ? `; net is ${ratio.toFixed(2)} of it` : ""}.` : "No exposure run." },
-    { id: "g_net", label: "Net Γ", sub: net != null ? `${net >= 0 ? "net +γ" : "net −γ"}${crossings ? ` · Σ crosses zero ${crossings}×` : ""}` : "",
+    { id: "g_net", label: "Net Γ", sub: net != null ? `${net >= 0 ? "dampening" : "amplifying"}${crossings ? ` · Σ crosses zero ${crossings}×` : ""}` : "",
       value: net != null ? <span style={{ color: hue(net) }}>{crLakh(net)}</span> : <Absent word="no run" />, levelIds: [],
       caption: net != null ? `Net γ ${crLakh(net)}. White dots = running sum from the top strike down; ${crossings ? `it crosses zero ${crossings}× — the book changes sign there` : "it never crosses zero in the chain"}.` : "No exposure run." },
     { id: "g_contrib", label: "Contributing strikes", sub: nC != null && nS ? `${((nC / nS) * 100).toFixed(0)} % of stored` : "",

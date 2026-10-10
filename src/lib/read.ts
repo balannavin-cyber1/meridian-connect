@@ -26,7 +26,7 @@ export function useBoardRead(symbol: Symbol): string | null {
   const ratio = net != null && gross ? net / gross : null;
 
   let out = pocket
-    ? `Spot ${num(spot, 1)} sits in ${pocket.gex_cr >= 0 ? "a net +γ" : "a net −γ"} pocket`
+    ? `Spot ${num(spot, 1)} sits in ${pocket.gex_cr >= 0 ? "a dampening" : "an amplifying"} pocket`
     : `Spot ${num(spot, 1)}`;
   if (cState && cState !== "UNDEFINED" && pw != null && cw != null) {
     const useCall = Math.abs(cw - spot) <= Math.abs(spot - pw);
