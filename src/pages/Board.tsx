@@ -425,7 +425,7 @@ export default function Board() {
   const dex0 = dex[0] ?? null;
   const dexKey: Record<string, "net" | "call" | "put"> = { f_dex_net: "net", f_dex_call: "call", f_dex_put: "put" };
   const dexLayer = sel ? dexKey[sel] ?? null : null;
-  const dexSub = dex0 ? `calls +, puts − · front leg ${expShort(dex0.expiry)} · dte ${dex0.dte} · settled ${istTime(dex0.settledTs)}${dex0.dte === 0 ? " · dte 0 — greek gaps can flip the total's sign" : ""}` : "";
+  const dexSub = dex0 ? `calls +, puts − · front leg ${expShort(dex0.expiry)} · ${dex0.dte} cal d · settled ${istTime(dex0.settledTs)}${dex0.dte === 0 ? " · dte 0 — greek gaps can flip the total's sign" : ""}` : "";
   const dexGap = (withOi: boolean) => dex0?.legGap == null ? "" : ` · gap ${num(dex0.legGap)}${withOi && dex0.legOi != null ? ` of ${num(dex0.legOi)}` : ""} qty`;
   const dexVal = (v: number | null, withOi: boolean) => !dex0 ? <Absent word="no book" /> : v == null ? <Absent word="no value" /> :
     <span><span style={{ color: hue(v) }}>{fmtCr(v)}</span><span style={{ color: "var(--ink-2)" }}>{dexGap(withOi)}</span></span>;
