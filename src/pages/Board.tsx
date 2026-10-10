@@ -9,7 +9,7 @@ import {
   istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, useOiRotation, usePinBand,
   useConcentration, useNetGammaToday, useGammaRiver,
   useMaxPainRun, useLiveSpot,
-  usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useFlowSim,
+  usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useDexBook, useFlowSim,
 } from "@/lib/board";
 import { LadderPanel, TABS, type Tab, type OverviewItem } from "@/components/board/LadderPanel";
 import { Sym } from "@/components/board/Sym";
@@ -420,10 +420,24 @@ export default function Board() {
   const l78Leg = l78.find((r) => r.status === "OK") ?? l78[0] ?? null;
   const l78FrontSkipped = l78[0] && l78[0] !== l78Leg && l78[0].status === "SKIPPED_EXPIRY";
   const l78Strikes = (useGreeksStrike(symbol, l78Leg?.ts ?? null, l78Leg?.expiry_date ?? null).data ?? []) as { strike: number; d_div: number | null; d_dt: number | null; g_div: number | null; g_dt: number | null }[];
+  // ---- S95: DEX standing book (P6, ENH-140) ----
+  const dex = (useDexBook(symbol).data ?? []) as { strike: number; expiry: string; dte: number; settledTs: string; call: number | null; put: number | null; net: number | null; legCall: number | null; legPut: number | null; legNet: number | null; legOi: number | null; legGap: number | null }[];
+  const dex0 = dex[0] ?? null;
+  const dexKey: Record<string, "net" | "call" | "put"> = { f_dex_net: "net", f_dex_call: "call", f_dex_put: "put" };
+  const dexLayer = sel ? dexKey[sel] ?? null : null;
+  const dexSub = dex0 ? `calls +, puts − · front leg ${expShort(dex0.expiry)} · dte ${dex0.dte} · settled ${istTime(dex0.settledTs)}${dex0.dte === 0 ? " · dte 0 — greek gaps can flip the total's sign" : ""}` : "";
+  const dexGap = (withOi: boolean) => dex0?.legGap == null ? "" : ` · gap ${num(dex0.legGap)}${withOi && dex0.legOi != null ? ` of ${num(dex0.legOi)}` : ""} qty`;
+  const dexVal = (v: number | null, withOi: boolean) => !dex0 ? <Absent word="no book" /> : v == null ? <Absent word="no value" /> :
+    <span><span style={{ color: hue(v) }}>{fmtCr(v)}</span><span style={{ color: "var(--ink-2)" }}>{dexGap(withOi)}</span></span>;
+  const dexCap = (name: string, v: number | null) => dex0 && v != null ? `${name} ${fmtCr(v)} over strikes with a published delta;${dex0.legGap != null ? ` ${num(dex0.legGap)} qty of OI has no published delta and is not counted.` : ""} Bars per strike.` : "No DEX book.";
   const fKey: Record<string, "d_dt" | "d_div" | "g_dt" | "g_div"> = { f_ddt: "d_dt", f_ddiv: "d_div", f_gdt: "g_dt", f_gdiv: "g_div" };
   const flowLayer = (sel && fKey[sel]) || "d_dt";
   const fmtCr = (v: number | null) => (v == null ? "—" : crLakh(v));
-  const flowRows = l78Strikes.length ? (ladder?.rows ?? []).map((lr) => {
+  const flowRows = dexLayer ? (dex.length ? (ladder?.rows ?? []).map((lr) => {
+    const r = dex.find((x) => x.strike === lr.strike);
+    const v = r ? r[dexLayer] : null;
+    return { strike: lr.strike, value: v, tint: null, readout: v == null ? "·" : lad(v), full: v == null ? "gap — OI with no published delta" : `${lad(v)} Cr` };
+  }) : []) : l78Strikes.length ? (ladder?.rows ?? []).map((lr) => {
     const r = l78Strikes.find((x) => x.strike === lr.strike);
     const v = r ? r[flowLayer] : null;
     return { strike: lr.strike, value: v, tint: null, readout: v == null ? "·" : lad(v), full: v == null ? "no legs" : `${lad(v)} Cr` };
@@ -509,13 +523,18 @@ export default function Board() {
             ))}
           </div>
         </div>) : undefined },
+    { id: "f_dex_net", label: "Net DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legNet ?? null, true), levelIds: [], caption: dexCap("Net DEX · OI proxy", dex0?.legNet ?? null) },
+    { id: "f_dex_call", label: "Call DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legCall ?? null, false), levelIds: [], caption: dexCap("Call DEX · OI proxy", dex0?.legCall ?? null) },
+    { id: "f_dex_put", label: "Put DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legPut ?? null, false), levelIds: [], caption: dexCap("Put DEX · OI proxy", dex0?.legPut ?? null) },
   ];
   const flowsBadge = (
     <div className="mb-3 rounded border border-dashed px-3 py-2 text-[12px] font-semibold" style={{ borderColor: "var(--rule)", color: "var(--ink-1)" }}>
       PROVISIONAL — flow-vs-book (D-4) not built
     </div>);
   const layerName: Record<string, string> = { d_dt: "∂Δ/∂t", d_div: "∂Δ/∂σ", g_dt: "∂Γ/∂t", g_div: "∂Γ/∂σ" };
-  const flowsNote = l78Leg ? `bars · ${layerName[flowLayer]} · ${expShort(l78Leg.expiry_date)} leg · chain ${istTime(l78Leg.ts)}` : "bars · no L7/L8 rows";
+  const dexName: Record<string, string> = { net: "Net DEX", call: "Call DEX", put: "Put DEX" };
+  const flowsNote = dexLayer ? (dex0 ? `bars · ${dexName[dexLayer]} · OI proxy · ${expShort(dex0.expiry)} leg · settled ${istTime(dex0.settledTs)}` : "bars · no DEX book")
+    : l78Leg ? `bars · ${layerName[flowLayer]} · ${expShort(l78Leg.expiry_date)} leg · chain ${istTime(l78Leg.ts)}` : "bars · no L7/L8 rows";
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4 px-3 py-4 md:px-5">

@@ -498,3 +498,23 @@ export function useGreeksStrike(s: Symbol, ts: string | null, expiry: string | n
     },
   });
 }
+
+/** P6 / ENH-140: DEX standing book, front leg, settled run. Session decided by the view. */
+export function useDexBook(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "dex", s], ...opts,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("v_dex_standing_book")
+        .select("symbol, session_date, leg_n, expiry_date, dte, settled_ts, strike, call_dex_cr, put_dex_cr, net_dex_cr, leg_call_dex_cr, leg_put_dex_cr, leg_net_dex_cr, leg_oi_qty, leg_gap_oi_qty, leg_n_gap_strikes")
+        .eq("symbol", s).eq("leg_n", 1).order("strike", { ascending: true }).limit(1000);
+      if (error) throw error;
+      const nz = (v: any) => (v == null ? null : Number(v));
+      return ((data ?? []) as any[]).map((r) => ({
+        strike: Number(r.strike), expiry: r.expiry_date as string, dte: Number(r.dte), settledTs: r.settled_ts as string,
+        call: nz(r.call_dex_cr), put: nz(r.put_dex_cr), net: nz(r.net_dex_cr),
+        legCall: nz(r.leg_call_dex_cr), legPut: nz(r.leg_put_dex_cr), legNet: nz(r.leg_net_dex_cr),
+        legOi: nz(r.leg_oi_qty), legGap: nz(r.leg_gap_oi_qty),
+      }));
+    },
+  });
+}
