@@ -9,7 +9,7 @@ import {
   istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, useOiRotation, usePinBand,
   useConcentration, useNetGammaToday, useGammaRiver,
   useMaxPainRun, useLiveSpot,
-  usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useDexBook, useFlowSim,
+  usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useDexBook, useDexZero, useFlowSim,
 } from "@/lib/board";
 import { LadderPanel, TABS, type Tab, type OverviewItem } from "@/components/board/LadderPanel";
 import { Sym } from "@/components/board/Sym";
@@ -423,13 +423,20 @@ export default function Board() {
   // ---- S95: DEX standing book (P6, ENH-140) ----
   const dex = (useDexBook(symbol).data ?? []) as { strike: number; expiry: string; dte: number; settledTs: string; call: number | null; put: number | null; net: number | null; legCall: number | null; legPut: number | null; legNet: number | null; legOi: number | null; legGap: number | null }[];
   const dex0 = dex[0] ?? null;
-  const dexKey: Record<string, "net" | "call" | "put"> = { f_dex_net: "net", f_dex_call: "call", f_dex_put: "put" };
+  const dexKey: Record<string, "net" | "call" | "put"> = { f_dex_net: "net", f_dex_call: "call", f_dex_put: "put", f_dex_zero: "net" };
   const dexLayer = sel ? dexKey[sel] ?? null : null;
   const dexSub = dex0 ? `calls +, puts − · front leg ${expShort(dex0.expiry)} · ${dex0.dte} cal d · settled ${istTime(dex0.settledTs)}${dex0.dte === 0 ? " · dte 0 — greek gaps can flip the total's sign" : ""}` : "";
   const dexGap = (withOi: boolean) => dex0?.legGap == null ? "" : ` · gap ${num(dex0.legGap)}${withOi && dex0.legOi != null ? ` of ${num(dex0.legOi)}` : ""} qty`;
   const dexVal = (v: number | null, withOi: boolean) => !dex0 ? <Absent word="no book" /> : v == null ? <Absent word="no value" /> :
     <span><span style={{ color: hue(v) }}>{fmtCr(v)}</span><span style={{ color: "var(--ink-2)" }}>{dexGap(withOi)}</span></span>;
   const dexCap = (name: string, v: number | null) => dex0 && v != null ? `${name} ${fmtCr(v)} over strikes with a published delta;${dex0.legGap != null ? ` ${num(dex0.legGap)} qty of OI has no published delta and is not counted.` : ""} Bars per strike.` : "No DEX book.";
+  // ---- S95: S*, the re-priced zero-delta level (ruling S94-H) ----
+  const zr = (useDexZero(symbol).data ?? null) as { ts: string; spot: number | null; status: string; zero: number | null; minus: number | null; sigma: number | null } | null;
+  const zOk = !!zr && zr.status === "OK" && zr.zero != null;
+  const zeroWord: Record<string, string> = { NO_CROSSING: "no crossing within ±10 %", SKIPPED_EXPIRY: "expiry day — not computed", UNMEASURABLE_R: "r unmeasurable" };
+  const zeroSub = zOk && zr!.minus != null && zr!.sigma != null
+    ? `${sgn(zr!.minus, 0)} pts · ${sgn(zr!.sigma, 2)}σ ${zr!.minus >= 0 ? "above" : "below"} spot · chain ${istTime(zr!.ts)} (book settled ${dex0 ? istTime(dex0.settledTs) : "—"})`
+    : zr ? `chain ${istTime(zr.ts)}` : "";
   const fKey: Record<string, "d_dt" | "d_div" | "g_dt" | "g_div"> = { f_ddt: "d_dt", f_ddiv: "d_div", f_gdt: "g_dt", f_gdiv: "g_div" };
   const flowLayer = (sel && fKey[sel]) || "d_dt";
   const fmtCr = (v: number | null) => (v == null ? "—" : crLakh(v));
@@ -445,6 +452,7 @@ export default function Board() {
   const flowLevels: Level[] = [
     ...(spot != null ? [{ id: "spot", name: "SPOT", at: spot, style: "spot" as const }] : []),
     ...(fVal != null ? [{ id: "flip", name: "FLIP (L3)", at: fVal, style: "dashed" as const }] : []),
+    ...(dexLayer && zOk ? [{ id: "sstar", name: "S* (ZERO-Δ)", at: zr!.zero as number, style: "dotted" as const }] : []),
   ];
   const fl = (k: string) => n(l78Leg?.[k]);
   const pairVal = (net: number | null, gross: number | null) => net == null ? <Absent word={l78Leg ? (l78Leg.status === "OK" ? "no value" : l78Leg.status.toLowerCase().replace(/_/g, " ")) : "no chain"} /> :
@@ -526,6 +534,7 @@ export default function Board() {
     { id: "f_dex_net", label: "Net DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legNet ?? null, true), levelIds: [], caption: dexCap("Net DEX · OI proxy", dex0?.legNet ?? null) },
     { id: "f_dex_call", label: "Call DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legCall ?? null, false), levelIds: [], caption: dexCap("Call DEX · OI proxy", dex0?.legCall ?? null) },
     { id: "f_dex_put", label: "Put DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legPut ?? null, false), levelIds: [], caption: dexCap("Put DEX · OI proxy", dex0?.legPut ?? null) },
+    { id: "f_dex_zero", label: "Zero-Δ level · S*", sub: zeroSub, value: zOk ? num(zr!.zero as number) : <Absent word={zr ? (zeroWord[zr.status] ?? zr.status.toLowerCase()) : "no level"} />, levelIds: zOk ? ["sstar"] : [], caption: zOk ? `S* ${num(zr!.zero as number)}, ${sgn(zr!.minus ?? 0, 0)} pts from spot ${num(zr!.spot ?? 0, 1)} at chain ${istTime(zr!.ts)}.` : "No zero-Δ level." },
   ];
   const flowsBadge = (
     <div className="mb-3 rounded border border-dashed px-3 py-2 text-[12px] font-semibold" style={{ borderColor: "var(--rule)", color: "var(--ink-1)" }}>
