@@ -449,7 +449,7 @@ export default function Board() {
   const dfScale = df0 ? Math.max(1e-9, ...(["net", "call", "put"] as const).flatMap((k) => [Math.abs(df0.legNow[k] ?? 0), Math.abs(df0.legPre[k] ?? 0)])) : 1;
   const dfSub2 = (k: "net" | "call" | "put") => df0 ? `from ${fmtCr(df0.legPre[k])} at pre-open OI · ${fmtCr(df0.legFlow[k])} since ${istTime(df0.anchorTs)}` : dfAbsent;
   const dfBrick = (k: "net" | "call" | "put") => df0 ? { now: df0.legNow[k], pre: df0.legPre[k], scale: dfScale } : undefined;
-  const dfCap = df0 ? ` ${df0.legGapDoi != null ? num(df0.legGapDoi) : "—"} qty of ΔOI has no published delta and is not counted; this does not say who bought or wrote.${(df0.legNoAnchorOi ?? 0) > 0 ? ` ${num(df0.legNoAnchorOi)} qty has no pre-open OI and sits outside the split.` : ""}` : "";
+  const dfCap = df0 ? `${df0.legGapDoi != null ? ` ${num(df0.legGapDoi)} qty of ΔOI has no published delta and is not counted; this does not say who bought or wrote.` : ""}${(df0.legNoAnchorOi ?? 0) > 0 ? ` ${num(df0.legNoAnchorOi)} qty has no pre-open OI and sits outside the split.` : ""}` : "";
   const flowRows = dexLayer ? (dex.length ? (ladder?.rows ?? []).map((lr) => {
     const r = dex.find((x) => x.strike === lr.strike);
     const v = r ? r[dexLayer] : null;
