@@ -183,6 +183,9 @@ export function StrikeLadder(p: Props) {
             const inPriced = p.priced && r.strike >= p.priced.lo && r.strike <= p.priced.hi;
             const inPin = p.pin && r.strike >= p.pin.lo && r.strike <= p.pin.hi;
             const w = r.value != null ? (Math.abs(r.value) / maxAbs) * 50 : 0;
+            const bkNow = r.brick?.now ?? null;
+            const bkPre = r.brick?.pre ?? null;
+            const bkDraw = bkNow != null && bkPre != null && !(bkNow === 0 && bkPre === 0);
             return (
               <div key={r.strike} onMouseEnter={() => p.onHover(r.strike)} onMouseLeave={() => p.onHover(null)}
                 className="grid grid-cols-[60px_10px_1fr_10px_64px] items-center"
