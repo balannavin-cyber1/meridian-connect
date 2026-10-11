@@ -185,7 +185,8 @@ export function StrikeLadder(p: Props) {
             const w = r.value != null ? (Math.abs(r.value) / maxAbs) * 50 : 0;
             const bkNow = r.brick?.now ?? null;
             const bkPre = r.brick?.pre ?? null;
-            const bkDraw = bkNow != null && bkPre != null && !(bkNow === 0 && bkPre === 0);
+            const bkGap = bkNow == null || bkPre == null;   // no flow row, or a null side
+            const bkDraw = !bkGap && !(bkNow === 0 && bkPre === 0);   // 0/0 is a measured zero: draw nothing
             return (
               <div key={r.strike} onMouseEnter={() => p.onHover(r.strike)} onMouseLeave={() => p.onHover(null)}
                 className="grid grid-cols-[60px_10px_1fr_10px_64px] items-center"
@@ -202,7 +203,7 @@ export function StrikeLadder(p: Props) {
                   )}
                   {bricked && (bkDraw
                     ? <BrickMarks now={bkNow!} pre={bkPre!} scale={brickMax} height={barH} />
-                    : <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] leading-none" style={{ color: "var(--ink-3)" }}>·</span>)}
+                    : bkGap ? <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] leading-none" style={{ color: "var(--ink-3)" }}>·</span> : null)}
                   {!bricked && !p.oneSided && r.value != null && w > 0 && (
                     <div className="absolute top-1/2 -translate-y-1/2" style={{
                       height: barH, width: `${w}%`,
