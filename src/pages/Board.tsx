@@ -435,7 +435,7 @@ export default function Board() {
   const zOk = !!zr && zr.status === "OK" && zr.zero != null;
   const zeroWord: Record<string, string> = { NO_CROSSING: "no crossing within ±10 %", SKIPPED_EXPIRY: "expiry day — not computed", UNMEASURABLE_R: "r unmeasurable" };
   const zeroSub = zOk && zr!.minus != null && zr!.sigma != null
-    ? `${sgn(zr!.minus, 0)} pts · ${sgn(zr!.sigma, 2)}σ ${zr!.minus >= 0 ? "above" : "below"} spot · chain ${istTime(zr!.ts)} (book settled ${dex0 ? istTime(dex0.settledTs) : "—"})`
+    ? `${sgn(zr!.minus, 0)} pts · ${sgn(zr!.sigma, 2)}σ ${zr!.minus >= 0 ? "above" : "below"} chain spot ${zr!.spot != null ? num(zr!.spot, 1) : "—"} · chain ${istTime(zr!.ts)} (book settled ${dex0 ? istTime(dex0.settledTs) : "—"})`
     : zr ? `chain ${istTime(zr.ts)}` : "";
   const fKey: Record<string, "d_dt" | "d_div" | "g_dt" | "g_div"> = { f_ddt: "d_dt", f_ddiv: "d_div", f_gdt: "g_dt", f_gdiv: "g_div" };
   const flowLayer = (sel && fKey[sel]) || "d_dt";
