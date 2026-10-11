@@ -121,6 +121,7 @@ export function FlowsBody({ items, sel, setSel }: Sel & { items: OverviewItem[] 
       <div className="rounded-md p-1.5" style={{ border: "1px solid var(--line)" }}>
         <Tile it={by("f_dex_net")} sel={sel} setSel={setSel} className="w-full" />
         <div className="grid grid-cols-2 gap-1"><Tile it={by("f_dex_call")} sel={sel} setSel={setSel} className="w-full" /><Tile it={by("f_dex_put")} sel={sel} setSel={setSel} className="w-full" /></div>
+        <Tile it={by("f_dex_zero")} sel={sel} setSel={setSel} className="w-full" />
       </div>
     </div>
   );

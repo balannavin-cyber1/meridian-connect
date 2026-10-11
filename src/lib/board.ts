@@ -518,3 +518,20 @@ export function useDexBook(s: Symbol) {
     },
   });
 }
+
+/** P6 / S95: S*, the re-priced zero-delta level (ruling S94-H). Latest chain cycle, one row per symbol. */
+export function useDexZero(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "dexzero", s], ...opts,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("v_dex_repriced_zero")
+        .select("symbol, ts, spot, status, zero_delta, zero_minus_spot, zero_sigma")
+        .eq("symbol", s).limit(1);
+      if (error) throw error;
+      const r = ((data ?? []) as any[])[0];
+      if (!r) return null;
+      const nz = (v: any) => (v == null ? null : Number(v));
+      return { ts: r.ts as string, spot: nz(r.spot), status: String(r.status), zero: nz(r.zero_delta), minus: nz(r.zero_minus_spot), sigma: nz(r.zero_sigma) };
+    },
+  });
+}
