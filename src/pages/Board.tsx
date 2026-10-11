@@ -9,7 +9,7 @@ import {
   istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, useOiRotation, usePinBand,
   useConcentration, useNetGammaToday, useGammaRiver,
   useMaxPainRun, useLiveSpot,
-  usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useDexBook, useDexZero, useFlowSim,
+  usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useDexBook, useDexFlow, useDexZero, useFlowSim,
 } from "@/lib/board";
 import { LadderPanel, TABS, type Tab, type OverviewItem } from "@/components/board/LadderPanel";
 import { Sym } from "@/components/board/Sym";
@@ -440,10 +440,22 @@ export default function Board() {
   const fKey: Record<string, "d_dt" | "d_div" | "g_dt" | "g_div"> = { f_ddt: "d_dt", f_ddiv: "d_div", f_gdt: "g_dt", f_gdiv: "g_div" };
   const flowLayer = (sel && fKey[sel]) || "d_dt";
   const fmtCr = (v: number | null) => (v == null ? "—" : crLakh(v));
+  // ---- P7a: DEX flow since the pre-open (S96-A, S96-C) ----
+  type DexSide = { call: number | null; put: number | null; net: number | null };
+  const dfl = (useDexFlow(symbol).data ?? []) as { strike: number; expiry: string; anchorTs: string; settledTs: string; window: string; now: DexSide; pre: DexSide; flow: DexSide; legNow: DexSide; legPre: DexSide; legFlow: DexSide; legGapDoi: number | null; legNoAnchorOi: number | null; legNoAnchorDex: number | null }[];
+  const dfSession = dfl.length > 0 && dfl.every((r) => r.window === "SESSION");
+  const df0 = dfSession && dex0 && dfl.every((r) => r.settledTs === dex0.settledTs && r.expiry === dex0.expiry) ? dfl[0] : null;
+  const dfAbsent = df0 ? "" : !dfSession ? "no flow before 09:15" : "flow · different run — not drawn";
+  const dfScale = df0 ? Math.max(1e-9, ...(["net", "call", "put"] as const).flatMap((k) => [Math.abs(df0.legNow[k] ?? 0), Math.abs(df0.legPre[k] ?? 0)])) : 1;
+  const dfSub2 = (k: "net" | "call" | "put") => df0 ? `from ${fmtCr(df0.legPre[k])} at pre-open OI · ${fmtCr(df0.legFlow[k])} since ${istTime(df0.anchorTs)}` : dfAbsent;
+  const dfBrick = (k: "net" | "call" | "put") => df0 ? { now: df0.legNow[k], pre: df0.legPre[k], scale: dfScale } : undefined;
+  const dfCap = df0 ? ` ${df0.legGapDoi != null ? num(df0.legGapDoi) : "—"} qty of ΔOI has no published delta and is not counted; this does not say who bought or wrote.${(df0.legNoAnchorOi ?? 0) > 0 ? ` ${num(df0.legNoAnchorOi)} qty has no pre-open OI and sits outside the split.` : ""}` : "";
   const flowRows = dexLayer ? (dex.length ? (ladder?.rows ?? []).map((lr) => {
     const r = dex.find((x) => x.strike === lr.strike);
     const v = r ? r[dexLayer] : null;
-    return { strike: lr.strike, value: v, tint: null, readout: v == null ? "·" : lad(v), full: v == null ? "gap — OI with no published delta" : `${lad(v)} Cr` };
+    const fr = df0 ? dfl.find((x) => x.strike === lr.strike) : undefined;
+    const brick = fr ? { now: fr.now[dexLayer], pre: fr.pre[dexLayer] } : undefined;
+    return { strike: lr.strike, value: v, tint: null, brick, readout: v == null ? "·" : lad(v), full: v == null ? "gap — OI with no published delta" : `${lad(v)} Cr` };
   }) : []) : l78Strikes.length ? (ladder?.rows ?? []).map((lr) => {
     const r = l78Strikes.find((x) => x.strike === lr.strike);
     const v = r ? r[flowLayer] : null;
@@ -531,9 +543,9 @@ export default function Board() {
             ))}
           </div>
         </div>) : undefined },
-    { id: "f_dex_net", label: "Net DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legNet ?? null, true), levelIds: [], caption: dexCap("Net DEX · OI proxy", dex0?.legNet ?? null) },
-    { id: "f_dex_call", label: "Call DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legCall ?? null, false), levelIds: [], caption: dexCap("Call DEX · OI proxy", dex0?.legCall ?? null) },
-    { id: "f_dex_put", label: "Put DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legPut ?? null, false), levelIds: [], caption: dexCap("Put DEX · OI proxy", dex0?.legPut ?? null) },
+    { id: "f_dex_net", label: "Net DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legNet ?? null, true), levelIds: [], caption: dexCap("Net DEX · OI proxy", dex0?.legNet ?? null) + dfCap, sub2: dfSub2("net"), brick: dfBrick("net") },
+    { id: "f_dex_call", label: "Call DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legCall ?? null, false), levelIds: [], caption: dexCap("Call DEX · OI proxy", dex0?.legCall ?? null) + dfCap, sub2: dfSub2("call"), brick: dfBrick("call") },
+    { id: "f_dex_put", label: "Put DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legPut ?? null, false), levelIds: [], caption: dexCap("Put DEX · OI proxy", dex0?.legPut ?? null) + dfCap, sub2: dfSub2("put"), brick: dfBrick("put") },
     { id: "f_dex_zero", label: "Zero-Δ level · S*", sub: zeroSub, value: zOk ? num(zr!.zero as number) : <Absent word={zr ? (zeroWord[zr.status] ?? zr.status.toLowerCase()) : "no level"} />, levelIds: zOk ? ["sstar"] : [], caption: zOk ? `S* ${num(zr!.zero as number)}, ${sgn(zr!.minus ?? 0, 0)} pts from spot ${num(zr!.spot ?? 0, 1)} at chain ${istTime(zr!.ts)}.` : "No zero-Δ level." },
   ];
   const flowsBadge = (
@@ -542,7 +554,7 @@ export default function Board() {
     </div>);
   const layerName: Record<string, string> = { d_dt: "∂Δ/∂t", d_div: "∂Δ/∂σ", g_dt: "∂Γ/∂t", g_div: "∂Γ/∂σ" };
   const dexName: Record<string, string> = { net: "Net DEX", call: "Call DEX", put: "Put DEX" };
-  const flowsNote = dexLayer ? (dex0 ? `bars · ${dexName[dexLayer]} · OI proxy · ${expShort(dex0.expiry)} leg · settled ${istTime(dex0.settledTs)}` : "bars · no DEX book")
+  const flowsNote = dexLayer ? (dex0 && df0 ? `bars · ${dexName[dexLayer]} · held / added / removed since ${istTime(df0.anchorTs)} · settled ${istTime(dex0.settledTs)}` : dex0 ? `bars · ${dexName[dexLayer]} · OI proxy · ${expShort(dex0.expiry)} leg · settled ${istTime(dex0.settledTs)}` : "bars · no DEX book")
     : l78Leg ? `bars · ${layerName[flowLayer]} · ${expShort(l78Leg.expiry_date)} leg · chain ${istTime(l78Leg.ts)}` : "bars · no L7/L8 rows";
 
   return (

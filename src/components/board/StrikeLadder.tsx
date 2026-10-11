@@ -1,6 +1,7 @@
 // Shared strike ladder (Phase 1b). Every Board tab draws its data layer on this.
 import { useMemo } from "react";
 import { Sym } from "./Sym";
+import { BrickMarks } from "./Brick";
 
 export type LevelStyle = "spot" | "solid" | "dashed" | "dotted";
 export type Level = { id: string; name: string; at: number; style: LevelStyle };
@@ -9,6 +10,7 @@ export type LadderRow = {
   leftValue?: number | null; rightValue?: number | null; deltaLeft?: number | null; deltaRight?: number | null;
   ncLeft?: boolean; ncRight?: boolean; // L13: side present at only one of anchor/latest — not comparable
   faint?: boolean;              // S92 Pin: de-emphasised rows (rank > 10)
+  brick?: { now: number | null; pre: number | null }; // P7a: held/added/removed since pre-open
 };
 
 const fmt = (v: number) => v.toLocaleString("en-IN", { maximumFractionDigits: 1 });
@@ -53,6 +55,8 @@ export function StrikeLadder(p: Props) {
   const maxAbs = Math.max(1e-9, ...win.map((r) => Math.abs(r.value ?? 0)));
   const wingMax = Math.max(1e-9, ...win.flatMap((r) => [Math.abs(r.leftValue ?? 0), Math.abs(r.rightValue ?? 0)]));
   const barH = Math.max(6, rowH - 8);
+  const bricked = win.some((r) => r.brick);
+  const brickMax = Math.max(1e-9, ...win.flatMap((r) => r.brick ? [Math.abs(r.brick.now ?? 0), Math.abs(r.brick.pre ?? 0)] : []));
   // The cumulative silhouette owns a stable full-series scale. Strike bars above
   // remain scaled only to their largest visible per-strike magnitude.
   const silMax = p.silhouette ? Math.max(1e-9, ...Array.from(p.silhouette.values(), Math.abs)) : 1;
@@ -193,7 +197,8 @@ export function StrikeLadder(p: Props) {
                       background: (r.tint ?? 0) >= 0 ? "var(--cool)" : "var(--warm)",
                     }} />
                   )}
-                  {!p.oneSided && r.value != null && w > 0 && (
+                  {bricked && r.brick && r.brick.now != null && r.brick.pre != null && <BrickMarks now={r.brick.now} pre={r.brick.pre} scale={brickMax} height={barH} />}
+                  {!bricked && !p.oneSided && r.value != null && w > 0 && (
                     <div className="absolute top-1/2 -translate-y-1/2" style={{
                       height: barH, width: `${w}%`,
                       left: r.value >= 0 ? "50%" : `${50 - w}%`,

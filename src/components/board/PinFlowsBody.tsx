@@ -1,6 +1,7 @@
 // S92 design pass: grouped value bodies for the Pin and Flows tabs (presentation only).
 import type { OverviewItem } from "./LadderPanel";
 import { Sym } from "./Sym";
+import { BrickBar } from "./Brick";
 
 type Sel = { sel: string | null; setSel: (id: string) => void };
 const num = (v: number) => v.toLocaleString("en-IN", { maximumFractionDigits: 0 });
@@ -21,6 +22,7 @@ function Tile({ it, sel, setSel, big, quiet, className = "" }: Sel & { it?: Over
       <Label>{it.label}</Label>
       <div className={`mt-0.5 font-semibold leading-tight ${big ? "text-[26px]" : quiet ? "text-[13px]" : "text-[16px]"}`} style={{ ...cond, color: "var(--ink-1)" }}>{it.value}</div>
       <div className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--ink-3)" }}>{it.sub || "\u00a0"}</div>
+      {it.sub2 && <div className="text-[11px] leading-snug" style={{ color: "var(--ink-3)" }}>{it.sub2}</div>}
     </button>
   );
 }
@@ -119,10 +121,15 @@ export function FlowsBody({ items, sel, setSel }: Sel & { items: OverviewItem[] 
       </div>
       <Tile it={by("f_leg")} sel={sel} setSel={setSel} className="w-full" />
       <div className="rounded-md p-1.5" style={{ border: "1px solid var(--line)" }}>
-        <Tile it={by("f_dex_net")} sel={sel} setSel={setSel} className="w-full" />
-        <div className="grid grid-cols-2 gap-1"><Tile it={by("f_dex_call")} sel={sel} setSel={setSel} className="w-full" /><Tile it={by("f_dex_put")} sel={sel} setSel={setSel} className="w-full" /></div>
+        <Tile it={by("f_dex_net")} sel={sel} setSel={setSel} className="w-full" /><DexBrick it={by("f_dex_net")} />
+        <div className="grid grid-cols-2 gap-1"><div className="min-w-0"><Tile it={by("f_dex_call")} sel={sel} setSel={setSel} className="w-full" /><DexBrick it={by("f_dex_call")} /></div><div className="min-w-0"><Tile it={by("f_dex_put")} sel={sel} setSel={setSel} className="w-full" /><DexBrick it={by("f_dex_put")} /></div></div>
         <Tile it={by("f_dex_zero")} sel={sel} setSel={setSel} className="w-full" />
       </div>
     </div>
   );
+}
+
+function DexBrick({ it }: { it?: OverviewItem }) {
+  if (!it?.brick) return null;
+  return <BrickBar now={it.brick.now} pre={it.brick.pre} scale={it.brick.scale} />;
 }
