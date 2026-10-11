@@ -200,7 +200,9 @@ export function StrikeLadder(p: Props) {
                       background: (r.tint ?? 0) >= 0 ? "var(--cool)" : "var(--warm)",
                     }} />
                   )}
-                  {bricked && r.brick && r.brick.now != null && r.brick.pre != null && <BrickMarks now={r.brick.now} pre={r.brick.pre} scale={brickMax} height={barH} />}
+                  {bricked && (bkDraw
+                    ? <BrickMarks now={bkNow!} pre={bkPre!} scale={brickMax} height={barH} />
+                    : <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] leading-none" style={{ color: "var(--ink-3)" }}>·</span>)}
                   {!bricked && !p.oneSided && r.value != null && w > 0 && (
                     <div className="absolute top-1/2 -translate-y-1/2" style={{
                       height: barH, width: `${w}%`,
