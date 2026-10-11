@@ -421,7 +421,8 @@ export default function Board() {
   const l78FrontSkipped = l78[0] && l78[0] !== l78Leg && l78[0].status === "SKIPPED_EXPIRY";
   const l78Strikes = (useGreeksStrike(symbol, l78Leg?.ts ?? null, l78Leg?.expiry_date ?? null).data ?? []) as { strike: number; d_div: number | null; d_dt: number | null; g_div: number | null; g_dt: number | null }[];
   // ---- S95: DEX standing book (P6, ENH-140) ----
-  const dex = (useDexBook(symbol).data ?? []) as { strike: number; expiry: string; dte: number; settledTs: string; call: number | null; put: number | null; net: number | null; legCall: number | null; legPut: number | null; legNet: number | null; legOi: number | null; legGap: number | null }[];
+  const dexQ = useDexBook(symbol);
+  const dex = (dexQ.data ?? []) as { strike: number; expiry: string; dte: number; settledTs: string; call: number | null; put: number | null; net: number | null; legCall: number | null; legPut: number | null; legNet: number | null; legOi: number | null; legGap: number | null }[];
   const dex0 = dex[0] ?? null;
   const dexKey: Record<string, "net" | "call" | "put"> = { f_dex_net: "net", f_dex_call: "call", f_dex_put: "put", f_dex_zero: "net" };
   const dexLayer = sel ? dexKey[sel] ?? null : null;
@@ -442,12 +443,16 @@ export default function Board() {
   const fmtCr = (v: number | null) => (v == null ? "—" : crLakh(v));
   // ---- P7a: DEX flow since the pre-open (S96-A, S96-C) ----
   type DexSide = { call: number | null; put: number | null; net: number | null };
-  const dfl = (useDexFlow(symbol).data ?? []) as { strike: number; expiry: string; anchorTs: string; settledTs: string; window: string; now: DexSide; pre: DexSide; flow: DexSide; legNow: DexSide; legPre: DexSide; legFlow: DexSide; legGapDoi: number | null; legNoAnchorOi: number | null; legNoAnchorDex: number | null }[];
+  const dflQ = useDexFlow(symbol);
+  const dfl = (dflQ.data ?? []) as { strike: number; expiry: string; anchorTs: string; settledTs: string; window: string; now: DexSide; pre: DexSide; flow: DexSide; legNow: DexSide; legPre: DexSide; legFlow: DexSide; legGapDoi: number | null; legNoAnchorOi: number | null; legNoAnchorDex: number | null; badge: "SAME" | "OPPOSITE" | "ABSTAIN" | null; abstainCode: string | null }[];
   const dfSession = dfl.length > 0 && dfl.every((r) => r.window === "SESSION");
   const df0 = dfSession && dex0 && dfl.every((r) => r.settledTs === dex0.settledTs && r.expiry === dex0.expiry) ? dfl[0] : null;
-  const dfAbsent = df0 ? "" : !dfSession ? "no flow before 09:15" : "flow · different run — not drawn";
+  const dfAbsent = df0 ? "" : (dflQ.isLoading || dexQ.isLoading) ? "flow · loading" : !dfSession ? "no flow before 09:15" : "flow · different run — not drawn";
   const dfScale = df0 ? Math.max(1e-9, ...(["net", "call", "put"] as const).flatMap((k) => [Math.abs(df0.legNow[k] ?? 0), Math.abs(df0.legPre[k] ?? 0)])) : 1;
   const dfSub2 = (k: "net" | "call" | "put") => df0 ? `from ${fmtCr(df0.legPre[k])} at pre-open OI · ${fmtCr(df0.legFlow[k])} since ${istTime(df0.anchorTs)}` : dfAbsent;
+  const dfReason: Record<string, string> = { UNTRADED: "no badge · untraded OI on this snapshot", ZERO_NET: "no badge · a net is zero", DELTA_SET: "no badge · sign depends on the delta used" };
+  const dfBadge = df0 ? (df0.badge === "SAME" ? `flow since ${istTime(df0.anchorTs)} · same sign as book` : df0.badge === "OPPOSITE" ? `flow since ${istTime(df0.anchorTs)} · against book` : undefined) : undefined;
+  const dfBadgeReason = df0 && df0.badge === "ABSTAIN" && df0.abstainCode ? dfReason[df0.abstainCode] : undefined;
   const dfBrick = (k: "net" | "call" | "put") => df0 ? { now: df0.legNow[k], pre: df0.legPre[k], scale: dfScale } : undefined;
   const dfCap = df0 ? `${df0.legGapDoi != null ? ` ${num(df0.legGapDoi)} qty of ΔOI has no published delta and is not counted; this does not say who bought or wrote.` : ""}${(df0.legNoAnchorOi ?? 0) > 0 ? ` ${num(df0.legNoAnchorOi)} qty has no pre-open OI and sits outside the split.` : ""}` : "";
   const flowRows = dexLayer ? (dex.length ? (ladder?.rows ?? []).map((lr) => {
@@ -543,14 +548,14 @@ export default function Board() {
             ))}
           </div>
         </div>) : undefined },
-    { id: "f_dex_net", label: "Net DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legNet ?? null, true), levelIds: [], caption: dexCap("Net DEX · OI proxy", dex0?.legNet ?? null) + dfCap, sub2: dfSub2("net"), brick: dfBrick("net") },
+    { id: "f_dex_net", label: "Net DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legNet ?? null, true), levelIds: [], caption: dexCap("Net DEX · OI proxy", dex0?.legNet ?? null) + dfCap, sub2: dfSub2("net"), brick: dfBrick("net"), badge: dfBadge, badgeReason: dfBadgeReason },
     { id: "f_dex_call", label: "Call DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legCall ?? null, false), levelIds: [], caption: dexCap("Call DEX · OI proxy", dex0?.legCall ?? null) + dfCap, sub2: dfSub2("call"), brick: dfBrick("call") },
     { id: "f_dex_put", label: "Put DEX · OI proxy", sub: dexSub, value: dexVal(dex0?.legPut ?? null, false), levelIds: [], caption: dexCap("Put DEX · OI proxy", dex0?.legPut ?? null) + dfCap, sub2: dfSub2("put"), brick: dfBrick("put") },
     { id: "f_dex_zero", label: "Zero-Δ level · S*", sub: zeroSub, value: zOk ? num(zr!.zero as number) : <Absent word={zr ? (zeroWord[zr.status] ?? zr.status.toLowerCase()) : "no level"} />, levelIds: zOk ? ["sstar"] : [], caption: zOk ? `S* ${num(zr!.zero as number)}, ${sgn(zr!.minus ?? 0, 0)} pts from spot ${num(zr!.spot ?? 0, 1)} at chain ${istTime(zr!.ts)}.` : "No zero-Δ level." },
   ];
   const flowsBadge = (
     <div className="mb-3 rounded border border-dashed px-3 py-2 text-[12px] font-semibold" style={{ borderColor: "var(--rule)", color: "var(--ink-1)" }}>
-      PROVISIONAL — flow-vs-book (D-4) not built
+      flow-vs-book shown on unclassified ΔOI; classification (D-4) not built
     </div>);
   const layerName: Record<string, string> = { d_dt: "∂Δ/∂t", d_div: "∂Δ/∂σ", g_dt: "∂Γ/∂t", g_div: "∂Γ/∂σ" };
   const dexName: Record<string, string> = { net: "Net DEX", call: "Call DEX", put: "Put DEX" };
