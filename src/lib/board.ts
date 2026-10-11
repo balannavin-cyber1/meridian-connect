@@ -519,6 +519,31 @@ export function useDexBook(s: Symbol) {
   });
 }
 
+/** P7a: DEX flow since the pre-open beside the book, front leg, settled run (S96-A, S96-C). */
+export function useDexFlow(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "dexflow", s], ...opts,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("v_dex_flow_vs_book")
+        .select("symbol, expiry_date, anchor_ts, settled_ts, flow_window, strike, call_dex_cr, put_dex_cr, net_dex_cr, call_preopen_dex_cr, put_preopen_dex_cr, net_preopen_dex_cr, call_flow_cr, put_flow_cr, net_flow_cr, leg_call_dex_cr, leg_put_dex_cr, leg_net_dex_cr, leg_call_preopen_dex_cr, leg_put_preopen_dex_cr, leg_net_preopen_dex_cr, leg_call_flow_cr, leg_put_flow_cr, leg_net_flow_cr, leg_gap_d_oi_qty, leg_no_anchor_oi_qty, leg_no_anchor_dex_cr")
+        .eq("symbol", s).order("strike", { ascending: true }).limit(1000);
+      if (error) throw error;
+      const nz = (v: any) => (v == null ? null : Number(v));
+      return ((data ?? []) as any[]).map((r) => ({
+        strike: Number(r.strike), expiry: r.expiry_date as string, anchorTs: r.anchor_ts as string,
+        settledTs: r.settled_ts as string, window: r.flow_window as string,
+        now: { call: nz(r.call_dex_cr), put: nz(r.put_dex_cr), net: nz(r.net_dex_cr) },
+        pre: { call: nz(r.call_preopen_dex_cr), put: nz(r.put_preopen_dex_cr), net: nz(r.net_preopen_dex_cr) },
+        flow: { call: nz(r.call_flow_cr), put: nz(r.put_flow_cr), net: nz(r.net_flow_cr) },
+        legNow: { call: nz(r.leg_call_dex_cr), put: nz(r.leg_put_dex_cr), net: nz(r.leg_net_dex_cr) },
+        legPre: { call: nz(r.leg_call_preopen_dex_cr), put: nz(r.leg_put_preopen_dex_cr), net: nz(r.leg_net_preopen_dex_cr) },
+        legFlow: { call: nz(r.leg_call_flow_cr), put: nz(r.leg_put_flow_cr), net: nz(r.leg_net_flow_cr) },
+        legGapDoi: nz(r.leg_gap_d_oi_qty), legNoAnchorOi: nz(r.leg_no_anchor_oi_qty), legNoAnchorDex: nz(r.leg_no_anchor_dex_cr),
+      }));
+    },
+  });
+}
+
 /** P6 / S95: S*, the re-priced zero-delta level (ruling S94-H). Latest chain cycle, one row per symbol. */
 export function useDexZero(s: Symbol) {
   return useQuery({
