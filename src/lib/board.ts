@@ -524,8 +524,7 @@ export function useDexFlow(s: Symbol) {
   return useQuery({
     queryKey: ["board", "dexflow", s], ...opts,
     queryFn: async () => {
-      const { data, error } = await supabase.from("v_dex_flow_vs_book")
-        .select("symbol, expiry_date, anchor_ts, settled_ts, flow_window, strike, call_dex_cr, put_dex_cr, net_dex_cr, call_preopen_dex_cr, put_preopen_dex_cr, net_preopen_dex_cr, call_flow_cr, put_flow_cr, net_flow_cr, leg_call_dex_cr, leg_put_dex_cr, leg_net_dex_cr, leg_call_preopen_dex_cr, leg_put_preopen_dex_cr, leg_net_preopen_dex_cr, leg_call_flow_cr, leg_put_flow_cr, leg_net_flow_cr, leg_gap_d_oi_qty, leg_no_anchor_oi_qty, leg_no_anchor_dex_cr")
+      const { data, error } = await supabase.from("v_dex_flow_vs_book").select("symbol, expiry_date, anchor_ts, settled_ts, flow_window, strike, call_dex_cr, put_dex_cr, net_dex_cr, call_preopen_dex_cr, put_preopen_dex_cr, net_preopen_dex_cr, call_flow_cr, put_flow_cr, net_flow_cr, leg_call_dex_cr, leg_put_dex_cr, leg_net_dex_cr, leg_call_preopen_dex_cr, leg_put_preopen_dex_cr, leg_net_preopen_dex_cr, leg_call_flow_cr, leg_put_flow_cr, leg_net_flow_cr, leg_gap_d_oi_qty, leg_no_anchor_oi_qty, leg_no_anchor_dex_cr, flow_book_badge, flow_book_abstain_code")
         .eq("symbol", s).order("strike", { ascending: true }).limit(1000);
       if (error) throw error;
       const nz = (v: any) => (v == null ? null : Number(v));
@@ -539,6 +538,8 @@ export function useDexFlow(s: Symbol) {
         legPre: { call: nz(r.leg_call_preopen_dex_cr), put: nz(r.leg_put_preopen_dex_cr), net: nz(r.leg_net_preopen_dex_cr) },
         legFlow: { call: nz(r.leg_call_flow_cr), put: nz(r.leg_put_flow_cr), net: nz(r.leg_net_flow_cr) },
         legGapDoi: nz(r.leg_gap_d_oi_qty), legNoAnchorOi: nz(r.leg_no_anchor_oi_qty), legNoAnchorDex: nz(r.leg_no_anchor_dex_cr),
+        badge: (r.flow_book_badge ?? null) as "SAME" | "OPPOSITE" | "ABSTAIN" | null,
+        abstainCode: (r.flow_book_abstain_code ?? null) as "PRE_OPEN" | "UNTRADED" | "ZERO_NET" | "DELTA_SET" | null,
       }));
     },
   });

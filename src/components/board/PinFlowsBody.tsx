@@ -121,7 +121,7 @@ export function FlowsBody({ items, sel, setSel }: Sel & { items: OverviewItem[] 
       </div>
       <Tile it={by("f_leg")} sel={sel} setSel={setSel} className="w-full" />
       <div className="rounded-md p-1.5" style={{ border: "1px solid var(--line)" }}>
-        <Tile it={by("f_dex_net")} sel={sel} setSel={setSel} className="w-full" /><div className="grid grid-cols-2 gap-1"><div className="min-w-0"><DexBrick it={by("f_dex_net")} /></div></div>
+        <Tile it={by("f_dex_net")} sel={sel} setSel={setSel} className="w-full" /><DexBadge it={by("f_dex_net")} /><div className="grid grid-cols-2 gap-1"><div className="min-w-0"><DexBrick it={by("f_dex_net")} /></div></div>
         <div className="grid grid-cols-2 gap-1"><div className="min-w-0"><Tile it={by("f_dex_call")} sel={sel} setSel={setSel} className="w-full" /><DexBrick it={by("f_dex_call")} /></div><div className="min-w-0"><Tile it={by("f_dex_put")} sel={sel} setSel={setSel} className="w-full" /><DexBrick it={by("f_dex_put")} /></div></div>
         <Tile it={by("f_dex_zero")} sel={sel} setSel={setSel} className="w-full" />
       </div>
@@ -132,4 +132,13 @@ export function FlowsBody({ items, sel, setSel }: Sel & { items: OverviewItem[] 
 function DexBrick({ it }: { it?: OverviewItem }) {
   if (!it?.brick) return null;
   return <BrickBar now={it.brick.now} pre={it.brick.pre} scale={it.brick.scale} />;
+}
+
+/** Flow-vs-book badge (Net tile only): neutral chip, or a small reason line. */
+function DexBadge({ it }: { it?: OverviewItem }) {
+  if (it?.badge) return (
+    <div className="mx-2.5 mb-1"><span className="inline-block rounded-full px-2 py-0.5 text-[10px]" style={{ ...cond, border: "1px solid var(--line-2)", background: "var(--s2)", color: "var(--ink-2)" }}>{it.badge}</span></div>
+  );
+  if (it?.badgeReason) return <div className="mx-2.5 mb-1 text-[10px]" style={{ color: "var(--ink-3)" }}>{it.badgeReason}</div>;
+  return null;
 }
