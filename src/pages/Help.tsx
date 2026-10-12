@@ -82,7 +82,12 @@ export default function Help() {
   useEffect(() => {
     if (!m) return;
     const id = decodeURIComponent(window.location.hash.slice(1));
-    if (id) requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView());
+    if (!id) return;
+    const go = () => document.getElementById(id)?.scrollIntoView();
+    requestAnimationFrame(go);
+    // Re-anchor while lazy screenshots above the target settle their height.
+    const ts = [300, 900, 1800].map((d) => window.setTimeout(go, d));
+    return () => ts.forEach(clearTimeout);
   }, [m]);
 
   useEffect(() => {
