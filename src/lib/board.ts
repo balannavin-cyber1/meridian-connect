@@ -545,6 +545,28 @@ export function useDexFlow(s: Symbol) {
   });
 }
 
+/** P7b: ∂Δ/∂σ and ∂Δ/∂t flow since the pre-open beside the L7/L8 book, front leg (S96-F, S96-G). */
+export function useDeltaDriftFlow(s: Symbol) {
+  return useQuery({
+    queryKey: ["board", "ddflow", s], ...opts,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("v_delta_drift_flow_vs_book").select("symbol, expiry_date, ts, anchor_ts, flow_window, status, leg_iv_book_cr, leg_iv_preopen_cr, leg_iv_flow_cr, leg_iv_no_anchor_cr, leg_t_book_cr, leg_t_preopen_cr, leg_t_flow_cr, leg_t_no_anchor_cr, leg_gap_d_oi_qty, leg_no_anchor_oi_qty")
+        .eq("symbol", s).order("strike", { ascending: true }).limit(1);
+      if (error) throw error;
+      const nz = (v: any) => (v == null ? null : Number(v));
+      const r = ((data ?? []) as any[])[0];
+      if (!r) return null;
+      return {
+        expiry: r.expiry_date as string, ts: r.ts as string, anchorTs: r.anchor_ts as string,
+        window: r.flow_window as string, status: r.status as string,
+        iv: { book: nz(r.leg_iv_book_cr), pre: nz(r.leg_iv_preopen_cr), flow: nz(r.leg_iv_flow_cr), noAnchor: nz(r.leg_iv_no_anchor_cr) },
+        t:  { book: nz(r.leg_t_book_cr),  pre: nz(r.leg_t_preopen_cr),  flow: nz(r.leg_t_flow_cr),  noAnchor: nz(r.leg_t_no_anchor_cr) },
+        gapDoi: nz(r.leg_gap_d_oi_qty), noAnchorOi: nz(r.leg_no_anchor_oi_qty),
+      };
+    },
+  });
+}
+
 /** P6 / S95: S*, the re-priced zero-delta level (ruling S94-H). Latest chain cycle, one row per symbol. */
 export function useDexZero(s: Symbol) {
   return useQuery({

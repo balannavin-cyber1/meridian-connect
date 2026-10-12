@@ -107,6 +107,7 @@ export function FlowsBody({ items, sel, setSel }: Sel & { items: OverviewItem[] 
         <div className="mx-2.5 mb-1 h-1 overflow-hidden rounded-sm" style={{ background: "var(--s2)" }}>
           {r != null && <div className="h-full" style={{ width: `${Math.min(1, Math.abs(r)) * 100}%`, background: r >= 0 ? "var(--cool)" : "var(--warm)" }} />}
         </div>
+        {(id === "f_ddt" || id === "f_ddiv") && <DexBrick it={it} />}
       </div>
     );
   };
