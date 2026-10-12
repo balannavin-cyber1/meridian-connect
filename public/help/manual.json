@@ -1,0 +1,562 @@
+{
+ "title": "Marketview user manual",
+ "manual_version": "v0.3",
+ "board_bundle": "index-CadQe4qO.js",
+ "source_sha256": "c05e012c820e7ca7f814cd1c799e26a988d143e041908b897e97efdb72015c4c",
+ "preface_html": "<p><strong>MERIDIAN · Marketview</strong> (https://marketview.meridianalpha.in)</p>\n<table>\n<thead>\n<tr>\n<th></th>\n<th></th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Manual version</td>\n<td>v0.3 (draft)</td>\n</tr>\n<tr>\n<td>Board</td>\n<td>meridian-connect <code>804d684</code> per CURRENT.md; served bundle <code>index-CadQe4qO.js</code></td>\n</tr>\n<tr>\n<td>Status</td>\n<td>All parts drafted from pass 1 (09:00–09:12), pass 2 (09:40–09:41) and the capture pass (09:52–10:21), 2026-10-12. Pass 3 (after the close) and an expiry-day read are owed.</td>\n</tr>\n</tbody>\n</table>\n<blockquote>\n<p><strong>Read this first.</strong> Marketview is a measuring board, not a signal service. No tile here tells you to buy or sell. Several tiles carry the board's own warnings: \"band not measured\", \"unit definition pending\", \"not built\", \"declined on evidence\". This manual repeats those warnings wherever they apply. Where the board says something is unmeasured, the manual says so too, and does not fill the gap with a guess.</p>\n</blockquote>",
+ "parts": [
+  {
+   "id": "how-to-use-this-manual",
+   "title": "How to use this manual",
+   "intro_html": "<p>Each tile, chart and mark is described with the same eight headings:</p>\n<table>\n<thead>\n<tr>\n<th>Heading</th>\n<th>What it gives you</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>What it is</strong></td>\n<td>One plain sentence.</td>\n</tr>\n<tr>\n<td><strong>How to read it</strong></td>\n<td>What higher, lower, cool or warm means.</td>\n</tr>\n<tr>\n<td><strong>Worked example</strong></td>\n<td>A real screen: date, time (IST), symbol and the values shown.</td>\n</tr>\n<tr>\n<td><strong>What it is NOT telling you</strong></td>\n<td>The tempting misreading.</td>\n</tr>\n<tr>\n<td><strong>Caveats</strong></td>\n<td>Calibration gaps and known defects, stated plainly.</td>\n</tr>\n<tr>\n<td><strong>Read it with</strong></td>\n<td>The tiles that give it context. These match the drawer's READ IT WITH chips.</td>\n</tr>\n<tr>\n<td><strong>Source</strong></td>\n<td>The database view and column it reads, plus the ruling that fixed its wording.</td>\n</tr>\n<tr>\n<td><strong>Last verified</strong></td>\n<td>Date and board build. A tile whose stamp is older than the current build is marked <strong>UNVERIFIED</strong>.</td>\n</tr>\n</tbody>\n</table>\n<p>Every tile also has an in-app <strong>drawer</strong> (§1.5). The manual expands the drawer for a newcomer. It never contradicts the drawer. Where this manual and the drawer seem to disagree, the drawer describes what the board does, and the disagreement is listed in §7.2 as a finding.</p>",
+   "sections": [],
+   "shots": []
+  },
+  {
+   "id": "part-0-just-enough-options",
+   "title": "Part 0 — Just enough options",
+   "intro_html": "<p>This part assumes you know what a call, a put, a strike, an expiry and a premium are. Everything else is introduced here, and only because some tile needs it.</p>",
+   "sections": [
+    {
+     "id": "s0-1",
+     "title": "0.1 Open interest (OI)",
+     "html": "<p><strong>Open interest</strong> is the number of option contracts open at a strike at a given moment. On this board OI is a <strong>quantity at the current lot size</strong>, not a count of contracts. Two things matter for reading the board:</p>\n<ul>\n<li><strong>OI says nothing about who holds the position.</strong> One buyer and one writer make each open contract. A rise in OI means new positions were opened, but it cannot tell you whether buyers or writers started them. The board repeats this in several places: <em>\"An OI change cannot tell writing from buying\"</em> (ΔOI drawer); <em>\"this does not say who bought or wrote\"</em> (Flows captions).</li>\n<li><strong>OI is only as good as the vendor's feed.</strong> On some sessions the vendor carried large OI on legs that had not traded at all. For SENSEX on 2026-09-25, 09-28 and 09-29, untraded legs held 33–94 % of front OI (TD-S95-NEW-1). Tiles built from OI levels are not protected against this. The only guarded surface is the Flows badge (§3, Flows; §5.4).</li>\n</ul>\n<p><strong>ΔOI</strong> is the change in OI between two moments. The board uses two reference moments:</p>\n<ul>\n<li><strong>\"since 09:15\"</strong> on the OI tab: the first chain snapshot at or after 09:15 IST.</li>\n<li><strong>\"since the pre-open\"</strong> on the Flows tab: the session's first front-expiry snapshot before 09:15 IST, usually about 08:30 for NIFTY and 08:35 for SENSEX.</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s0-2",
+     "title": "0.2 Delta (Δ)",
+     "html": "<p><strong>Delta</strong> is how much an option's premium moves for a one-point move in the index. A call's delta is between 0 and +1. A put's delta is between −1 and 0. Multiplying delta by OI and by spot gives an amount in rupees: roughly, how much index exposure those open options behave like. The board writes this in <strong>₹ crore (Cr)</strong>.</p>\n<p>On this board the deltas come from the <strong>vendor</strong>, and the vendor's deltas fail a basic consistency check (put–call parity). For that reason the DEX tiles say <em>\"Magnitude indicative, not measured … Read the sign.\"</em></p>",
+     "shots": []
+    },
+    {
+     "id": "s0-3",
+     "title": "0.3 Gamma (γ)",
+     "html": "<p><strong>Gamma</strong> is how fast delta itself changes as the index moves. It is largest for strikes near spot and close to expiry. The board weights each strike's gamma by its OI and writes the result as <strong>γ exposure</strong>, in \"₹ Cr\", with the warning <strong>\"unit definition pending\"</strong>. What one unit of this number means is still an open question (E-1 / E-D1). Compare its <strong>sign</strong> and its <strong>share of the total</strong>. Do not compare its size from one day to the next.</p>",
+     "shots": []
+    },
+    {
+     "id": "s0-4",
+     "title": "0.4 Why \"dealer\" is only a model",
+     "html": "<p>Many option boards assume a <strong>dealer</strong>, a market-maker who takes the other side of customers' trades and hedges. A typical assumption is that dealers are <em>long calls and short puts</em>. If that were true, positive γ would mean dealers buy dips and sell rallies (\"dampening\"). Negative γ would mean they sell dips and buy rallies (\"amplifying\").</p>\n<p>MERIDIAN tested that assumption against NSE's published participant positions (P2, 2026-10-10, 340 sessions). The result was <strong>regime-dependent</strong>: the assumed side held in some periods and was inverted in others. P2 used NSE data only, so <strong>SENSEX was not tested at all</strong>. The board therefore labels its sign <em>\"open-interest arithmetic, not a dealer claim\"</em> and carries the phrase <em>\"dealer side regime-dependent (P2)\"</em> on the DEX tiles.</p>\n<p>Read every \"dealer\", \"dampening\" and \"amplifying\" on the board as a name for the <strong>sign of an OI-weighted sum</strong>, not as a statement of who holds what. Some captions still say \"dealer\" outright (§7.2,). Their wording is <strong>under review</strong> (TD-S96-NEW-1).</p>",
+     "shots": []
+    },
+    {
+     "id": "s0-5",
+     "title": "0.5 Implied volatility (IV) and the priced move",
+     "html": "<p><strong>IV</strong> is the volatility the option prices imply, quoted in percent per year. The <strong>ATM straddle</strong> (the at-the-money call plus put) gives a rough size for the move the market is pricing <strong>to expiry</strong>. The board calls this the <strong>priced move</strong>. It is not a one-day range and not a σ (sigma) band: the board has no single agreed σ yet (E-2).</p>",
+     "shots": []
+    },
+    {
+     "id": "s0-6",
+     "title": "0.6 DTE, sessions and expiry legs",
+     "html": "<ul>\n<li><strong>DTE</strong> means days to expiry. The board mostly counts <strong>sessions</strong> (trading days) to expiry. One Flows sub-line counts <strong>calendar days</strong> (\"6 cal d\").</li>\n<li>An <strong>expiry leg</strong> is one expiry date. <strong>W1 / front</strong> is the nearest expiry; <strong>W2 / back</strong> is the next. MERIDIAN captures two legs, so the IV tab compares two points and does not draw a curve.</li>\n<li><strong>dte 0</strong> is expiry day. Several tiles deliberately do not compute on dte 0 and say so: <em>\"skipped on expiry day\"</em>, <code>SKIPPED_EXPIRY</code>, <em>\"no flow on expiry day\"</em>.</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s0-7",
+     "title": "0.7 Second-order sensitivities: ∂Δ/∂σ and ∂Δ/∂t",
+     "html": "<p>The Flows tab shows how the OI-weighted delta would change for two reasons other than a price move:</p>\n<ul>\n<li><strong>∂Δ/∂σ</strong> is how much delta changes for a +1 point rise in implied volatility, with spot and time held fixed.</li>\n<li><strong>∂Δ/∂t</strong> is how much delta changes as one calendar day passes, with spot and IV held fixed.</li>\n</ul>\n<p>The board also shows the matching pair for gamma, <strong>∂Γ/∂σ</strong> and <strong>∂Γ/∂t</strong> (its labels use a capital Γ). Their net is a small leftover of large opposing terms. That is why the board always shows them beside their gross.</p>",
+     "shots": []
+    }
+   ],
+   "shots": []
+  },
+  {
+   "id": "part-1-getting-around",
+   "title": "Part 1 — Getting around",
+   "intro_html": "",
+   "sections": [
+    {
+     "id": "s1-1",
+     "title": "1.1 Pages",
+     "html": "<p>The top bar has six pages. Health and Settings sit slightly apart and are quieter:</p>\n<table>\n<thead>\n<tr>\n<th>Page</th>\n<th>What it answers</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>Home</strong></td>\n<td>The day at a glance: spot, one sentence, six question cards.</td>\n</tr>\n<tr>\n<td><strong>Board</strong></td>\n<td>The main instrument: header strip, read sentence, six sub-tabs, strike ladder, drawer.</td>\n</tr>\n<tr>\n<td><strong>Context</strong></td>\n<td>Breadth and volatility.</td>\n</tr>\n<tr>\n<td><strong>Structure</strong></td>\n<td>Price-structure zones and the engine's signal stream.</td>\n</tr>\n<tr>\n<td><strong>Health</strong></td>\n<td>Whether the data writers are running.</td>\n</tr>\n<tr>\n<td><strong>Settings</strong></td>\n<td>The parameter store, read-only.</td>\n</tr>\n</tbody>\n</table>\n<p>The <strong>NIFTY / SENSEX</strong> toggle sits at the top right. Keys <strong>N</strong> and <strong>S</strong> also switch it. Switching keeps your sub-tab and resets the zoom to <em>Near spot</em>.</p>",
+     "shots": []
+    },
+    {
+     "id": "s1-2",
+     "title": "1.2 Board sub-tabs",
+     "html": "<p><strong>Overview · Pin · Gamma · OI · Flows · IV</strong>, switched with keys <strong>1–6</strong>. Each sub-tab answers one question. Home repeats these questions as its card titles:</p>\n<ol>\n<li>Overview: <em>What kind of day, and where are the edges?</em></li>\n<li>Pin: <em>How settled is the centre?</em></li>\n<li>Gamma: <em>Can I trust single strikes?</em></li>\n<li>OI: <em>What is actually written?</em> ( on the word \"written\")</li>\n<li>Flows: <em>What must dealers trade if spot moves?</em> (see §0.4)</li>\n<li>IV: <em>What do time and cover cost?</em></li>\n</ol>",
+     "shots": []
+    },
+    {
+     "id": "s1-3",
+     "title": "1.3 The strike ladder and zoom",
+     "html": "<p>Every sub-tab except IV draws a vertical <strong>strike ladder</strong>. Strikes run top to bottom, high to low, and spot is marked across it. Three zoom modes sit above the ladder:</p>\n<table>\n<thead>\n<tr>\n<th>Mode</th>\n<th>Key</th>\n<th>Window</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>Near spot</strong> (default)</td>\n<td><code>0</code></td>\n<td>spot ± the larger of 2.5 × straddle and 1.2 %, widened to whole strikes</td>\n</tr>\n<tr>\n<td><strong>All levels</strong></td>\n<td><code>L</code></td>\n<td>the sub-tab's levels ± 2 strikes</td>\n</tr>\n<tr>\n<td><strong>Full chain</strong></td>\n<td><code>F</code></td>\n<td>every stored strike</td>\n</tr>\n</tbody>\n</table>\n<p><strong>+ / −</strong> zoom in and out, making a <em>Custom</em> window. When strikes get crowded the ladder becomes <strong>dense</strong>: it labels every fourth strike plus the level strikes, and shows readouts on level rows only. That is why the SENSEX ladder can show fewer numbers than the NIFTY ladder at the same zoom.</p>",
+     "shots": []
+    },
+    {
+     "id": "s1-4",
+     "title": "1.4 The header strip and the read",
+     "html": "<p>Above the sub-tabs sit the <strong>header strip</strong> (Part 2) and the <strong>read</strong>, one sentence summarising the strip, for example:</p>\n<blockquote>\n<p><em>\"Spot 73,181.3 sits in a dampening pocket, 1.1% under the call OI wall at 74,000. Flip carry is unmeasurable. Net gamma is -0.42 of gross.\"</em> (SENSEX, 2026-10-12, γ run 09:00 IST)</p>\n</blockquote>\n<p>The read states what is there. It never predicts or recommends.</p>",
+     "shots": []
+    },
+    {
+     "id": "s1-5",
+     "title": "1.5 Drawers",
+     "html": "<p>Selecting a tile or list row opens its <strong>drawer</strong> on the right. Every drawer has the same slots:</p>\n<table>\n<thead>\n<tr>\n<th>Slot</th>\n<th>Content</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Header</td>\n<td>sub-tab · title · unit</td>\n</tr>\n<tr>\n<td>Source line</td>\n<td>where the text came from: <code>‹view› · COMMENT live</code> (the database view's own comment), <code>sql/ file · COMMENT not live</code> (written in the repo but not applied to the database comment), or <code>derived</code></td>\n</tr>\n<tr>\n<td><strong>WHAT IT IS</strong></td>\n<td></td>\n</tr>\n<tr>\n<td><strong>HOW TO READ IT</strong></td>\n<td></td>\n</tr>\n<tr>\n<td><strong>COMPUTED</strong></td>\n<td>the view and column</td>\n</tr>\n<tr>\n<td><strong>SCALE</strong></td>\n<td>whether a measured band exists; usually <em>\"band not measured — calibration gap\"</em></td>\n</tr>\n<tr>\n<td><strong>CAVEAT</strong></td>\n<td></td>\n</tr>\n<tr>\n<td><strong>READ IT WITH</strong></td>\n<td>two or three chips that jump to related tiles</td>\n</tr>\n</tbody>\n</table>\n<p>The live build has <strong>39</strong> drawer entries. The IV sub-tab has <strong>none</strong>.</p>",
+     "shots": []
+    },
+    {
+     "id": "s1-6",
+     "title": "1.6 Two clocks",
+     "html": "<p>The board reads from two separate data runs, about 5 minutes apart:</p>\n<ul>\n<li>the <strong>γ clock</strong>, the gamma run (<code>gex_strike_snapshots</code> / <code>gamma_metrics</code>), which feeds spot, net γ, walls, pin and the ladder;</li>\n<li>the <strong>chain clock</strong>, the option-chain snapshot, which feeds flip, IV, ΔOI, the ∂Δ/∂σ and ∂Δ/∂t tiles and S*.</li>\n</ul>\n<p>The DEX tiles use a third time: the <strong>settled run</strong>, the last run at or before 15:15 IST.</p>\n<p>A tile never mixes clocks without showing both times. When the two clocks drift more than one cycle apart, a clock chip appears in the strip: <em>\"γ hh:mm · chain hh:mm\"</em>. After 15:15 the DEX tiles (settled run) and the ∂Δ tiles (latest run) are <strong>not one snapshot</strong> (TD-S96-NEW-4). Check their times before comparing them.</p>",
+     "shots": []
+    },
+    {
+     "id": "s1-7",
+     "title": "1.7 Keys",
+     "html": "<table>\n<thead>\n<tr>\n<th>Key</th>\n<th>Action</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>N</code> / <code>S</code></td>\n<td>symbol</td>\n</tr>\n<tr>\n<td><code>1</code>–<code>6</code></td>\n<td>sub-tab</td>\n</tr>\n<tr>\n<td><code>0</code> / <code>L</code> / <code>F</code></td>\n<td>zoom mode</td>\n</tr>\n<tr>\n<td><code>+</code> / <code>−</code></td>\n<td>zoom in / out</td>\n</tr>\n<tr>\n<td><code>/</code></td>\n<td>strike search</td>\n</tr>\n<tr>\n<td><code>Space</code></td>\n<td>freeze / resume</td>\n</tr>\n<tr>\n<td><code>J</code> / <code>K</code></td>\n<td>step through signals on Context</td>\n</tr>\n<tr>\n<td><code>?</code></td>\n<td>key list</td>\n</tr>\n</tbody>\n</table>\n<p>Keys act only when the board has focus. <em>(Keys are from the design note and were not tested in pass 1.)</em></p>",
+     "shots": []
+    },
+    {
+     "id": "s1-8",
+     "title": "1.8 The 3D view",
+     "html": "<p><code>/board/3d</code>, reached from the <strong>3D ›</strong> links on Gamma, OI and IV, is an optional drill-down with three modes:</p>\n<ol>\n<li><strong>γ terrain</strong></li>\n<li><strong>IV fence</strong></li>\n<li><strong>Pain bowl</strong></li>\n</ol>\n<p>It covers the last 14 sessions, with today marked <em>\"partial\"</em>. Height is |net γ| per strike at each session's settled run. Colour is sign. Holes are missing strikes, never zero. It is outside the parity work and is display-only. <strong>R</strong> resets the view; <strong>Esc</strong> returns to the 2D board.</p>",
+     "shots": [
+      {
+       "file": "help/shots/nifty_1020_3d_gamma_terrain.jpg",
+       "caption": "3D drill-down, γ terrain mode, 14 sessions.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "10:20",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    }
+   ],
+   "shots": [
+    {
+     "file": "help/shots/nifty_0952_board_strip_overview.jpg",
+     "caption": "The Board: header strip, read sentence, sub-tabs, ladder.",
+     "symbol": "NIFTY",
+     "date": "2026-10-12",
+     "time_ist": "09:52",
+     "board_bundle": "index-CadQe4qO.js"
+    },
+    {
+     "file": "help/shots/nifty_0952_board_stale_strip.jpg",
+     "caption": "The red stale strip at the top: \"chain data 12 min old · gamma run 17 min old · Health ›\".",
+     "symbol": "NIFTY",
+     "date": "2026-10-12",
+     "time_ist": "09:52",
+     "board_bundle": "index-CadQe4qO.js"
+    }
+   ]
+  },
+  {
+   "id": "part-2-the-header-strip",
+   "title": "Part 2 — The header strip",
+   "intro_html": "<p>The strip has ten cells in two rows. It appears on every Board sub-tab and summarises the symbol at a glance. Examples come from <strong>pass 2</strong> (2026-10-12, NIFTY 09:41 IST and SENSEX 09:40 IST) unless another time is given. Every cell in this part was last verified on 2026-10-12 against bundle <code>index-CadQe4qO.js</code>.</p>",
+   "sections": [
+    {
+     "id": "s2-1",
+     "title": "2.1 SYMBOL · EXPIRY",
+     "html": "<ul>\n<li><strong>What it is.</strong> The front expiry date and how many trading sessions remain until it.</li>\n<li><strong>How to read it.</strong> \"13 OCT / NIFTY · 1 DTE\" means NIFTY's nearest expiry is 13 October, one session away.</li>\n<li><strong>Worked example.</strong> NIFTY 09:41 showed <code>13 OCT · NIFTY · 1 DTE</code>; SENSEX showed <code>15 OCT · SENSEX · 3 DTE</code>.</li>\n<li><strong>Not telling you.</strong> Nothing about the back expiry. For the back expiry, see IV → W2.</li>\n<li><strong>Caveats.</strong> On the day this reads 0 DTE, several tiles deliberately stop computing (§5).</li>\n<li><strong>Source.</strong> <code>gamma_metrics.expiry_date</code>; <code>v_iv_term_structure.dte_sessions</code>, leg 1.</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s2-2",
+     "title": "2.2 SPOT",
+     "html": "<ul>\n<li><strong>What it is.</strong> The index level, shown two ways.</li>\n<li><strong>How to read it.</strong> The big number is the <strong>live tick</strong>; the cell title says when, as in \"SPOT · LIVE 09:41\". The sub-line gives the change from the previous close, then <strong>\"board hh:mm @ x\"</strong>, which is the spot the γ run used. The ladder, the read sentence and the levels all use the <em>board</em> spot, not the live tick.</li>\n<li><strong>Worked example.</strong> NIFTY 09:41 showed <code>22,524.3 · ▲+3.8 · +0.02 % · board 09:35 @ 22,538.4</code>. The live tick and the board spot differed by 14 points.</li>\n<li><strong>Not telling you.</strong> The live tick and the board spot are not the same number, and the levels are measured from the board spot. In the Overview list, the \"Spot · board hh:mm\" row shows the change <strong>at the board spot</strong> (SENSEX 09:40: +130.3), while the strip shows the change <strong>at the live tick</strong> (−101.5). Both are correct for their own moment.</li>\n<li><strong>Caveats.</strong> Before the first live tick the cell reads plain \"SPOT\" with the board value only, as seen at 09:00. While data is loading the change line can be blank for a moment.</li>\n<li><strong>Read it with.</strong> CLOCKS (§2.10).</li>\n<li><strong>Source.</strong> Live tick, plus <code>gamma_metrics.spot/ts</code> for the board spot.</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s2-3",
+     "title": "2.3 NET Γ",
+     "html": "<ul>\n<li><strong>What it is.</strong> The sum of signed γ exposure across every strike of the latest γ run, in ₹ Cr. The unit is still open.</li>\n<li><strong>How to read it.</strong> Look at the <strong>sign</strong> and at <strong>net ÷ gross</strong>, not the size.<ul>\n<li>The sub-line says \"long γ\" (positive) or \"short γ\" (negative), then the net-to-gross ratio, for example \"0.10 of gross\". A ratio near 0 means the book nearly cancels out. A ratio near ±1 means it is one-sided.</li>\n<li>The bar under the number splits gross into its warm (negative) and cool (positive) parts.</li>\n</ul>\n</li>\n<li><strong>Worked example.</strong> NIFTY 09:41 showed <code>+9.2L Cr · long γ · 0.10 of gross</code>. At 09:00 the same symbol showed <code>−13.9L Cr · short γ · −0.23 of gross</code>, so the sign flipped across the open. SENSEX 09:40 showed <code>+5,444 Cr · long γ · 0.00 of gross</code>: positive, but so small against gross that the ratio rounds to 0.00. Treat that as balanced.</li>\n<li><strong>Not telling you.</strong><ul>\n<li>Who holds the gamma. \"Long γ\" is the sign of an OI-weighted sum (§0.4).</li>\n<li>How big a move to expect. A positive sign does <strong>not</strong> mean a calmer day: the P1c test was inconclusive, and P1c, P1 and P2 have produced no pre-registered YES between them.</li>\n</ul>\n</li>\n<li><strong>Caveats.</strong><ul>\n<li>The size has no agreed unit (E-D1), so do not compare magnitudes across days.</li>\n<li>The strip/Overview drawer for this cell states the dealer reading as fact. The P2 caveat appears only on the Gamma-tab drawer.</li>\n<li>The label uses a capital Γ.</li>\n</ul>\n</li>\n<li><strong>Read it with.</strong> Pin (γ-conc), Flip, and on the Gamma tab, Gross |Γ|.</li>\n<li><strong>Source.</strong> <code>v_gex_abs_exposure.net_gex_cr</code>; net/gross = <code>net_gex_cr ÷ abs_gex_cr</code>. Rulings S94-F, ADR-015 Amendment A.</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s2-4",
+     "title": "2.4 FLIP",
+     "html": "<ul>\n<li><strong>What it is.</strong> The spot level at which net γ, repriced as if spot were there, would cross zero. This is the \"L3 repriced flip\".</li>\n<li><strong>How to read it.</strong> The value and its % distance from spot tell you how far price would have to travel before the sign of the OI-weighted γ changes. On the ladder it is the <strong>dashed</strong> FLIP line.</li>\n<li><strong>Worked example.</strong><ul>\n<li>NIFTY 09:52: <code>22,497 · −0.08 % from spot</code>, drawn as a dashed FLIP rule just below spot.</li>\n<li>NIFTY 10:15: <code>22,453 · −0.15 %</code>. The ladder showed <strong>\"SPOT ≡ FLIP\"</strong> because both fell on the same strike row.</li>\n<li>Before about 09:50, both symbols read <strong>\"carry unmeasurable\"</strong> and drew no value and no line.</li>\n</ul>\n</li>\n<li><strong>Not telling you.</strong> That price is drawn to or repelled by the flip. Nothing tests that.</li>\n<li><strong>Caveats.</strong><ul>\n<li>The flip needs a carry rate <strong>r</strong> derived from futures. When r cannot be measured, the cell names that state and does not guess. Status <code>UNMEASURABLE_R</code>.</li>\n<li>Other named states are \"no flip in grid\" and \"skipped on expiry day\".</li>\n<li>Flip is on the <strong>chain clock</strong>; spot is on the <strong>γ clock</strong>.</li>\n<li>This flip is not the engine's older <code>flip_level</code>, which the board does not display.</li>\n<li>At 09:41 the futures cell already showed a price (22,570), yet carry was still unmeasurable. See.</li>\n</ul>\n</li>\n<li><strong>Read it with.</strong> Corridor, Priced move.</li>\n<li><strong>Source.</strong> <code>v_gex_repriced_flip.flip</code>, <code>status</code> (ENH-131).</li>\n</ul>",
+     "shots": [
+      {
+       "file": "help/shots/nifty_0952_overview_ladder.jpg",
+       "caption": "Flip drawn as the dashed rule just below SPOT (22,496.7).",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "09:52",
+       "board_bundle": "index-CadQe4qO.js"
+      },
+      {
+       "file": "help/shots/nifty_1015_overview_spot_eq_flip_below_put_wall.jpg",
+       "caption": "\"SPOT ≡ FLIP\" on one row; corridor \"below put wall\".",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "10:15",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    },
+    {
+     "id": "s2-5",
+     "title": "2.5 CORRIDOR",
+     "html": "<ul>\n<li><strong>What it is.</strong> The range from the put OI wall to the call OI wall, both chosen within an eligible σ band around spot.</li>\n<li>\n<p><strong>How to read it.</strong> The value is the two walls. The sub-line gives the state and the width as % of spot:</p>\n<ul>\n<li><strong>inside</strong>: spot is between the walls;</li>\n<li><strong>above call wall</strong>: spot is above the upper wall;</li>\n<li><strong>below put wall</strong>: spot is below the lower wall;</li>\n<li><strong>undefined</strong>.</li>\n</ul>\n<p>The small track shows where spot sits.</p>\n</li>\n</ul>\n<ul>\n<li><strong>Worked example.</strong> NIFTY 09:41 showed <code>22,500–22,600 · inside · 0.44 % wide</code>. At 09:00 the same symbol showed <code>22,500–22,500 · above call wall · 0.00 % wide</code>: both walls on one strike, a collapsed corridor. That is a property of the view, not a fault (MV-8). At 10:15 it showed <code>22,500–22,600 · below put wall</code>, with spot just under the lower wall.</li>\n<li><strong>Not telling you.</strong> That the walls hold price. The P1 test found the day's high and low <strong>did not land closer to the walls than to random strikes at the same distance</strong> (n = 85, NIFTY).</li>\n<li><strong>Caveats.</strong> The walls are raw OI, positional only. When the IV feed is stale, the eligible band is less certain.</li>\n<li><strong>Read it with.</strong> Pin, Spot.</li>\n<li><strong>Source.</strong> <code>v_gex_strike_walls.put_wall, call_wall, corridor_state</code> (ENH-120). P1 wording per S94-D.</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s2-6",
+     "title": "2.6 PIN (γ-conc)",
+     "html": "<ul>\n<li><strong>What it is.</strong> The single strike holding the largest share of gross |γ|.</li>\n<li><strong>How to read it.</strong> The value is the strike. The sub-line gives its share of gross and the <strong>lead</strong> over the runner-up in share points. \"≡ put OI wall\" appears when the pin sits on the same strike as a wall.</li>\n<li><strong>Worked example.</strong><ul>\n<li>NIFTY 09:41: <code>22,700 · 10.8 % of gross · lead 1.7 pts</code>.</li>\n<li>SENSEX 09:40: <code>72,000 · 6.6 % of gross · lead 0.7 pts · ≡ put OI wall</code>. A lead of 0.7 points means #1 and #2 are almost tied.</li>\n</ul>\n</li>\n<li><strong>Not telling you.</strong><ul>\n<li>Where price will settle. <em>\"Concentration is not a forecast of the close\"</em>; the pin renders, it does not predict (S74).</li>\n<li>The same P1 null result applies as for the walls.</li>\n</ul>\n</li>\n<li><strong>Caveats.</strong> A small lead means \"top strike\" is close to arbitrary. Always read the lead, not just the strike. While loading, the cell can briefly read \"no run\".</li>\n<li><strong>Read it with.</strong> Corridor, Net Γ, and the Pin tab.</li>\n<li><strong>Source.</strong> <code>v_gex_strike_rank</code>, ranks 1–2 (ENH-125).</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s2-7",
+     "title": "2.7 IV · VIX",
+     "html": "<ul>\n<li><strong>What it is.</strong> Front-leg ATM implied volatility, India VIX, and the priced move.</li>\n<li><strong>How to read it.</strong> \"17.0 · 15.09\" means front ATM IV is 17.0 % and VIX is 15.09. The sub-line gives VIX's change today, then the priced move in points and %.</li>\n<li><strong>Worked example.</strong> NIFTY 09:41 showed <code>17.0 · 15.09 · ▲VIX +0.65 · ±196 · ±0.87 %</code>. <em>(SENSEX showed ▲VIX +0.65 at 09:40; NIFTY showed +0.71 at 09:41.)</em></li>\n<li><strong>Not telling you.</strong> The priced move is <strong>to expiry</strong>, not one day, and it is not a σ band.</li>\n<li><strong>Caveats.</strong> Before the open the sub-line read \"◆VIX 0.00\". The ◆ glyph is not defined anywhere. Read it as \"no change yet\".</li>\n<li><strong>Source.</strong> <code>v_iv_term_structure</code> leg 1; <code>gamma_metrics.vix</code>, <code>.straddle_atm</code>.</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s2-8",
+     "title": "2.8 FUT · BASIS",
+     "html": "<ul>\n<li><strong>What it is.</strong> The front-month index future and its premium over spot.</li>\n<li><strong>How to read it.</strong> \"22,570 · +56.3\" is the futures price and its basis over spot. The sub-line gives the futures' change and its expiry (\"27 OCT\").</li>\n<li><strong>Worked example.</strong><ul>\n<li>Before 09:30 both symbols read <strong>\"futures from 09:30\"</strong>.</li>\n<li>At 09:41, NIFTY showed <code>22,570 · +56.3 · ▼−18.3 · 27 OCT</code>.</li>\n</ul>\n</li>\n<li><strong>Caveats.</strong> The futures are the monthly contract, not the weekly option expiry.</li>\n<li><strong>Source.</strong> <code>index_futures_snapshots</code>.</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s2-9",
+     "title": "2.9 OPEN · GAP",
+     "html": "<ul>\n<li><strong>What it is.</strong> The day's opening gap from the previous close.</li>\n<li><strong>How to read it.</strong> The value is the gap in %. The sub-line gives the pre-open print, the final open, the previous close and whether the gap has been filled.</li>\n<li><strong>Worked example.</strong><ul>\n<li>09:41, NIFTY: <code>▲+0.50 % · pre-open 22,593 · final 22,633 · prev 22,520 · gap filled</code>.</li>\n<li>Before 09:11: <code>no pre-open print · prev 22,520</code>.</li>\n</ul>\n</li>\n<li><strong>Caveats.</strong> \"prev close missing\" appears for a few seconds while loading.</li>\n<li><strong>Source.</strong> <code>market_spot_snapshots</code> (pre-open 09:11; final from the 09:16 bar).</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s2-10",
+     "title": "2.10 CLOCKS",
+     "html": "<ul>\n<li><strong>What it is.</strong> The times of the two data runs behind the board (§1.6).</li>\n<li><strong>How to read it.</strong> \"γ 09:35 · chain 09:40 · 5 min apart\" means the ladder, net γ and levels are from 09:35, while flip, IV and ΔOI are from 09:40. The cell appears only when the clocks are more than one cycle apart.</li>\n<li><strong>Worked example.</strong><ul>\n<li>NIFTY 09:41: <code>γ 09:35 · chain 09:40 · 5 min apart</code>.</li>\n<li>SENSEX 09:40: <code>γ 09:30 · chain 09:40 · 10 min apart</code>.</li>\n<li>Not shown in pass 1 (09:00), when the two runs were close.</li>\n</ul>\n</li>\n<li><strong>Not telling you.</strong> That the board is broken. Two clocks are by design. The cell exists so you never compare a γ-clock number with a chain-clock number without knowing they are minutes apart.</li>\n<li><strong>Source.</strong> <code>v_gex_strike_walls.ts</code> against <code>v_gex_repriced_flip.ts</code>.</li>\n</ul>",
+     "shots": [
+      {
+       "file": "help/shots/sensex_0940_board_strip_overview.jpg",
+       "caption": "CLOCKS: \"γ 09:30 · chain 09:40 · 10 min apart\".",
+       "symbol": "SENSEX",
+       "date": "2026-10-12",
+       "time_ist": "09:40",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    },
+    {
+     "id": "s2-11",
+     "title": "2.11 The read",
+     "html": "<p>One sentence under the strip, for example <em>\"Spot 22,538.4 sits in an amplifying pocket, 0.2% above the put OI wall at 22,500. Flip carry is unmeasurable. Net gamma is 0.10 of gross.\"</em> (NIFTY 09:41).</p>\n<ul>\n<li><strong>\"Pocket\"</strong> is the sign of the γ terrain at spot's own strike row. It can differ from the overall Net Γ sign: here the overall book was long γ while spot's row was amplifying.</li>\n<li>The read uses the <strong>board</strong> spot, not the live tick.</li>\n<li>It describes and never predicts.</li>\n</ul>",
+     "shots": []
+    }
+   ],
+   "shots": [
+    {
+     "file": "help/shots/nifty_0952_board_strip_overview.jpg",
+     "caption": "Header strip in market hours (CLOCKS cell absent: clocks within one cycle).",
+     "symbol": "NIFTY",
+     "date": "2026-10-12",
+     "time_ist": "09:52",
+     "board_bundle": "index-CadQe4qO.js"
+    },
+    {
+     "file": "help/shots/sensex_0940_board_strip_overview.jpg",
+     "caption": "Header strip with the CLOCKS cell: \"γ 09:30 · chain 09:40 · 10 min apart\"; Flip \"carry unmeasurable\".",
+     "symbol": "SENSEX",
+     "date": "2026-10-12",
+     "time_ist": "09:40",
+     "board_bundle": "index-CadQe4qO.js"
+    }
+   ]
+  },
+  {
+   "id": "part-3-each-sub-tab",
+   "title": "Part 3 — Each sub-tab",
+   "intro_html": "<p>Each sub-tab has the same layout: a <strong>list</strong> of values on the left, the <strong>strike ladder</strong> in the middle, and the <strong>drawer</strong> on the right for whichever row is selected. A tile covered in Part 2 is not repeated here; only what the sub-tab adds is described.</p>",
+   "sections": [
+    {
+     "id": "s3-1",
+     "title": "3.1 Overview: *What kind of day, and where are the edges?*",
+     "html": "<p><strong>List rows.</strong> Net Γ · Flip · Corridor · Pin (γ-conc) · Priced move · Spot · board hh:mm · Time to expiry. The first five repeat the strip (Part 2). The other two:</p>\n<ul>\n<li><strong>Priced move.</strong> The ATM straddle as ± points and \"± % to expiry\". It lights the <strong>left gutter</strong> on the ladder.<ul>\n<li><em>Example (SENSEX 09:40):</em> ±933, ±1.28 % to expiry.</li>\n<li><em>Not telling you:</em> a one-day range. It <em>\"Includes time value to expiry\"</em>.</li>\n<li><em>Source:</em> <code>gamma_metrics.straddle_atm</code>.</li>\n</ul>\n</li>\n<li><strong>Time to expiry.</strong> Trading sessions left, e.g. \"3 sess · front 15 OCT\". Drawer: <em>\"Fewer sessions concentrate gamma near spot.\"</em><ul>\n<li><em>Source:</em> <code>v_iv_term_structure.dte_sessions</code>, leg 1.</li>\n</ul>\n</li>\n</ul>\n<p><strong>The ladder: signed γ by strike.</strong></p>\n<ul>\n<li>Bars run from a centre axis, <strong>warm to the left (amplifying)</strong> and <strong>cool to the right (dampening)</strong>. The right-hand column reads each bar's value.</li>\n<li>Spot is the bright solid rule. The walls are thin solid rules with pills, the pin is a dotted γ-CONC rule, and the flip is a dashed rule when it exists.</li>\n<li>The faint fill behind the bars is the <strong>terrain</strong>.</li>\n<li><strong>Example:</strong> SENSEX 09:40, call OI wall 73,000 with +78,596 on its row, put OI wall ≡ γ-conc at 72,000 with −88,006.</li>\n<li><strong>Not telling you:</strong> each bar is OI × γ arithmetic. It is not a measure of which way hedgers will trade.</li>\n</ul>\n<p><strong>The \"γ CEILING / FLOOR · pending measurement\" toggle</strong> sits above every ladder and is permanently disabled. The level has no column in the database (E-3). It is not a wall and is never drawn.</p>",
+     "shots": [
+      {
+       "file": "help/shots/nifty_0952_overview_ladder.jpg",
+       "caption": "Overview ladder: warm amplifying left, cool dampening right; SPOT, PUT OI WALL, FLIP, CALL OI WALL ≡ γ-CONC.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "09:52",
+       "board_bundle": "index-CadQe4qO.js"
+      },
+      {
+       "file": "help/shots/nifty_0952_overview_drawer_net.jpg",
+       "caption": "The drawer for Net Γ: WHAT IT IS · HOW TO READ IT · COMPUTED · SCALE · CAVEAT · READ IT WITH.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "09:52",
+       "board_bundle": "index-CadQe4qO.js"
+      },
+      {
+       "file": "help/shots/nifty_1015_overview_hover_caption.jpg",
+       "caption": "Hover a row: the caption line reads it (\"22,500 · −2.8L Cr · +0.06 % · PUT OI WALL\").",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "10:15",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    },
+    {
+     "id": "s3-2",
+     "title": "3.2 Pin: *How settled is the centre?*",
+     "html": "<p>The header line says which session the tiles describe: <strong>\"pin state · this session · front leg\"</strong> in market hours, or <strong>\"pin state · previous session yyyy-mm-dd\"</strong> before the first cycle of the day.</p>\n<table>\n<thead>\n<tr>\n<th>Tile</th>\n<th>What it is</th>\n<th>Worked example (NIFTY 09:41)</th>\n<th>Not telling you / caveats</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>PIN (γ-conc)</strong></td>\n<td>the strike with the largest share of gross |γ|</td>\n<td>22,700 · 10.8 % · dampening</td>\n<td>Not a forecast of the close (S74). P1: high/low no closer to it than to random strikes (n = 85).</td>\n</tr>\n<tr>\n<td><strong>PIN STATE</strong></td>\n<td>whether the leader has held through today's open 5-minute cycles: NO PIN · SHIFTING · STABLE · LOCKED</td>\n<td>SHIFTING · held 3 cycles · 15 min · live · unreconciled</td>\n<td>Thresholds are seeded parameters, <em>\"not yet re-measured against outcomes (D-6)\"</em> (Settings → PIN_STATE). Rows can be revised until reconciled after the close.</td>\n</tr>\n<tr>\n<td><strong>CONVICTION</strong></td>\n<td>lead clarity scaled by time to expiry</td>\n<td>0.40 · stage 1 · no band (D-6)</td>\n<td>A number only, never a word. Compare within one symbol. Stage 2 needs about six weeks of history. The formula deviates from the parity target's undisclosed one.</td>\n</tr>\n<tr>\n<td><strong>RUNNER-UP</strong></td>\n<td>the #2 strike and #2 ÷ #1</td>\n<td>22,650 · #2/#1 = 0.84</td>\n<td>Near 1 means two strikes share the centre. Ranking is by |γ| only; the \"ranked pressure\" variant was declined on evidence (D-5a).</td>\n</tr>\n<tr>\n<td><strong>LEAD</strong></td>\n<td>#1 share − #2 share, in points</td>\n<td>1.7 pts</td>\n<td><em>\"A number, not a state.\"</em> No LOCKED/CONTESTED wording (D-6).</td>\n</tr>\n<tr>\n<td><strong>LEADER TODAY</strong></td>\n<td>each stretch with the same leader</td>\n<td>1 change: 22,500 → 22,700 · 4 cycles · 09:20–09:35</td>\n<td>Front leg only. Before the open it shows the previous session under this \"today\" label.</td>\n</tr>\n<tr>\n<td><strong>CONCENTRATION (HHI)</strong></td>\n<td>the true Herfindahl index, Σ share², plus top-5 share</td>\n<td>0.060 · top-5 share 44.8 %</td>\n<td>The only true HHI on the board. Its natural level moves with time of day and DTE; no percentile yet.</td>\n</tr>\n<tr>\n<td><strong>PIN BAND</strong></td>\n<td>the τ-weighted pin zone</td>\n<td>22,600–22,800</td>\n<td>A different measure from the pin point; the two can disagree. Before the open, the NIFTY pin (22,400) sat outside its band (22,600–22,900), and SENSEX's band was the single strike 74,000. <em>\"Renders, does not predict\"</em> (S74).</td>\n</tr>\n<tr>\n<td><strong>PIN DISTANCE</strong></td>\n<td>signed % from spot to the pin</td>\n<td>+0.72 % above spot</td>\n<td>No σ distance until a canonical σ exists (E-2).</td>\n</tr>\n<tr>\n<td><strong>LEGACY PIN-RISK SCORE</strong></td>\n<td>the older 0–100 score</td>\n<td>24/100 · number only · no band (E-D4)</td>\n<td>Its old weak/moderate/strong words were never measured and were removed. Kept for continuity only; not part of the pin layer.</td>\n</tr>\n</tbody>\n</table>\n<p><strong>The ladder: share of gross |γ|.</strong></p>\n<ul>\n<li>Each strike's bar runs from the left edge with a \"#rank · share\" readout. The top 10 are full strength; rank &gt; 10 is faint. Colour is the strike's γ sign.</li>\n<li><strong>\"γ-CONC #1\"</strong> and <strong>\"#2\"</strong> are outlined.</li>\n<li><em>Example (NIFTY 09:41):</em> #3 22,600 and #4 22,400 both read 8.6 %. A tie shown as two ranks is a tie.</li>\n</ul>",
+     "shots": [
+      {
+       "file": "help/shots/nifty_0952_pin.jpg",
+       "caption": "Pin tab: PIN STATE SHIFTING, conviction, runner-up, lead, leader today, HHI, pin band.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "09:52",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    },
+    {
+     "id": "s3-3",
+     "title": "3.3 Gamma: *Can I trust single strikes?*",
+     "html": "<table>\n<thead>\n<tr>\n<th>Tile</th>\n<th>What it is</th>\n<th>Worked example</th>\n<th>Not telling you / caveats</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>Top-strike share</strong></td>\n<td>the largest strike's share of gross |γ| (max ÷ sum), with a DTE bucket (0 · 1-2 · 3+) and a call/put split in the drawer</td>\n<td>NIFTY 09:41: 10.8 % · 1-2 DTE bucket · at 22,700. SENSEX 09:00: 10.9 %, calls 9.7 %, puts 12.9 %.</td>\n<td><em>\"This is max/sum, not a Σshare² index — never call it HHI.\"</em> 0-DTE concentrates naturally. The call/put split matters: one side can be concentrated while the other is spread.</td>\n</tr>\n<tr>\n<td><strong>Gross |Γ|</strong></td>\n<td>the sum of absolute γ exposure</td>\n<td>SENSEX 09:00: 10.5L Cr</td>\n<td>Unit pending (E-D1); compare within a day.</td>\n</tr>\n<tr>\n<td><strong>Net Γ</strong></td>\n<td>the same value as the strip, plus \"Σ crosses zero n×\"</td>\n<td>SENSEX 09:00: −4.5L Cr · amplifying · Σ crosses zero 3×</td>\n<td>This drawer carries the P2 sentence: <em>\"This reading assumes dealers are net long calls and short puts; NSE aggregate participant OI shows that only in some regimes (P2, S94).\"</em> Where the white dots cross zero, the running sum changes sign; <em>\"that is not the repriced flip.\"</em></td>\n</tr>\n<tr>\n<td><strong>Contributing strikes</strong></td>\n<td>strikes with non-zero γ out of all stored</td>\n<td>SENSEX 09:00: 161 / 170 · 95 %</td>\n<td>Unquoted strikes count as non-contributing.</td>\n</tr>\n<tr>\n<td><strong>Net-long γ strike</strong></td>\n<td>the strike with the largest positive net γ (dotted NET-LONG γ rule)</td>\n<td>SENSEX 09:00: 74,000 · +1.12 % from spot · not \"near spot\"</td>\n<td>It can sit far from price (ADR-024 Amendment A).</td>\n</tr>\n<tr>\n<td><strong>Net Γ today</strong></td>\n<td>sparkline of net γ at each run today</td>\n<td>SENSEX 09:00: 6 runs · 08:30–09:00</td>\n<td>Drawn only with ≥ 3 runs. The pre-open runs count as \"today\". γ clock.</td>\n</tr>\n</tbody>\n</table>\n<p><strong>The ladder</strong> is the Overview ladder plus <strong>white dots</strong>: the cumulative Σγ from the top strike down.</p>\n<p><strong>GAMMA RIVER.</strong> <em>\"settled net γ per session · history, not today's read\"</em>, covering 30 sessions. Its marks:</p>\n<table>\n<thead>\n<tr>\n<th>Mark</th>\n<th>Meaning</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>●</td>\n<td>settled net γ</td>\n</tr>\n<tr>\n<td>○</td>\n<td>an incomplete session</td>\n</tr>\n<tr>\n<td>grey bar</td>\n<td>the session's min–max</td>\n</tr>\n<tr>\n<td>line</td>\n<td>spot, right scale</td>\n</tr>\n<tr>\n<td>\"0\" under a day</td>\n<td>0-DTE</td>\n</tr>\n<tr>\n<td>dashed break</td>\n<td>no data</td>\n</tr>\n</tbody>\n</table>\n<ul>\n<li><strong>Read the grey bar, not only the dot.</strong> The daily value is one sample: a day can close positive inside a range that went far negative.</li>\n<li><em>Source:</em> <code>v_gex_net_gamma_river</code> (ENH-126).</li>\n</ul>",
+     "shots": [
+      {
+       "file": "help/shots/nifty_0952_gamma.jpg",
+       "caption": "Gamma tab: top-strike share, gross, net, contributing strikes, net-long γ; white dots = cumulative Σγ.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "09:52",
+       "board_bundle": "index-CadQe4qO.js"
+      },
+      {
+       "file": "help/shots/nifty_0952_gamma_drawer_river.jpg",
+       "caption": "Top-strike share drawer with call/put split; GAMMA RIVER below.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "09:52",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    },
+    {
+     "id": "s3-4",
+     "title": "3.4 OI: *What is actually written?*",
+     "html": "<p>The question on the Home card says \"written\", but OI cannot tell writing from buying. This tab shows <strong>how much is open, where</strong>, not who opened it.</p>\n<table>\n<thead>\n<tr>\n<th>Tile</th>\n<th>What it is</th>\n<th>Worked example (NIFTY 09:41)</th>\n<th>Not telling you / caveats</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>Max pain</strong></td>\n<td>the strike where option holders' total payout would be lowest, at the γ run</td>\n<td>22,550</td>\n<td><em>\"A positional concentration, not a forecast or pressure sign.\"</em> MERIDIAN computes max pain two ways (γ run and raw chain); which is canonical is undecided (P5 / E-D2). This tile uses the γ run.</td>\n</tr>\n<tr>\n<td><strong>Distance to max pain</strong></td>\n<td>signed % from spot</td>\n<td>+0.05 % · above spot</td>\n<td>Uses the γ-clock spot.</td>\n</tr>\n<tr>\n<td><strong>Call OI wall</strong> / <strong>Put OI wall</strong></td>\n<td>the eligible strike with the most call / put OI</td>\n<td>22,600 / 22,500</td>\n<td><em>\"OI is positional; grey does not encode pressure sign.\"</em> P1 null result as in §2.5.</td>\n</tr>\n<tr>\n<td><strong>Total OI</strong></td>\n<td>calls + puts, at the current lot size</td>\n<td>4,771.9L · calls +2,362.7L · puts +2,409.2L</td>\n<td>A quantity, not contracts. Do not compare across products without context.</td>\n</tr>\n<tr>\n<td><strong>ΔOI net</strong></td>\n<td>OI change since the first chain snapshot at or after 09:15, per side</td>\n<td>C +798.9L · P +361.9L · since 09:15 · chain 09:40</td>\n<td>Cannot tell writing from buying. Chain clock. Before 09:15 it reads <strong>\"ΔOI · no 09:15 anchor yet\"</strong>. A strike present at only one of the two times shows <strong>n/c</strong>, never zero.</td>\n</tr>\n</tbody>\n</table>\n<ul>\n<li><strong>SENSEX</strong> shows <strong>\"ΔOI · n/a (SENSEX · TD-S84-NEW-4)\"</strong> permanently. Its 09:15 baseline can come from a stale vendor row, so it is withheld (S92-H).</li>\n<li><strong>The ladder (\"butterfly\").</strong> Put OI extends left in mid grey and call OI right in light grey, with a total-OI readout. The max-pain ink rule and the faint <strong>pain valley</strong> curve sit behind. Small <strong>ticks</strong> under the bars show ΔOI: cool = rose, warm = fell (NIFTY only).</li>\n</ul>",
+     "shots": [
+      {
+       "file": "help/shots/nifty_0952_oi.jpg",
+       "caption": "OI butterfly: puts left (mid grey), calls right (light grey), max-pain rule and pain valley, ΔOI ticks.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "09:50",
+       "board_bundle": "index-CadQe4qO.js"
+      },
+      {
+       "file": "help/shots/sensex_0955_oi_no_run_dOI_na.jpg",
+       "caption": "SENSEX: \"ΔOI · n/a (SENSEX · TD-S84-NEW-4)\"; \"no run\" states.",
+       "symbol": "SENSEX",
+       "date": "2026-10-12",
+       "time_ist": "09:55",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    },
+    {
+     "id": "s3-5",
+     "title": "3.5 Flows: *What must dealers trade if spot moves?*",
+     "html": "<p>Read §0.4 first. Everything here is OI arithmetic, and the dealer wording on this tab is under review.</p>\n<p><strong>The bordered badge</strong> at the top always reads <em>\"flow-vs-book shown on unclassified ΔOI; classification (D-4) not built\"</em>.</p>\n<ul>\n<li>ΔOI is never split into \"new writing\", \"covering\" and so on.</li>\n<li>That classification was <strong>declined on evidence</strong> (S96-I): option premium moves with spot, so the split would partly restate the price move.</li>\n<li>This is a permanent, recorded deviation.</li>\n</ul>\n<p><strong>Hedge flow vs spot move.</strong> A chart of ₹ Cr at −2, −1, −0.5, +0.5, +1 and +2 %, plus the <strong>HEDGE PER 1 %</strong> tile.</p>\n<ul>\n<li><em>Worked example (NIFTY 09:41):</em> HEDGE PER 1 % = <strong>SELL 9,201</strong>; −1 %: BUY 9,201 · +1 %: SELL 9,201.<ul>\n<li>The book was long γ (+9.2L Cr), so the model buys on falls and sells on rises.</li>\n<li>At 09:00, when NIFTY was short γ, the same tile read BUY 13,886 for +1 %.</li>\n</ul>\n</li>\n<li><em>How to read it:</em> the six points lie <strong>on one straight line by construction</strong> (flow = −net γ × move), so they say no more than the one-percent figure.</li>\n<li><em>Not telling you:</em> what anyone will actually trade. It is a first-order model, and it ignores the second-order terms in the tiles below.</li>\n<li><em>Caveats:</em> the unit is pending (E-D1). \"L3 flip not available.\" appears when the flip has no value; otherwise the flip is a dashed line on this chart. The read sentence and the drawer say \"dealers would buy/sell\", which is dealer wording beyond P2.</li>\n<li><em>Source:</em> <code>v_dealer_flow_sim</code>.</li>\n</ul>\n<p><strong>∂Δ/∂t · PER DAY</strong> and <strong>∂Δ/∂σ · PER VOL PT</strong> (§0.7).</p>\n<ul>\n<li><strong>What they are.</strong> How the OI-weighted delta, in ₹ Cr of delta-notional, would change over one calendar day, or for a +1 IV point.</li>\n<li><strong>How to read them.</strong> The big number is the book. When the session's flow can be shown, a sub-line reads <em>\"from x at pre-open OI · ±y since hh:mm\"</em>, and <strong>bricks</strong> appear under the number (§4.4). Each tile has its own scale.</li>\n<li><strong>Worked example (NIFTY, chain 09:50, read 09:52).</strong><ul>\n<li>∂Δ/∂t: <strong>−39,393 Cr / 39,393 Cr · net/gross −1.00</strong> = <strong>−25,475</strong> at pre-open OI <strong>−13,918</strong> since 08:30.</li>\n<li>∂Δ/∂σ: <strong>+5,210 Cr / 5,210 Cr · net/gross 1.00</strong> = +3,232 + 1,978.</li>\n<li>Both sums check exactly.</li>\n<li>Earlier the same morning these tiles showed <em>\"unmeasurable r\"</em>, with <em>\"no flow before 09:15\"</em> at 09:00 and <em>\"flow · different run — not drawn\"</em> at 09:40–09:41. They became measurable between 09:41 and 09:52.</li>\n</ul>\n</li>\n<li><strong>Not telling you.</strong> Who holds the position, or what happens next.</li>\n<li><strong>Caveats.</strong><ul>\n<li><em>\"flow-vs-book shown on unclassified ΔOI; classification (D-4) not built\"</em>.</li>\n<li>dte 0 is skipped, never floored.</li>\n<li>The ∂Δ/∂σ drawer notes that the underlying column is \"per +0.01 of σ, not per 1.00\".</li>\n<li><strong>Wording in transition (S97-A).</strong> On the live build the caption reads <em>\"Dealer delta-notional drifts −39,393 Cr per calendar day (gross 39,393 Cr); bars per strike. 21,580 qty of ΔOI has no priced greek and is not counted; this does not say who bought or wrote.\"</em> (NIFTY 09:52). A wording round approved 2026-10-12 (staging <code>c0aad8d</code>, promotion owed) changes it to <em>\"Delta-notional drifts {net} per calendar day (gross {gross}); dealer side regime-dependent (P2); bars per strike.\"</em> It also removes \"dealer\" from both drawers' WHAT IT IS lines and rewrites the COMPUTED sign note. This manual follows the new wording once promoted. Until then, read \"dealer\" here as the sign of an OI-weighted sum (§0.4).</li>\n</ul>\n</li>\n<li><strong>Source.</strong> <code>v_gex_greeks_l2_net</code>; flow from <code>v_delta_drift_flow_vs_book</code> (ENH-144); rulings S96-F, S96-G.</li>\n</ul>\n<p><strong>∂Γ/∂t · PER DAY</strong> and <strong>∂Γ/∂σ · PER VOL PT</strong>.</p>\n<ul>\n<li>The same idea applied to gamma. The net is <em>\"a small residue of large opposing terms\"</em>, so the tile always shows <strong>net beside gross</strong>; the small bar is |net| ÷ gross.</li>\n<li><strong>Never read the net alone.</strong> No flow is shown for this pair.</li>\n<li><em>Worked example (NIFTY, chain 09:50):</em> ∂Γ/∂t <strong>−4.7L Cr / 40.5L Cr · ratio −0.12</strong>; ∂Γ/∂σ <strong>+60,256 Cr / 5.3L Cr · ratio 0.11</strong>. Each net is about a tenth of its gross, which is why it must be read with the gross.</li>\n</ul>\n<p><strong>EXPIRY LEG.</strong> Which expiry the second-order tiles and bars describe (e.g. \"15 OCT · chain 09:40\").</p>\n<ul>\n<li>On the front leg's expiry day, the front leg is skipped and the next leg is shown.</li>\n<li>Status values: OK · SKIPPED_EXPIRY · UNMEASURABLE_R · NO_LEGS.</li>\n</ul>\n<p><strong>NET DEX · CALL DEX · PUT DEX (OI proxy).</strong></p>\n<ul>\n<li><strong>What they are.</strong> How many ₹ crore of the index the open options <em>behave like</em>, from OI × each option's own delta (calls +, puts −).</li>\n<li><strong>How to read them.</strong><ul>\n<li><strong>Line 1:</strong> the book and its <strong>gap</strong>, e.g. \"−13,290 Cr · gap 8,16,465 of 48,73,94,050 qty\". The gap is OI with no published delta, left out of the total.</li>\n<li><strong>Line 2:</strong> \"calls +, puts − · front leg 13 OCT · 1 cal d · settled 09:40\". <em>Settled</em> is the last run at or before 15:15. After 15:15 it stays at that run, so the morning shows the previous session's book.</li>\n<li><strong>Line 3 (market hours):</strong> <em>\"from x at pre-open OI · ±y since hh:mm\"</em>. The book = pre-open value + flow.</li>\n<li><strong>Bricks</strong> under the number share <strong>one scale</strong> across the three tiles: solid = held, light = added, dashed outline = removed.</li>\n</ul>\n</li>\n<li><strong>Worked example (NIFTY 09:41).</strong><ul>\n<li>Net DEX −13,290 Cr = <strong>−15,119</strong> at pre-open OI <strong>+1,829</strong> since 08:30.</li>\n<li>Call DEX +98,702 = +58,224 + 40,477.</li>\n<li>Put DEX −1.1L = −73,344 − 38,648.</li>\n<li>The three lines add up as stated (±1 Cr rounding).</li>\n<li>SENSEX 09:40: Net −5,577 = −7,740 + 2,163.</li>\n</ul>\n</li>\n<li><strong>The flow chip</strong> under Net DEX compares the <strong>sign</strong> of the flow since the pre-open with the sign of the book.<ul>\n<li><em>Worked example:</em> both symbols read <strong>\"flow since 08:30 · against book\"</strong> (NIFTY 09:41, SENSEX 09:40). On both, net flow since the pre-open was positive while the net book was negative.</li>\n<li>When it cannot say, it shows a reason line instead: <em>\"no badge · untraded OI on this snapshot\"</em>, <em>\"no badge · a net is zero\"</em> or <em>\"no badge · sign depends on the delta used\"</em>. Before 09:15 it draws nothing.</li>\n</ul>\n</li>\n<li><strong>Not telling you.</strong><ul>\n<li><em>\"This number does not say who holds the position.\"</em></li>\n<li>The chip <em>\"shows only whether flow and book agree in sign. Says nothing about what happens next — M-P7 tested that it can speak, not that it predicts.\"</em></li>\n<li>The chip is a neutral colour on purpose. \"Against book\" is not a warning.</li>\n</ul>\n</li>\n<li><strong>Caveats.</strong><ul>\n<li><em>\"Magnitude indicative, not measured\"</em>. Vendor delta fails put–call parity. <strong>Read the sign.</strong></li>\n<li>Flow is itself a partial cancellation: median |net| ÷ gross is 0.27 on NIFTY and 0.19 on SENSEX.</li>\n<li>On dte 0, greek gaps can flip the total's sign.</li>\n<li>The untraded-leg guard protects <strong>the chip only</strong>. The DEX numbers themselves can be inflated on sessions where the vendor reports OI on legs that never traded (TD-S95-NEW-1; SENSEX 09-25, 09-28 and 09-29).</li>\n</ul>\n</li>\n<li><strong>Source.</strong> Book: <code>v_dex_standing_book</code> (ENH-140). Flow and chip: <code>v_dex_flow_vs_book</code> (ENH-143). Rulings S94-G/H/I, S96-C/D/E.</li>\n</ul>\n<p><strong>ZERO-Δ LEVEL · S*.</strong></p>\n<ul>\n<li><strong>What it is.</strong> The spot level at which the open options, each repriced there at its own IV, would carry zero net delta. It is drawn as a <strong>dotted</strong> line on the ladder.</li>\n<li><strong>How to read it.</strong> Below S*, the repriced book is net short the index; above it, net long.</li>\n<li><strong>Worked example (NIFTY, chain 09:50).</strong> <em>\"22,533 · +12 pts · +0.06σ above chain spot 22,520.8 · chain 09:50 (book settled 09:50)\"</em>. S* is measured from the <strong>chain</strong> spot, which is a different spot from the strip's board spot. Before about 09:50 it read <em>\"r unmeasurable\"</em>.</li>\n<li><strong>Not telling you.</strong> <em>\"A level from today's book, not a forecast: nothing tests whether price moves toward it.\"</em></li>\n<li><strong>Caveats.</strong><ul>\n<li>It can disagree in sign with Net DEX, which uses vendor delta (2 of 7 gate days).</li>\n<li>Chain clock, not the DEX settled run.</li>\n<li>Not computed on expiry day.</li>\n</ul>\n</li>\n<li><strong>Source.</strong> <code>v_dex_repriced_zero</code> (ENH-141).</li>\n</ul>\n<p><strong>The Flows ladder</strong> draws whichever layer is selected: a DEX tile or a ∂ tile.</p>\n<ul>\n<li>The note above it names the layer and time, e.g. <em>\"bars · Net DEX · held / added / removed since 08:30 · settled 09:40\"</em>.</li>\n<li>The caption under it restates the total and the gaps.<ul>\n<li><em>Example (NIFTY 09:41):</em> <em>\"Net DEX · OI proxy −13,290 Cr over strikes with a published delta; 8,16,465 qty of OI has no published delta and is not counted. Bars per strike. 28,080 qty of ΔOI has no published delta and is not counted; this does not say who bought or wrote.\"</em></li>\n</ul>\n</li>\n<li><strong><code>·</code></strong> marks a strike with OI but no delta: a gap, never zero.</li>\n</ul>",
+     "shots": [
+      {
+       "file": "help/shots/nifty_0952_flows_hedge_tiles.jpg",
+       "caption": "Flows: D-4 badge, hedge line with dashed L3 flip, ∂Δ and ∂Γ tiles with bricks.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "09:50",
+       "board_bundle": "index-CadQe4qO.js"
+      },
+      {
+       "file": "help/shots/nifty_0952_flows_dex_sstar_caption.jpg",
+       "caption": "DEX tiles with sub-lines and bricks, flow chip \"flow since 08:30 · against book\", S*, ∂Δ/∂t caption.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "09:50",
+       "board_bundle": "index-CadQe4qO.js"
+      },
+      {
+       "file": "help/shots/sensex_0940_flows_dex_bricks_chip.jpg",
+       "caption": "DEX bricks on the ladder: solid held, light added, dashed outline removed.",
+       "symbol": "SENSEX",
+       "date": "2026-10-12",
+       "time_ist": "09:40",
+       "board_bundle": "index-CadQe4qO.js"
+      },
+      {
+       "file": "help/shots/sensex_0940_flows_unmeasurable_r.jpg",
+       "caption": "Before carry was measurable: \"unmeasurable r\", \"flow · different run — not drawn\".",
+       "symbol": "SENSEX",
+       "date": "2026-10-12",
+       "time_ist": "09:40",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    },
+    {
+     "id": "s3-6",
+     "title": "3.6 IV: *What do time and cover cost?*",
+     "html": "<p>This tab is on the <strong>chain clock</strong> only (e.g. \"chain clock · 12 Oct 09:05 IST\"). It has no zoom modes and <strong>no drawers</strong>.</p>\n<ul>\n<li>\n<p><strong>Term structure</strong> (<em>\"front vs back · 2 legs captured\"</em>). Two cards, <strong>W1 · FRONT</strong> and <strong>W2 · BACK</strong>, each with:</p>\n<ul>\n<li>ATM IV and the ATM strike;</li>\n<li>CE and PE IV;</li>\n<li><strong>SPREAD VS FRONT</strong> (W1 is always +0.00);</li>\n<li><strong>FWD VOL FROM PREV</strong>: the volatility implied for the period between the two expiries, so W2 only;</li>\n<li><strong>\"data quality · CE−PE parity gap\"</strong>: how far apart the call and put IVs at ATM are. Large gaps mean noisier quotes.</li>\n</ul>\n<p>The headline says <strong>BACKWARDATION</strong> (front IV above back) with the slope in vol points.</p>\n<ul>\n<li><em>Example (NIFTY 09:05):</em> W1 13 Oct 16.82 %, CE 19.78 % / PE 13.87 %, parity gap +5.91; W2 19 Oct 14.13 %; backwardation, slope −2.69; fwd vol 13.63 %.</li>\n<li><em>Not telling you:</em> a term-structure curve. Two points are not a curve. PBD B.7 rules out regime words, yet \"BACKWARDATION\" is shown.</li>\n<li><strong>IV smile.</strong> Implied volatility across strikes for W1 or W2.</li>\n<li>● PE side (grey) · ● CE side (light): each strike uses its out-of-the-money side.</li>\n<li>◯ ATM.</li>\n<li><strong>┆ K98:</strong> the strike about 2 % below the forward, which the server uses for skew.</li>\n<li>▏ OTM absent: no out-of-the-money quote.</li>\n<li>\"zero-OI (quoted) excluded · n strikes\".</li>\n<li><strong>Skew line:</strong> \"skew 98 +4.31 vol pts @ 22,150\" (NIFTY 09:05) is the IV at K98 minus ATM IV. It is labelled <em>\"skew from view · not recomputed\"</em>.</li>\n<li><em>Caveats:</em> skew is not comparable across legs. On expiry day it reads skipped. The Context page shows a <em>different</em> skew figure computed in the browser.</li>\n<li><strong>Source.</strong> <code>v_iv_term_structure</code> (ENH-130); <code>v_iv_surface</code> (ENH-132).</li>\n</ul>\n</li>\n</ul>",
+     "shots": [
+      {
+       "file": "help/shots/nifty_1020_iv.jpg",
+       "caption": "IV tab: W1/W2 term structure and the W1 smile with ATM and K98 marks.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "10:20",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    }
+   ],
+   "shots": []
+  },
+  {
+   "id": "part-3b-home-context-structure-health-settings",
+   "title": "Part 3b — Home, Context, Structure, Health, Settings",
+   "intro_html": "<p>All examples on this page come from pass 1, 2026-10-12, roughly 09:05–09:12 IST.</p>",
+   "sections": [
+    {
+     "id": "s3b-1",
+     "title": "3b.1 Home",
+     "html": "<p><strong>Masthead.</strong> Shows the symbol, the front expiry, the sessions left, spot at the γ run, and the change since the previous close.</p>\n<ul>\n<li>Example (NIFTY, 09:11): <em>\"NIFTY · 13 OCT · 1 SESSION LEFT · 22,623.9 · γ run 09:05 · +103.5 · +0.46 %\"</em>.</li>\n<li>The read sentence comes next. It is the same sentence that appears on the Board.</li>\n</ul>\n<p><strong>Six question cards.</strong> Each card opens the Board sub-tab with the same number (keys 1–6). Each carries a one-line summary and a small picture.</p>\n<table>\n<thead>\n<tr>\n<th>Card</th>\n<th>Example line (NIFTY, 09:11)</th>\n<th>Note</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>1 OVERVIEW</td>\n<td>\"corridor 22,500–22,900 · carry unmeasurable\"</td>\n<td></td>\n</tr>\n<tr>\n<td>2 PIN</td>\n<td>\"22,400 holds 10.0 % of gross · lead 1.4 pts\"</td>\n<td></td>\n</tr>\n<tr>\n<td>3 GAMMA</td>\n<td>\"net/gross -0.23 · top strike 10.0 %\"</td>\n<td></td>\n</tr>\n<tr>\n<td>4 OI</td>\n<td>\"max pain 22,500 · pin 22,400 · +100\"</td>\n<td>The \"+100\" is the gap in points between max pain and pin.</td>\n</tr>\n<tr>\n<td>5 FLOWS</td>\n<td>\"−1 %: SELL 13,816 Cr · +1 %: BUY 13,816 Cr\"</td>\n<td>Read with §0.4: the \"dealers\" premise is a model.</td>\n</tr>\n<tr>\n<td>6 IV</td>\n<td>\"front 16.8 · back 14.1 · straddle ±203\"</td>\n<td></td>\n</tr>\n</tbody>\n</table>\n<p>Two of the card titles use wording the drawers do not support: card 4 asks \"What is actually written?\" and card 5 asks \"What must dealers trade…?\".</p>\n<p><strong>Context line.</strong> Example: <em>\"CONTEXT · DAILY · trend up · aligned · as of 09 Oct ›\"</em>. This is the daily ambient summary, and it opens Context. It is dated to the last settled session, not to today.</p>",
+     "shots": [
+      {
+       "file": "help/shots/sensex_1005_home_stale_strip.jpg",
+       "caption": "Home: masthead, read, six question cards, context line (the red stale strip is showing).",
+       "symbol": "SENSEX",
+       "date": "2026-10-12",
+       "time_ist": "10:05",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    },
+    {
+     "id": "s3b-2",
+     "title": "3b.2 Context — \"Breadth & Volatility\"",
+     "html": "<p>This page still uses the <strong>older header strip</strong>:</p>\n<ul>\n<li>a LIVE pill;</li>\n<li>SPOT with a change figure;</li>\n<li>NET Γ in full digits, e.g. \"-13,81,560.7 Cr\";</li>\n<li>MAX Γ (the net-long γ strike);</li>\n<li>MAX PAIN;</li>\n<li>PIN SCORE (the legacy score);</li>\n<li>VIX;</li>\n<li>EXPIRY with a countdown.</li>\n</ul>\n<p>Its spot-change figure does not match the Board or Home. At 09:11 NIFTY showed <strong>+392.1 (+1.76 %)</strong> here, against +103.5 on Home and −10.7 on the Board. Use the Board's figure.</p>\n<table>\n<thead>\n<tr>\n<th>Card</th>\n<th>What it shows</th>\n<th>Example</th>\n<th>Caveat</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>WCB</strong></td>\n<td>weighted constituent breadth, /100, with coverage</td>\n<td>\"— /100 · coverage 0.0 % · as of 09/10 15:40\"</td>\n<td>A constituent with no tick in the last 10 minutes drops out and is never filled with a stale value (S90-G). Before the open, coverage is 0 % and the value shows as a gap.</td>\n</tr>\n<tr>\n<td><strong>MARKET BREADTH</strong></td>\n<td>advancing vs declining share, and the A/D ratio</td>\n<td>\"61 % adv · A/D 1.56 · ↑772 / 494↓\"</td>\n<td>Not documented in the project docs (register K7).</td>\n</tr>\n<tr>\n<td><strong>INDIA VIX</strong></td>\n<td>the VIX level</td>\n<td>14.38</td>\n<td></td>\n</tr>\n<tr>\n<td><strong>IV SKEW</strong></td>\n<td>ATM put IV ÷ ATM call IV − 1, computed in the browser</td>\n<td>\"−29.9 % CE · ATM 22,600 · CE 19.8 / PE 13.9\"; it showed \"iv not populated\" while loading</td>\n<td>Not the same measure as the IV tab's skew 98.</td>\n</tr>\n</tbody>\n</table>\n<p>This page is not yet the Context page described in the board design. It has no Ambient, Expiry memory or Signals sections.</p>",
+     "shots": [
+      {
+       "file": "help/shots/nifty_1014_context.jpg",
+       "caption": "Context: legacy strip, WCB, market breadth, India VIX, IV skew.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "10:14",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    },
+    {
+     "id": "s3b-3",
+     "title": "3b.3 Structure — \"Structure & Signals\"",
+     "html": "<p>The page uses the same older header strip as Context. It then has two panels.</p>\n<p><strong>ICT ZONES — NEAREST TO SPOT</strong> shows \"10 of 40 · sorted by distance to spot\". Each row carries:</p>\n<ul>\n<li>a tier chip (SKIP or TIER2);</li>\n<li>a pattern (BULL_FVG, BEAR_FVG, BEAR_OB);</li>\n<li>the source date;</li>\n<li>the price range;</li>\n<li>the distance from spot to the zone's <strong>midpoint</strong> in %. A zone that contains spot can therefore still read \"+0.02 % above\".</li>\n</ul>\n<p>These zones come from a writer that last succeeded <strong>26 days ago</strong> (Health, <code>build_ict_htf_zones.py</code>, as of 09:11). The list is a record of older structure, not today's.</p>\n<p><strong>TODAY'S SIGNALS — STREAM</strong> lists the engine's signal rows: time, strike, grade, action. Example (NIFTY): rows from 08:30 to 09:00, each \"22,500 · D · BUY_PE\".</p>\n<ul>\n<li>These rows were written before the market opened.</li>\n<li>The meaning of the grade \"D\" is not established (S90).</li>\n<li><strong>This manual does not present these rows as trading signals, and neither should you.</strong> They are a log of what the engine wrote.</li>\n</ul>",
+     "shots": [
+      {
+       "file": "help/shots/nifty_1014_structure.jpg",
+       "caption": "Structure: ICT zones nearest to spot.",
+       "symbol": "NIFTY",
+       "date": "2026-10-12",
+       "time_ist": "10:14",
+       "board_bundle": "index-CadQe4qO.js"
+      }
+     ]
+    },
+    {
+     "id": "s3b-4",
+     "title": "3b.4 Health",
+     "html": "<table>\n<thead>\n<tr>\n<th>Tile</th>\n<th>Meaning</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>OVERALL</strong></td>\n<td>System status. It read <strong>CRITICAL</strong> at 09:11. Health is not calendar-aware yet (MV-4), so it can read CRITICAL for reasons that are expected at that hour.</td>\n</tr>\n<tr>\n<td><strong>WRITER FLEET</strong></td>\n<td>Healthy writers out of tracked writers, e.g. \"9/15 · 6 stale\".</td>\n</tr>\n<tr>\n<td><strong>TOKEN STATUS</strong></td>\n<td>When the broker token last refreshed, and the last HTTP status.</td>\n</tr>\n<tr>\n<td><strong>WRITER FRESHNESS</strong></td>\n<td>One row per script: last success, age, expected cadence, host, status. Check this table first when a Board tile looks stale. The note \"outside trading hours — staleness expected\" appears outside market hours.</td>\n</tr>\n<tr>\n<td><strong>ERROR RATE / TOP ERRORS</strong></td>\n<td>Non-success exits in the last 24 hours.</td>\n</tr>\n</tbody>\n</table>",
+     "shots": []
+    },
+    {
+     "id": "s3b-5",
+     "title": "3b.5 Settings",
+     "html": "<p>Settings lists the parameter store, grouped by section:</p>\n<ul>\n<li>Calibration</li>\n<li>Capital &amp; sizing</li>\n<li>Display</li>\n<li>Connections</li>\n<li>Manual actions</li>\n<li>About</li>\n</ul>\n<p>Each parameter row shows key · value · last changed · <strong>reason</strong>.</p>\n<p>The page is <strong>read-only</strong> (S90-E). Parameters change only through the database's own audited path, and every change carries a reason.</p>\n<p>Rows of note:</p>\n<ul>\n<li><strong>PIN_STATE</strong> thresholds read \"ENH-133 provisional, owes D-6 calibration\". This is the source of the Pin state words in §3.2.</li>\n<li><strong>WALLS</strong> band 1.5 carries the sweep that chose it.</li>\n</ul>\n<p>The capital keys show values whose units are not stated on the page. The manual does not interpret them.</p>",
+     "shots": []
+    },
+    {
+     "id": "s3b-6",
+     "title": "3b.6 The 3D view",
+     "html": "<p>See §1.8.</p>",
+     "shots": []
+    }
+   ],
+   "shots": []
+  },
+  {
+   "id": "part-4-visual-grammar",
+   "title": "Part 4 — Visual grammar",
+   "intro_html": "",
+   "sections": [
+    {
+     "id": "s4-1",
+     "title": "4.1 Colour carries sign, and nothing else",
+     "html": "<table>\n<thead>\n<tr>\n<th>Colour</th>\n<th>Meaning</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>Cool (blue)</strong></td>\n<td>positive sign: dampening, long γ, OI added, positive DEX</td>\n</tr>\n<tr>\n<td><strong>Warm (orange)</strong></td>\n<td>negative sign: amplifying, short γ, OI removed, negative DEX</td>\n</tr>\n<tr>\n<td><strong>Light grey / mid grey</strong></td>\n<td>calls / puts on the OI butterfly and IV smile; grey carries side, never pressure</td>\n</tr>\n<tr>\n<td><strong>Pale gold</strong></td>\n<td>your selection and the active zoom mode only</td>\n</tr>\n<tr>\n<td><strong>Dark red strip</strong></td>\n<td>stale data, at the top of the page only, never inside a chart</td>\n</tr>\n</tbody>\n</table>\n<p>Size is shown by <strong>length</strong>, never by colour strength. Signs are always written out (<code>+</code> and <code>−</code>), so colour is never the only carrier.</p>\n<p>Neither the green/red nor the \"good/bad\" reading of cool/warm applies. Cool is not \"safe\" and warm is not \"danger\". They are the two signs of an OI-weighted sum (§0.4).</p>",
+     "shots": []
+    },
+    {
+     "id": "s4-2",
+     "title": "4.2 Lines on the ladder",
+     "html": "<table>\n<thead>\n<tr>\n<th>Line</th>\n<th>Style</th>\n<th>Pill</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Spot</td>\n<td>solid, bright, glowing</td>\n<td><strong>SPOT</strong></td>\n</tr>\n<tr>\n<td>Flip (the L3 repriced flip)</td>\n<td><strong>dashed</strong></td>\n<td><strong>FLIP</strong></td>\n</tr>\n<tr>\n<td>Call / put OI walls</td>\n<td>solid, thin</td>\n<td><strong>CALL OI WALL / PUT OI WALL</strong></td>\n</tr>\n<tr>\n<td>γ-conc (pin), Net-long γ, K98, <strong>S*</strong></td>\n<td><strong>dotted</strong></td>\n<td>γ-CONC, NET-LONG γ</td>\n</tr>\n<tr>\n<td>Max pain</td>\n<td>ink rule, with a faint \"pain valley\" curve</td>\n<td>MAX PAIN</td>\n</tr>\n<tr>\n<td>γ ceiling / floor</td>\n<td>not drawn</td>\n<td>toggle reads <em>\"pending measurement\"</em></td>\n</tr>\n</tbody>\n</table>\n<p>When two levels fall on one strike, the rule is drawn once and the pill joins them with <strong>≡</strong>, for example <em>\"PUT OI WALL ≡ γ-CONC\"</em>. On NIFTY at 09:00 on 2026-10-12 it read <em>\"CALL OI WALL ≡ PUT OI WALL\"</em>, both walls on 22,500. No ring or highlight marks a coincidence. A coincidence is only two levels on one strike, not added confirmation.</p>",
+     "shots": []
+    },
+    {
+     "id": "s4-3",
+     "title": "4.3 Gutters and bands",
+     "html": "<ul>\n<li><strong>Left gutter: priced move.</strong> It lights strikes within ± the ATM straddle of spot.</li>\n<li><strong>Right gutter: pin band.</strong> It fills strikes inside the τ-weighted pin zone. The pin band and the pin point are different measures; see Part 3, Pin.</li>\n<li><strong>Terrain.</strong> A faint fill behind the γ bars, slightly stronger inside the corridor.</li>\n</ul>",
+     "shots": []
+    },
+    {
+     "id": "s4-4",
+     "title": "4.4 Bricks: solid, light, dashed outline",
+     "html": "<p>On the Flows tiles and the Flows ladder, a value that can change through the day is drawn as <strong>bricks</strong>, measured from the session's pre-open:</p>\n<table>\n<thead>\n<tr>\n<th>Mark</th>\n<th>Meaning</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>Solid</strong></td>\n<td>held since the pre-open</td>\n</tr>\n<tr>\n<td><strong>Light</strong> (same colour, paler)</td>\n<td>added since the pre-open</td>\n</tr>\n<tr>\n<td><strong>Dashed outline</strong></td>\n<td>removed since the pre-open</td>\n</tr>\n</tbody>\n</table>\n<p>If a value changes sign during the day, the held part is empty: the added part runs from 0 to <em>now</em> on one side, and the removed part runs from 0 to the <em>pre-open value</em> on the other. The sub-line spells out the numbers: <em>\"now · from x at pre-open OI · ±y since hh:mm\"</em>. \"At pre-open OI\" means the pre-open open interest valued at <strong>today's</strong> delta, so the change reflects OI only, not repricing.</p>\n<p>The three DEX tiles share <strong>one scale</strong>. The two ∂Δ tiles each have <strong>their own scale</strong>, because their units differ.</p>",
+     "shots": []
+    },
+    {
+     "id": "s4-5",
+     "title": "4.5 Chips and badges",
+     "html": "<table>\n<thead>\n<tr>\n<th>Mark</th>\n<th>Meaning</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>Bordered badge</strong> on Flows</td>\n<td>the fixed notice <em>\"flow-vs-book shown on unclassified ΔOI; classification (D-4) not built\"</em></td>\n</tr>\n<tr>\n<td><strong>Flow chip</strong> on Net DEX</td>\n<td><em>\"flow since hh:mm · same sign as book\"</em> or <em>\"… · against book\"</em>; neutral colour, never green or red, never a number</td>\n</tr>\n<tr>\n<td><strong>Dashed-outline chip</strong></td>\n<td>a named absence: something the board knows it does not have, in plain words</td>\n</tr>\n<tr>\n<td><strong>≡ pill</strong></td>\n<td>two levels on one strike</td>\n</tr>\n<tr>\n<td><strong>READ IT WITH chips</strong></td>\n<td>in the drawer; jump to the related tile</td>\n</tr>\n</tbody>\n</table>",
+     "shots": []
+    },
+    {
+     "id": "s4-6",
+     "title": "4.6 Gaps are drawn as gaps, never as zero",
+     "html": "<p>This is the board's most important rule. When a value was <strong>not measured</strong>, the board shows a gap:</p>\n<ul>\n<li><code>·</code> on a ladder row;</li>\n<li><strong>n/c</strong> (not comparable) for ΔOI;</li>\n<li>a <strong>dashed break</strong> in a time series;</li>\n<li>a hollow <strong>○</strong> for an incomplete session;</li>\n<li>a named state in words.</li>\n</ul>\n<p>It never shows <strong>0</strong>. A zero would state a fact that was never measured, for example \"perfectly balanced\". When the board does show <strong>0</strong>, or an empty bar track, the value was measured and really is zero.</p>",
+     "shots": []
+    }
+   ],
+   "shots": []
+  },
+  {
+   "id": "part-5-status-words",
+   "title": "Part 5 — Status words",
+   "intro_html": "<table>\n<thead>\n<tr>\n<th>Word on the board</th>\n<th>Where</th>\n<th>What it means</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>unit definition pending</strong> / <strong>unit pending (E-D1)</strong></td>\n<td>Net Γ, Gross |Γ|, Hedge per 1 %</td>\n<td>The size of this number has no agreed real-world unit yet. Compare signs and shares, not magnitudes across days.</td>\n</tr>\n<tr>\n<td><strong>band not measured — calibration gap</strong></td>\n<td>most SCALE slots</td>\n<td>Nobody has measured what a \"normal\" or \"large\" value is, so the board gives no high/low words.</td>\n</tr>\n<tr>\n<td><strong>pending measurement</strong></td>\n<td>γ CEILING / FLOOR toggle</td>\n<td>This level has no column in the database; it is not drawn.</td>\n</tr>\n<tr>\n<td><strong>carry unmeasurable</strong> / <strong>unmeasurable r</strong> / <strong>r unmeasurable</strong></td>\n<td>Flip, ∂ tiles, S*</td>\n<td>These tiles need a carry rate taken from futures prices. Futures start at 09:30 (strip: <em>\"futures from 09:30\"</em>), so before then the rate cannot be measured and the tile does not guess. Status code <code>UNMEASURABLE_R</code>.</td>\n</tr>\n<tr>\n<td><strong>no flip in grid</strong></td>\n<td>Flip</td>\n<td>Repriced γ never crosses zero in the tested range. Status <code>NO_CROSSING</code>.</td>\n</tr>\n<tr>\n<td><strong>skipped on expiry day</strong> / <code>SKIPPED_EXPIRY</code> / <strong>no flow on expiry day</strong></td>\n<td>Flip, ∂ tiles, S*, IV skew</td>\n<td>On dte 0 the board deliberately does not compute these.</td>\n</tr>\n<tr>\n<td><strong>no flow before 09:15</strong></td>\n<td>Flows tiles</td>\n<td>Flow is measured only once the session is open (<code>flow_window = SESSION</code>). Before that, this is the correct reading, not a fault.</td>\n</tr>\n<tr>\n<td><strong>flow · loading</strong></td>\n<td>Flows tiles</td>\n<td>The data is still loading.</td>\n</tr>\n<tr>\n<td><strong>flow · different run — not drawn</strong></td>\n<td>Flows tiles</td>\n<td>The flow rows and the book come from different runs, so the board will not draw bricks across them.</td>\n</tr>\n<tr>\n<td><strong>PRE_OPEN</strong></td>\n<td>badge code</td>\n<td>Flow-vs-book before 09:15; the chip draws nothing.</td>\n</tr>\n<tr>\n<td><strong>ABSTAIN</strong> + reason</td>\n<td>Net DEX chip</td>\n<td>The chip declines to say SAME or OPPOSITE. Reasons: <strong>UNTRADED</strong>, <em>\"no badge · untraded OI on this snapshot\"</em>, more than 2 % of the DEX book sits on legs that have not traded; <strong>ZERO_NET</strong>, <em>\"no badge · a net is zero\"</em>; <strong>DELTA_SET</strong>, <em>\"no badge · sign depends on the delta used\"</em>, the vendor's delta and a parity-corrected delta give opposite signs.</td>\n</tr>\n<tr>\n<td><strong>gap … qty</strong> / <strong>has no published delta</strong> / <strong>has no priced greek</strong></td>\n<td>DEX and ∂Δ captions</td>\n<td>OI (or ΔOI) on legs with no usable greek. It is left out of the total, never counted as zero.</td>\n</tr>\n<tr>\n<td><strong>has no pre-open OI and sits outside the split</strong></td>\n<td>DEX caption</td>\n<td>OI on strikes that did not exist at the pre-open.</td>\n</tr>\n<tr>\n<td><strong>n/c</strong></td>\n<td>ΔOI</td>\n<td>The strike exists at only one of the two times, so it is not comparable.</td>\n</tr>\n<tr>\n<td><strong>no 09:15 anchor yet</strong></td>\n<td>OI tab, before 09:15</td>\n<td>The ΔOI baseline does not exist yet.</td>\n</tr>\n<tr>\n<td><strong>ΔOI · n/a (SENSEX · TD-S84-NEW-4)</strong></td>\n<td>OI tab, SENSEX</td>\n<td>Withheld permanently, because SENSEX's 09:15 baseline can come from a stale vendor row. A standing deviation (S92-H).</td>\n</tr>\n<tr>\n<td><strong>settled hh:mm</strong></td>\n<td>DEX sub-line</td>\n<td>The DEX book is taken from the last run at or before 15:15.</td>\n</tr>\n<tr>\n<td><strong>live · unreconciled</strong></td>\n<td>Pin state</td>\n<td>The row can still be revised; rows are reconciled after the close.</td>\n</tr>\n<tr>\n<td><strong>stage 1 · no band (D-6)</strong></td>\n<td>Conviction</td>\n<td>A number only. The planned second stage needs about six weeks of history.</td>\n</tr>\n<tr>\n<td><strong>number only · no band (E-D4)</strong></td>\n<td>Legacy pin-risk score</td>\n<td>Its old \"weak/moderate/strong\" words were never measured and were removed.</td>\n</tr>\n<tr>\n<td><strong>DECLINED-ON-EVIDENCE</strong></td>\n<td>drawers (D-4, D-5a)</td>\n<td>Considered, tested, and deliberately not built.</td>\n</tr>\n<tr>\n<td><strong>not built</strong></td>\n<td>Flows badge (D-4)</td>\n<td>The classification of ΔOI into writing, covering and so on does not exist and will not be shown.</td>\n</tr>\n<tr>\n<td><strong>no pre-open print</strong> / <strong>prev close missing</strong> / <strong>futures from 09:30</strong></td>\n<td>strip</td>\n<td>The input does not exist yet at this time of day. \"prev close missing\" also appears for a few seconds while loading.</td>\n</tr>\n<tr>\n<td><strong>partial</strong></td>\n<td>3D, river (○)</td>\n<td>The session is not finished.</td>\n</tr>\n<tr>\n<td><strong>OVERALL CRITICAL</strong> / <strong>outside trading hours — staleness expected</strong></td>\n<td>Health</td>\n<td>See Part 3b. Health is not yet calendar-aware (MV-4).</td>\n</tr>\n</tbody>\n</table>",
+   "sections": [],
+   "shots": []
+  },
+  {
+   "id": "part-6-glossary",
+   "title": "Part 6 — Glossary",
+   "intro_html": "<table>\n<thead>\n<tr>\n<th>Term</th>\n<th>Meaning</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>ATM</strong></td>\n<td>at the money; the strike nearest spot on the board's grid. The IV tab uses the chain-clock spot, so its ATM can differ from the strip's spot.</td>\n</tr>\n<tr>\n<td><strong>Book</strong></td>\n<td>the standing OI-weighted total, e.g. the DEX book.</td>\n</tr>\n<tr>\n<td><strong>Corridor</strong></td>\n<td>the range from the put OI wall to the call OI wall within an eligible σ band. States: inside, above call wall, below put wall, undefined.</td>\n</tr>\n<tr>\n<td><strong>Cr / L Cr</strong></td>\n<td>₹ crore; \"L Cr\" = lakh crore (1L Cr = 1,00,000 Cr).</td>\n</tr>\n<tr>\n<td><strong>DEX</strong></td>\n<td>delta exposure: delta × OI × spot ÷ 10⁷, in ₹ Cr. Calls carry +, puts −.</td>\n</tr>\n<tr>\n<td><strong>DTE / sessions</strong></td>\n<td>days, or trading sessions, to expiry.</td>\n</tr>\n<tr>\n<td><strong>Flip</strong></td>\n<td>the spot level at which repriced net γ would change sign (the \"L3 repriced flip\").</td>\n</tr>\n<tr>\n<td><strong>Flow</strong></td>\n<td>the change in a book since the pre-open, from ΔOI only.</td>\n</tr>\n<tr>\n<td><strong>Flow-vs-book</strong></td>\n<td>whether flow and book have the same sign; see the Net DEX chip.</td>\n</tr>\n<tr>\n<td><strong>γ-conc / Pin</strong></td>\n<td>the strike holding the largest share of gross |γ|.</td>\n</tr>\n<tr>\n<td><strong>Gross |γ|</strong></td>\n<td>the sum of absolute γ exposure across strikes.</td>\n</tr>\n<tr>\n<td><strong>HHI</strong></td>\n<td>the Herfindahl concentration index, Σ share². Only the Pin tab's \"Concentration (HHI)\" is a true HHI. The Gamma tab's \"Top-strike share\" is not, and is never called HHI.</td>\n</tr>\n<tr>\n<td><strong>Max pain</strong></td>\n<td>the strike at which option holders' total payout would be lowest. A positional figure, not a forecast.</td>\n</tr>\n<tr>\n<td><strong>Net-long γ strike</strong></td>\n<td>the strike with the largest positive net γ; not \"near spot\".</td>\n</tr>\n<tr>\n<td><strong>OI wall</strong></td>\n<td>the eligible strike with the largest call (or put) OI.</td>\n</tr>\n<tr>\n<td><strong>Pin band</strong></td>\n<td>the τ-weighted pin zone (ENH-81); a different measure from the pin point.</td>\n</tr>\n<tr>\n<td><strong>Pre-open anchor</strong></td>\n<td>the session's first front-expiry snapshot before 09:15 IST.</td>\n</tr>\n<tr>\n<td><strong>Priced move</strong></td>\n<td>the ATM straddle, as ± points and % to expiry.</td>\n</tr>\n<tr>\n<td><strong>S*</strong></td>\n<td>the spot level at which the open options, repriced at their own IVs, would carry zero net delta.</td>\n</tr>\n<tr>\n<td><strong>Settled run</strong></td>\n<td>the last run at or before 15:15 IST.</td>\n</tr>\n<tr>\n<td><strong>Untraded leg</strong></td>\n<td>a strike-side with volume 0 so far and OI &gt; 0.</td>\n</tr>\n<tr>\n<td><strong>W1 / W2</strong></td>\n<td>the front and back expiry legs.</td>\n</tr>\n</tbody>\n</table>",
+   "sections": [],
+   "shots": []
+  },
+  {
+   "id": "part-7-changelog-and-findings",
+   "title": "Part 7 — Changelog and findings",
+   "intro_html": "",
+   "sections": [
+    {
+     "id": "s7-1",
+     "title": "7.1 Changelog",
+     "html": "<table>\n<thead>\n<tr>\n<th>Date</th>\n<th>Board</th>\n<th>Manual</th>\n<th>Change</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>2026-10-12</td>\n<td><code>804d684</code> (bundle <code>index-CadQe4qO.js</code>)</td>\n<td>v0.1</td>\n<td>Coverage register (140 rows) and pass 1 (pre-open). Parts 0, 1, 4, 5, 6 and 7 drafted.</td>\n</tr>\n<tr>\n<td>2026-10-12</td>\n<td>same</td>\n<td>v0.2</td>\n<td>Pass 2 (09:40–09:41). Parts 2, 3 and 3b written. F-16 added; F-3 and F-13 refined. Owed: worked examples for ∂Δ/∂σ, ∂Δ/∂t, ∂Γ and S* once carry is measurable; pass 3 after the close; an expiry-day read (NIFTY 13 Oct is dte 0).</td>\n</tr>\n<tr>\n<td>2026-10-12</td>\n<td>same</td>\n<td>v0.3</td>\n<td>Capture pass (09:52–10:21): 23 real screenshots; worked examples for Flip, ∂Δ, ∂Γ and S*; F-17 to F-20 added; F-16 partly resolved; S97-A wording transition noted.</td>\n</tr>\n</tbody>\n</table>",
+     "shots": []
+    }
+   ],
+   "shots": []
+  }
+ ]
+}
