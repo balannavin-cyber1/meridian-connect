@@ -16,6 +16,7 @@ import Journal from "./pages/Journal";
 import NotFound from "./pages/NotFound";
 
 const Lab3D = lazy(() => import("./pages/Lab3D"));
+const Help = lazy(() => import("./pages/Help"));
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/order" element={<Order />} />
           <Route path="/health" element={<Health />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/help" element={<Suspense fallback={null}><Help /></Suspense>} />
           <Route path="/journal" element={<Journal />} />
           <Route path="*" element={<NotFound />} />
         </Route>
