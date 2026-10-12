@@ -16,7 +16,7 @@ const primary = [
 const ops = [
   { to: "/health", label: "Health" },
   { to: "/settings", label: "Settings" },
-  { to: "/help", label: "Help" },
+  { to: "/manual", label: "Help" },
 ];
 const symbols: MSymbol[] = ["NIFTY", "SENSEX"];
 const STALE_MIN = 10;

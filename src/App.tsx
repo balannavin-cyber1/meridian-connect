@@ -37,7 +37,7 @@ export default function App() {
           <Route path="/order" element={<Order />} />
           <Route path="/health" element={<Health />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/help" element={<Suspense fallback={null}><Help /></Suspense>} />
+          <Route path="/manual" element={<Suspense fallback={null}><Help /></Suspense>} />
           <Route path="/journal" element={<Journal />} />
           <Route path="*" element={<NotFound />} />
         </Route>
