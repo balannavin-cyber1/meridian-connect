@@ -9,7 +9,7 @@ import {
   istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, useOiRotation, usePinBand,
   useConcentration, useNetGammaToday, useGammaRiver,
   useMaxPainRun, useLiveSpot,
-  usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useDexBook, useDexFlow, useDexZero, useFlowSim,
+  usePinBoard, useStrikeRankAll, useGreeksNet, useGreeksStrike, useDexBook, useDexFlow, useDeltaDriftFlow, useDexZero, useFlowSim,
 } from "@/lib/board";
 import { LadderPanel, TABS, type Tab, type OverviewItem } from "@/components/board/LadderPanel";
 import { Sym } from "@/components/board/Sym";
@@ -455,6 +455,14 @@ export default function Board() {
   const dfBadgeReason = df0 && df0.badge === "ABSTAIN" && df0.abstainCode ? dfReason[df0.abstainCode] : undefined;
   const dfBrick = (k: "net" | "call" | "put") => df0 ? { now: df0.legNow[k], pre: df0.legPre[k], scale: dfScale } : undefined;
   const dfCap = df0 ? `${df0.legGapDoi != null ? ` ${num(df0.legGapDoi)} qty of ΔOI has no published delta and is not counted; this does not say who bought or wrote.` : ""}${(df0.legNoAnchorOi ?? 0) > 0 ? ` ${num(df0.legNoAnchorOi)} qty has no pre-open OI and sits outside the split.` : ""}` : "";
+  // ---- P7b: ∂Δ/∂σ and ∂Δ/∂t flow since the pre-open (S96-F, S96-G) ----
+  const ddQ = useDeltaDriftFlow(symbol);
+  const dd = ddQ.data ?? null;
+  const ddOn = (k: "iv" | "t", tileNet: number | null) => !!dd && dd.window === "SESSION" && dd.status === "OK" && tileNet != null && dd[k].book != null && Math.abs(tileNet - (dd[k].book as number)) < 0.01;
+  const ddAbsent = ddQ.isLoading ? "flow · loading" : dd?.status === "SKIPPED_EXPIRY" ? "no flow on expiry day" : (!dd || dd.window !== "SESSION") ? "no flow before 09:15" : "flow · different run — not drawn";
+  const ddSub2 = (k: "iv" | "t", tileNet: number | null) => ddOn(k, tileNet) ? `from ${fmtCr(dd![k].pre)} at pre-open OI · ${fmtCr(dd![k].flow)} since ${istTime(dd!.anchorTs)}` : ddAbsent;
+  const ddBrick = (k: "iv" | "t", tileNet: number | null) => ddOn(k, tileNet) ? { now: dd![k].book, pre: dd![k].pre, scale: Math.max(1e-9, Math.abs(dd![k].book ?? 0), Math.abs(dd![k].pre ?? 0)) } : undefined;
+  const ddCap = (k: "iv" | "t", tileNet: number | null) => ddOn(k, tileNet) && dd!.gapDoi != null ? ` ${num(dd!.gapDoi)} qty of ΔOI has no priced greek and is not counted; this does not say who bought or wrote.` : "";
   const flowRows = dexLayer ? (dex.length ? (ladder?.rows ?? []).map((lr) => {
     const r = dex.find((x) => x.strike === lr.strike);
     const v = r ? r[dexLayer] : null;
@@ -520,10 +528,10 @@ export default function Board() {
       caption: fp1 != null ? `For a +1% move dealers would ${fp1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fp1))} Cr; for −1%, ${fm1 != null && fm1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fm1 ?? 0))} Cr. Bars show ∂Δ/∂t per strike.` : "No flow simulation." },
     { id: "f_ddt", ratio: fl("net_over_gross_delta_drift_time"), label: "∂Δ/∂t · per day", sub: fl("net_over_gross_delta_drift_time") != null ? `net/gross ${fl("net_over_gross_delta_drift_time")?.toFixed(2).replace(/^-/, "−")} · Cr Δ-notional` : "Cr Δ-notional",
       value: pairVal(fl("net_delta_drift_time_cr_per_day"), fl("gross_strike_delta_drift_time")), levelIds: [],
-      caption: fl("net_delta_drift_time_cr_per_day") != null ? `Dealer delta-notional drifts ${fmtCr(fl("net_delta_drift_time_cr_per_day"))} per calendar day (gross ${fmtCr(fl("gross_strike_delta_drift_time")).replace(/^\+/, "")}); bars per strike.` : "No ∂Δ/∂t for this leg." },
+      caption: fl("net_delta_drift_time_cr_per_day") != null ? `Dealer delta-notional drifts ${fmtCr(fl("net_delta_drift_time_cr_per_day"))} per calendar day (gross ${fmtCr(fl("gross_strike_delta_drift_time")).replace(/^\+/, "")}); bars per strike.` : "No ∂Δ/∂t for this leg." + ddCap("t", fl("net_delta_drift_time_cr_per_day")), sub2: ddSub2("t", fl("net_delta_drift_time_cr_per_day")), brick: ddBrick("t", fl("net_delta_drift_time_cr_per_day")) },
     { id: "f_ddiv", ratio: fl("net_over_gross_delta_drift_iv"), label: "∂Δ/∂σ · per vol pt", sub: fl("net_over_gross_delta_drift_iv") != null ? `net/gross ${fl("net_over_gross_delta_drift_iv")?.toFixed(2).replace(/^-/, "−")} · Cr Δ-notional` : "Cr Δ-notional",
       value: pairVal(fl("net_delta_drift_iv_cr_per_volpt"), fl("gross_strike_delta_drift_iv")), levelIds: [],
-      caption: fl("net_delta_drift_iv_cr_per_volpt") != null ? `A +1 IV point moves dealer delta-notional ${fmtCr(fl("net_delta_drift_iv_cr_per_volpt"))} (gross ${fmtCr(fl("gross_strike_delta_drift_iv")).replace(/^\+/, "")}); bars per strike.` : "No ∂Δ/∂σ for this leg." },
+      caption: fl("net_delta_drift_iv_cr_per_volpt") != null ? `A +1 IV point moves dealer delta-notional ${fmtCr(fl("net_delta_drift_iv_cr_per_volpt"))} (gross ${fmtCr(fl("gross_strike_delta_drift_iv")).replace(/^\+/, "")}); bars per strike.` : "No ∂Δ/∂σ for this leg." + ddCap("iv", fl("net_delta_drift_iv_cr_per_volpt")), sub2: ddSub2("iv", fl("net_delta_drift_iv_cr_per_volpt")), brick: ddBrick("iv", fl("net_delta_drift_iv_cr_per_volpt")) },
     { id: "f_gdt", ratio: fl("net_over_gross_gex_drift_time"), label: "∂Γ/∂t · per day", sub: fl("net_over_gross_gex_drift_time") != null ? `net / gross · ratio ${fl("net_over_gross_gex_drift_time")?.toFixed(2).replace(/^-/, "−")} — read together` : "net / gross — read together",
       value: pairVal(fl("net_gex_drift_time_cr_per_day"), fl("gross_strike_gex_drift_time")), levelIds: [],
       caption: fl("net_gex_drift_time_cr_per_day") != null ? `∂Γ/∂t net ${fmtCr(fl("net_gex_drift_time_cr_per_day"))} against gross ${fmtCr(fl("gross_strike_gex_drift_time")).replace(/^\+/, "")} — a residue of opposing strikes; read the bars.` : "No ∂Γ/∂t for this leg." },
@@ -555,7 +563,7 @@ export default function Board() {
   ];
   const flowsBadge = (
     <div className="mb-3 rounded border border-dashed px-3 py-2 text-[12px] font-semibold" style={{ borderColor: "var(--rule)", color: "var(--ink-1)" }}>
-      PROVISIONAL — flow-vs-book (D-4) not built
+      flow-vs-book shown on unclassified ΔOI; classification (D-4) not built
     </div>);
   const layerName: Record<string, string> = { d_dt: "∂Δ/∂t", d_div: "∂Δ/∂σ", g_dt: "∂Γ/∂t", g_div: "∂Γ/∂σ" };
   const dexName: Record<string, string> = { net: "Net DEX", call: "Call DEX", put: "Put DEX" };
