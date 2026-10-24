@@ -6,6 +6,7 @@ import {
   type Symbol as MSymbol,
 } from "@/lib/queries";
 import { spotFromMarker, formatDTE } from "./ui";
+import { useSessions, useOpenGap, useLiveSpot } from "@/lib/board";  // S100-N
 
 export type MvState = ReturnType<typeof useMvData>;
 
@@ -31,10 +32,15 @@ export function useMvData(symbol: MSymbol) {
 
   const strikeStep = symbol === "NIFTY" ? 50 : 100;
   const g = gamma.data ?? ({} as any);
-  const spot = (g.spot ?? spotFromMarker(marker.data) ?? 0) as number;
-  const prevClose = (marker.data?.prev_close_spot ?? null) as number | null;
-  const changeAbs = prevClose && spot ? spot - prevClose : 0;
-  const changePct = prevClose && spot ? ((spot - prevClose) / prevClose) * 100 : 0;
+  const spot = (g.spot ?? spotFromMarker(marker.data) ?? 0) as number;  // γ-run spot: levels stay measured against it
+  // S100-N: previous close and SPOT tile from the same sources as Board / Home (prior session's 16:00 close; live 1-min spot)
+  const sess = useSessions();
+  const og = useOpenGap(symbol, sess.data?.session ?? null, sess.data?.prev ?? null).data;
+  const live = useLiveSpot(symbol).data ?? null;
+  const headSpot = (live?.spot ?? spot) as number;
+  const prevClose = (og?.prevClose ?? null) as number | null;
+  const changeAbs = prevClose && headSpot ? headSpot - prevClose : 0;
+  const changePct = prevClose && headSpot ? ((headSpot - prevClose) / prevClose) * 100 : 0;
 
   const regime = (g.regime ?? null) as string | null;
   const gammaZone = (g.gamma_zone ?? null) as string | null;
@@ -96,7 +102,7 @@ export function useMvData(symbol: MSymbol) {
   const gammaPainGap = maxPainStrike && maxGammaStrike ? Math.abs(maxGammaStrike - maxPainStrike) : null;
 
   return {
-    symbol, strikeStep, expiry, dte, spot, prevClose, changeAbs, changePct,
+    symbol, strikeStep, expiry, dte, spot, headSpot, prevClose, changeAbs, changePct,
     regime, gammaZone, netDealerGamma, sigmaPct, flipLevel,
     pinRiskScore, expansionProb, pinProbability, atmStraddle, vix,
     maxGammaStrike, peakGammaCr, strongestAmplifyStrike, dampenTotal, amplifyTotal,
