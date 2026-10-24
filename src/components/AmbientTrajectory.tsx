@@ -560,7 +560,7 @@ export function AmbientTrajectory({
       {tf === "WEEK" && intradayDrift && (
         <div className="mt-3 rounded-md px-3 py-2 text-[12px] font-medium leading-snug"
           style={{ background: MV.amber + "1f", border: `1px solid ${MV.amber}55`, color: MV.amber, fontFamily: MV.mono }}>
-          ⚠ INTRADAY DRIFT — dealers flipped to {liveN} since the open; the settled verdict ({settledN}) is stale until tonight's recompile.
+          ⚠ INTRADAY DRIFT — the regime flipped to {liveN} since the open; the settled verdict ({settledN}) is stale until tonight's recompile.
         </div>
       )}
 
