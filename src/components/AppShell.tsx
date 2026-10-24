@@ -5,7 +5,7 @@ import { onlineManager } from "@tanstack/react-query";
 import { useSymbol } from "@/contexts/SymbolContext";
 import { useRefetchMarketview } from "@/lib/queries";
 import type { Symbol as MSymbol } from "@/lib/queries";
-import { useIvFront, useWalls, useSessions, istToday } from "@/lib/board";
+import { useIvFront, useWalls, useSessions, istToday, useNextOpen } from "@/lib/board";
 
 const primary = [
   { to: "/home", label: "Home" },
@@ -47,23 +47,37 @@ function StaleStrip() {
   const chain = useIvFront(symbol);
   const walls = useWalls(symbol);
   const sess = useSessions();
+  const nextOpen = useNextOpen().data ?? null;  // S100-S
   const [, setT] = useState(0);
   useEffect(() => { const id = setInterval(() => setT((t) => t + 1), 30_000); return () => clearInterval(id); }, []);
   const now = new Date();
   const ist = new Date(now.getTime() + 5.5 * 3600_000);
   const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
-  const inSession = sess.data?.session === istToday() && mins >= 9 * 60 + 25 && mins <= 15 * 60 + 30;
-  if (!inSession) return null;
+  // S100-S: session-state note (neutral): pre-open, closing session, closed
+  const session = (sess.data?.session ?? null) as string | null;
+  const sessToday = session != null && session === istToday();
+  const dd = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  const note = session == null ? null
+    : sessToday && mins < 9 * 60 + 16 ? "Pre-open · figures are from the pre-open chain until the first 1-min bar at 09:16"
+    : sessToday && mins >= 15 * 60 + 15 && mins < 15 * 60 + 45 ? "Closing session · spot held since 15:15 · closing γ runs 15:30 / 15:35 / 15:40"
+    : !sessToday || mins >= 15 * 60 + 45 ? `Closed · showing the ${dd(session)} session${nextOpen ? ` · next open ${dd(nextOpen)}` : ""}`
+    : null;
+  const inSession = sessToday && mins >= 9 * 60 + 25 && mins <= 15 * 60 + 45;  // S100-S: was 15:30
   const age = (ts?: string) => (ts ? Math.floor((now.getTime() - new Date(ts).getTime()) / 60000) : null);
-  const items = [
+  const items = inSession ? [
     { name: "chain data", a: age((chain.data as any)?.ts) },
     { name: "gamma run", a: age((walls.data as any)?.ts) },
-  ].filter((x) => x.a != null && x.a > STALE_MIN);
-  if (!items.length) return null;
+  ].filter((x) => x.a != null && x.a > STALE_MIN) : [];
+  if (!note && !items.length) return null;
   return (
-    <div className="w-full px-4 py-1.5 text-[12px]" style={{ background: "var(--alert-bg)", color: "var(--alert-fg)" }}>
-      {items.map((x) => `${x.name} ${x.a} min old`).join(" · ")} · <Link to="/health" className="underline-offset-2 hover:underline">Health ›</Link>
-    </div>
+    <>
+      {note && <div className="w-full px-4 py-1.5 text-[12px]" style={{ background: "var(--s2)", color: "var(--ink-2)" }}>{note}</div>}
+      {items.length > 0 && (
+        <div className="w-full px-4 py-1.5 text-[12px]" style={{ background: "var(--alert-bg)", color: "var(--alert-fg)" }}>
+          {items.map((x) => `${x.name} ${x.a} min old`).join(" · ")} · <Link to="/health" className="underline-offset-2 hover:underline">Health ›</Link>
+        </div>
+      )}
+    </>
   );
 }
 

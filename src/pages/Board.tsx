@@ -624,7 +624,7 @@ export default function Board() {
         <Cell id="s8" label="Fut · Basis" {...C}
           value={futMsg === "futures from 09:30" ? <Absent word="futures from 09:30" /> : fp != null ? <>{num(fp)} · {basis != null ? sgn(basis, 1) : "—"}</> : <Absent word="no futures" />}
           sub={futMsg === "futures stale" ? "futures stale" : <>
-            {basisChg != null && <><Mark delta={basisChg} />{sgn(basisChg, 1)} · </>}{contract ?? ""}
+            {basisChg != null && <><Mark delta={basisChg} />{sgn(basisChg, 1)} · </>}{contract ?? ""}{n(fut?.spot_price) != null && fut?.ts ? ` · vs spot ${num(n(fut?.spot_price)!, 1)} @ ${istTime(fut.ts)}` : ""}
           </>} />
 
         <Cell id="s9" label="Open · Gap" {...C}
