@@ -92,8 +92,8 @@ export function NarrativeModal({ open, onClose, symbol, expiry, state }: Props) 
           </p>
           <p>
             {state.regime === "POSITIVE_γ" || state.regime === "LONG_GAMMA"
-              ? "Long-γ dealers buy dips and sell rips, compressing realized vol."
-              : "Short-γ dealers chase price, amplifying directional moves."}
+              ? "If dealers are long γ, they buy dips and sell rips, compressing realized vol."
+              : "If dealers are short γ, they chase price, amplifying directional moves."}
             Pin risk score of {state.pinScore != null ? Math.round(state.pinScore) : "—"} suggests {(state.pinScore ?? 0) >= 75 ? "strong magnetism near max γ" : "limited pin pressure"}.
           </p>
           <p className="text-[11px] text-gray-400">

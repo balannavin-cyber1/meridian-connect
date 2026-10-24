@@ -81,6 +81,7 @@ function Cell({ id, label, value, color, sub, viz, sel, onSel }: CellProps) {
 }
 
 // ---------- page ----------
+const istMinutes = (iso: string) => { const d = new Date(new Date(iso).getTime() + 5.5 * 3600_000); return d.getUTCHours() * 60 + d.getUTCMinutes(); };  // S100-R
 export default function Board() {
   const { symbol } = useSymbol();
   const [params] = useSearchParams();
@@ -525,7 +526,7 @@ export default function Board() {
   const flowItems: OverviewItem[] = [
     { id: "f_hedge", label: "Hedge per 1 %", sub: fm1 != null ? `−1 %: ${flowWord(fm1)} · +1 %: ${flowWord(fp1)}` : "",
       value: fp1 != null ? <span style={{ color: hue(fp1) }}>{flowWord(fp1)}</span> : <Absent word="no run" />, levelIds: [],
-      caption: fp1 != null ? `For a +1% move dealers would ${fp1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fp1))} Cr; for −1%, ${fm1 != null && fm1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fm1 ?? 0))} Cr. Bars show ∂Δ/∂t per strike.` : "No flow simulation." },
+      caption: fp1 != null ? `Under the house sign, for a +1% move dealers would ${fp1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fp1))} Cr; for −1%, ${fm1 != null && fm1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fm1 ?? 0))} Cr. Bars show ∂Δ/∂t per strike.` : "No flow simulation." },
     { id: "f_ddt", ratio: fl("net_over_gross_delta_drift_time"), label: "∂Δ/∂t · per day", sub: fl("net_over_gross_delta_drift_time") != null ? `net/gross ${fl("net_over_gross_delta_drift_time")?.toFixed(2).replace(/^-/, "−")} · Cr Δ-notional` : "Cr Δ-notional",
       value: pairVal(fl("net_delta_drift_time_cr_per_day"), fl("gross_strike_delta_drift_time")), levelIds: [],
       caption: (fl("net_delta_drift_time_cr_per_day") != null ? `Delta-notional drifts ${fmtCr(fl("net_delta_drift_time_cr_per_day"))} per calendar day (gross ${fmtCr(fl("gross_strike_delta_drift_time")).replace(/^\+/, "")}); dealer side regime-dependent (P2); bars per strike.` : "No ∂Δ/∂t for this leg.") + ddCap("t", fl("net_delta_drift_time_cr_per_day")), sub2: ddSub2("t", fl("net_delta_drift_time_cr_per_day")), brick: ddBrick("t", fl("net_delta_drift_time_cr_per_day")) },
@@ -576,7 +577,7 @@ export default function Board() {
         <Cell id="dte" label="Symbol · Expiry" {...C}
           value={expiry ? `${expShort(expiry)}` : <Absent word="no expiry" />} sub={[symbol, s1sub].filter(Boolean).join(" · ")} />
 
-        <Cell id="spot" label={liveSpot ? `Spot · live ${istTime(liveSpot.ts)}` : "Spot"} {...C}
+        <Cell id="spot" label={liveSpot ? (istMinutes(liveSpot.ts) >= 915 ? "Spot · held since 15:15" : `Spot · live ${istTime(liveSpot.ts)}`) : (g?.ts && istMinutes(g.ts) >= 940 ? "Spot · close" : "Spot")} {...C}
           value={headSpot != null ? num(headSpot, 1) : <Absent word="no run" />}
           sub={spotChg != null && prevClose ? <><Mark delta={spotChg} />{sgn(spotChg, 1)} · {sgn((spotChg / prevClose) * 100, 2)} %{liveSpot && spot != null ? ` · board ${istTime(g?.ts)} @ ${num(spot, 1)}` : ""}</> : undefined}
           viz={sparkPts.length >= 3 ? <Spark pts={sparkPts} /> : undefined} />

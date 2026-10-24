@@ -148,11 +148,11 @@ export default function Home() {
       answer: net == null || !gross ? <Absent word="no run" /> :
         <>net/gross {(net / gross).toFixed(2)}{sh1 != null ? ` · top strike ${(sh1 * 100).toFixed(1)} %` : ""}</>,
       pic: net != null && gross ? <div className="flex h-14 w-[220px] max-w-full items-center"><SplitBar net={net} gross={gross} className="h-3" /></div> : null },
-    { key: 4, tab: "OI", sel: "s6", q: "What is actually written?",
+    { key: 4, tab: "OI", sel: "s6", q: "What does open interest show?",
       answer: mps == null ? <Absent word="no max pain" /> :
         <>max pain {num(mps)}{pin != null ? ` · pin ${num(pin)} · ${sgn(mps - pin, 0)}` : ""}</>,
       pic: spot != null && mps != null ? <TrackPic spot={spot} ticks={[{ at: mps, color: "var(--put)" }, ...(pin != null ? [{ at: pin, color: "var(--rule)" }] : [])]} /> : null },
-    { key: 5, tab: "Flows", sel: "s3", q: "What must dealers trade if spot moves?",
+    { key: 5, tab: "Flows", sel: "s3", q: "What would dealers trade if spot moves?",
       answer: !f1 || !f2 ? <Absent word="no flow sim" /> :
         <>−1 %: {f1.direction} {num(Math.abs(Number(f1.flow_cr)))} Cr · +1 %: {f2.direction} {num(Math.abs(Number(f2.flow_cr)))} Cr</>,
       pic: f1 && f2 ? <FlowPic dn={Number(f1.flow_cr)} up={Number(f2.flow_cr)} /> : null },
