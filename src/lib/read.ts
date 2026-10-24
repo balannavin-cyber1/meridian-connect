@@ -26,7 +26,7 @@ export function useBoardRead(symbol: Symbol): string | null {
   const ratio = net != null && gross ? net / gross : null;
 
   let out = pocket
-    ? `Spot ${num(spot, 1)} sits in ${pocket.gex_cr >= 0 ? "a dampening" : "an amplifying"} pocket`
+    ? `Spot ${num(spot, 1)} sits in ${pocket.gex_cr >= 0 ? "a dampening" : "an amplifying"} pocket (local γ)`  // S100-Q.1
     : `Spot ${num(spot, 1)}`;
   if (cState && cState !== "UNDEFINED" && pw != null && cw != null) {
     const useCall = Math.abs(cw - spot) <= Math.abs(spot - pw);
@@ -43,6 +43,6 @@ export function useBoardRead(symbol: Symbol): string | null {
   } else if (fStatus === "NO_CROSSING") out += ". There is no flip in the grid";
   else if (fStatus === "SKIPPED_EXPIRY") out += ". Flip is skipped on expiry day";
   else if (fStatus === "UNMEASURABLE_R") out += ". Flip carry is unmeasurable";
-  if (ratio != null) out += `. Net gamma is ${ratio.toFixed(2)} of gross`;
+  if (ratio != null) out += `. Net gamma is ${ratio >= 0 ? "long" : "short"}, ${ratio.toFixed(2)} of gross`;  // S100-Q.1
   return out + ".";
 }
