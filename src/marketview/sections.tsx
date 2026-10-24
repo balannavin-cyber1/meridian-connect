@@ -28,7 +28,7 @@ export function LiveTag() {
 /* --------------------------------------------------------- */
 export function SnapshotStrip({ s }: { s: MvState }) {
   const cells: Array<{ label: string; value: React.ReactNode; sub?: React.ReactNode; color?: string }> = [
-    { label: "SPOT", value: s.spot ? fmtNum(s.spot) : "—",
+    { label: "SPOT", value: s.headSpot ? fmtNum(s.headSpot) : "—",  // S100-N
       sub: <span style={{ color: s.changePct >= 0 ? MV.green : MV.red }}>{fmtSigned(s.changeAbs)} ({fmtPct(s.changePct)})</span> },
     { label: "NET γ", value: s.netDealerGamma != null ? `${fmtSigned(s.netDealerGamma)} Cr` : "—",
       color: (s.netDealerGamma ?? 0) >= 0 ? MV.green : MV.red },
