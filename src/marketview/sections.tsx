@@ -376,14 +376,14 @@ export function BreadthVolSection({ s }: { s: MvState }) {
         </Card>
         <Card>
           <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>IV Skew</div>
-          {s.ivSmile.data && s.ivSkewPct != null ? (<>
-            <div className="mt-1 text-[26px] font-bold leading-none" style={{ fontFamily: MV.mono, color: Math.abs(s.ivSkewPct) < 1 ? MV.mid : s.ivSkewPct > 0 ? MV.red : MV.green }}>
-              {Math.abs(s.ivSkewPct) < 1 ? "flat" : `${s.ivSkewPct > 0 ? "+" : ""}${s.ivSkewPct.toFixed(1)}% ${s.ivSkewPct > 0 ? "PE" : "CE"}`}
+          {s.ivSkew98 != null || s.ivSmile.data ? (<>
+            <div className="mt-1 text-[26px] font-bold leading-none" style={{ fontFamily: MV.mono, color: s.ivSkew98 == null || s.ivSkew98 === 0 ? MV.mid : s.ivSkew98 > 0 ? MV.red : MV.green }}>
+              {s.ivSkew98 == null ? "—" : `${s.ivSkew98 > 0 ? "+" : ""}${s.ivSkew98.toFixed(1)} vol pts`}
             </div>
             <div className="mt-1 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
-              ATM {fmtNum(s.ivSmile.data.atm, { maximumFractionDigits: 0 })} · CE {s.ivSmile.data.atmCe?.toFixed(1)} / PE {s.ivSmile.data.atmPe?.toFixed(1)}
+              {s.ivSkew98 == null ? "—" : `@ K98 ${s.ivK98 != null ? fmtNum(s.ivK98, { maximumFractionDigits: 0 }) : "—"} · front leg · from view`}
             </div>
-            <div className="mt-2"><IVSmile points={s.ivSmile.data.points} atm={s.ivSmile.data.atm} /></div>
+            {s.ivSmile.data ? <div className="mt-2"><IVSmile points={s.ivSmile.data.points} atm={s.ivSmile.data.atm} /></div> : null}
           </>) : <Unavailable label="iv not populated" />}
         </Card>
       </div>
