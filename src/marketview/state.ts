@@ -6,7 +6,7 @@ import {
   type Symbol as MSymbol,
 } from "@/lib/queries";
 import { spotFromMarker, formatDTE } from "./ui";
-import { useSessions, useOpenGap, useLiveSpot } from "@/lib/board";  // S100-N
+import { useSessions, useOpenGap, useLiveSpot, useIvTab } from "@/lib/board";  // S100-N
 
 export type MvState = ReturnType<typeof useMvData>;
 
@@ -74,8 +74,12 @@ export function useMvData(symbol: MSymbol) {
   const { maxGammaStrike, peakGammaCr, strongestAmplifyStrike, dampenTotal, amplifyTotal } = strikeAgg;
 
   const ivSmile = useIvSmile(symbol, spot, strikeStep);
-  const ivSkewPct = ivSmile.data && ivSmile.data.atmCe && ivSmile.data.atmPe
-    ? (ivSmile.data.atmPe / ivSmile.data.atmCe - 1) * 100 : null;
+  // S100-P: skew from the view (front leg = lowest leg), as the IV tab shows it; no client recompute
+  const ivSurf = (((useIvTab(symbol).data as any)?.surface) ?? []) as any[];
+  const frontLeg = ivSurf.length ? Math.min(...ivSurf.map((r) => Number(r.leg))) : null;
+  const skewRow = frontLeg != null ? (ivSurf.find((r) => Number(r.leg) === frontLeg) ?? null) : null;
+  const ivSkew98 = skewRow?.leg_skew_98 != null ? Number(skewRow.leg_skew_98) : null;
+  const ivK98 = skewRow?.leg_k98 != null ? Number(skewRow.leg_k98) : null;
 
   // Latest activity ts (drives staleness ticker in shell)
   const latestActivityTs = (signal.data?.ts ?? g.ts ?? null) as string | null;
@@ -106,7 +110,7 @@ export function useMvData(symbol: MSymbol) {
     regime, gammaZone, netDealerGamma, sigmaPct, flipLevel,
     pinRiskScore, expansionProb, pinProbability, atmStraddle, vix,
     maxGammaStrike, peakGammaCr, strongestAmplifyStrike, dampenTotal, amplifyTotal,
-    ivSmile, ivSkewPct, zonesNearSpot, maxPainStrike, painSpotDistPct, gammaPainGap,
+    ivSmile, ivSkew98, ivK98, zonesNearSpot, maxPainStrike, painSpotDistPct, gammaPainGap,
     latestActivityTs, signalTs,
     // raw queries
     marker, gamma, gammaToday, signal, signals, strikes, pin, accel, zones,
