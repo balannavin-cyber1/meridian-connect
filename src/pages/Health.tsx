@@ -39,7 +39,7 @@ const TRACKED_WRITERS: WriterDef[] = [
   { script: "compute_options_flow_local.py", cadence: 5, symbol_scoped: false },
   { script: "ingest_breadth_from_ticks.py", cadence: 5, symbol_scoped: false },
   // S90: merdian_pipeline_alert_daemon removed — unscheduled, last run 116 d ago; tracking it pins OVERALL to CRITICAL.
-  { script: "build_ict_htf_zones.py", cadence: 1440, symbol_scoped: false },
+  // S100-M: build_ict_htf_zones.py removed — no scheduled invoker (TD-S77-NEW-14); re-add when the ICT stream schedules it.
   { script: "compile_market_environment_local.py", cadence: 1440, symbol_scoped: false },
   { script: "relate_ambient_to_open_local.py", cadence: 1440, symbol_scoped: false },
   { script: "accrue_expiry_outcomes.py", cadence: 1440, symbol_scoped: false },
