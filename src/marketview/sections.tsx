@@ -76,7 +76,7 @@ export function KeyParametersSection({ s }: { s: MvState }) {
           valueColor={(s.netDealerGamma ?? 0) >= 0 ? MV.green : MV.red}
           badge={<LiveTag />}
           sub={s.dampenTotal != null || s.amplifyTotal != null
-            ? `Σdmp ${fmtNum(s.dampenTotal)} · Σamp ${fmtNum(s.amplifyTotal)} Cr per 1 %` : "no flow breakdown"} />
+            ? `Σdmp ${fmtNum(s.dampenTotal)} · Σamp ${fmtNum(s.amplifyTotal)} · ₹ Cr per 1 % move` : "no flow breakdown"} />
         <Tile label="Spot Context"
           value={s.sigmaPct != null ? `±${s.sigmaPct.toFixed(2)}%` : "—"}
           sub={s.sigmaPct != null && s.spot ? `σ ${fmtNum(s.spot * (1 - s.sigmaPct / 100), { maximumFractionDigits: 0 })}–${fmtNum(s.spot * (1 + s.sigmaPct / 100), { maximumFractionDigits: 0 })} · ${s.dte}` : s.dte} />
