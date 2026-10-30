@@ -84,10 +84,12 @@ function StaleStrip() {
 export default function AppShell() {
   const refetchAll = useRefetchMarketview();
   const [frozen, setFrozen] = useState(false);
+  const [frozenSince, setFrozenSince] = useState<Date | null>(null);
   const [menu, setMenu] = useState(false);
 
   useEffect(() => {
     onlineManager.setOnline(!frozen);
+    setFrozenSince(frozen ? new Date() : null);
     if (!frozen) refetchAll();
   }, [frozen, refetchAll]);
 
@@ -96,24 +98,14 @@ export default function AppShell() {
     return () => window.clearInterval(id);
   }, [refetchAll, frozen]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (e.code === "Space") { e.preventDefault(); setFrozen((f) => !f); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
   const Wordmark = (
     <Link to="/home" className="text-[15px] font-bold uppercase tracking-[0.18em]"
       style={{ fontFamily: "var(--font-plex-cond)", color: "var(--ink-1)" }}>MERIDIAN</Link>
   );
-  const Frozen = frozen && (
-    <button onClick={() => setFrozen(false)} title="Space to resume"
+  const Frozen = (
+    <button onClick={() => setFrozen((f) => !f)} title={frozen ? "Resume live updates" : "Freeze updates (pause polling)"}
       className="rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em]"
-      style={{ border: "1px solid var(--sel)", color: "var(--sel)" }}>frozen</button>
+      style={{ border: "1px solid var(--sel)", color: "var(--sel)" }}>{frozen ? "resume" : "freeze"}</button>
   );
 
   return (
@@ -144,6 +136,11 @@ export default function AppShell() {
         </div>
       </header>
       <StaleStrip />
+      {frozen && (
+        <div className="w-full px-4 py-1.5 text-[12px]" style={{ background: "var(--alert-bg)", color: "var(--alert-fg)" }}>
+          frozen since {frozenSince ? frozenSince.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }) : "—"} · data not updating
+        </div>
+      )}
 
       {menu && (
         <div className="fixed inset-0 z-40 lg:hidden" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setMenu(false)}>
