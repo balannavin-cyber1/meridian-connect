@@ -78,7 +78,7 @@ const latestBySymbol = (view: string, symbol: Symbol, extra?: (q: any) => any) =
 export const useGammaNow = (s: Symbol) =>
   useQuery({ queryKey: ["board", "gamma", s], ...opts, queryFn: latestBySymbol("gamma_metrics", s) });
 export const useAbsExposure = (s: Symbol) =>
-  useQuery({ queryKey: ["board", "abs", s], ...opts, queryFn: latestBySymbol("v_gex_abs_exposure", s) });
+  useQuery({ queryKey: ["board", "abs", s], ...opts, queryFn: latestBySymbol("v_gex_abs_exposure_1pct", s) });
 export const useRepricedFlip = (s: Symbol) =>
   useQuery({ queryKey: ["board", "flip", s], ...opts, queryFn: latestBySymbol("v_gex_repriced_flip", s) });
 export const useWalls = (s: Symbol) =>
@@ -280,19 +280,19 @@ export function useLadderStrikes(s: Symbol) {
   return useQuery({
     queryKey: ["board", "ladder", s], ...opts,
     queryFn: async () => {
-      const { data: top, error: e1 } = await applyGate(supabase.from("gex_strike_snapshots").select("run_id, ts, spot")
+      const { data: top, error: e1 } = await applyGate(supabase.from("v_gex_strike_snapshots_1pct").select("run_id, ts, spot")
         .eq("symbol", s), (await getGate()).end).order("ts", { ascending: false }).limit(1).maybeSingle();
       if (e1) throw e1;
       if (!top) return null;
-      const { data, error } = await supabase.from("gex_strike_snapshots")
-        .select("strike, expiry_date, gex_cr, gamma_call, gamma_put, oi_call, oi_put")
+      const { data, error } = await supabase.from("v_gex_strike_snapshots_1pct")
+        .select("strike, expiry_date, gex_cr_1pct, gamma_call, gamma_put, oi_call, oi_put")
         .eq("run_id", (top as any).run_id).order("strike", { ascending: true }).limit(1000);
       if (error) throw error;
       const current = (data ?? []) as any[];
       const rows = current.map((r) => {
         const has = r.gamma_call != null || r.gamma_put != null;
         return {
-          strike: Number(r.strike), gex: has && r.gex_cr != null ? Number(r.gex_cr) : null,
+          strike: Number(r.strike), gex: has && r.gex_cr_1pct != null ? Number(r.gex_cr_1pct) : null,
           oiCall: r.oi_call != null ? Number(r.oi_call) : null,
           oiPut: r.oi_put != null ? Number(r.oi_put) : null,
         };
@@ -348,13 +348,13 @@ export function useNetGammaToday(s: Symbol, session: string | null) {
   return useQuery({
     queryKey: ["board", "netToday", s, session], ...opts, enabled: !!session,
     queryFn: async () => {
-      const { data, error } = await supabase.from("gamma_metrics").select("ts, net_gex")
+      const { data, error } = await supabase.from("v_gamma_metrics_1pct").select("ts, net_gex_1pct")
         .eq("symbol", s).gte("ts", istAt(session!, "00:00")).lt("ts", istAt(nextDay(session!), "00:00"))
         .order("ts", { ascending: true }).limit(1000);
       if (error) throw error;
       const seen = new Set<string>();
-      return ((data ?? []) as any[]).filter((r) => r.net_gex != null && !seen.has(r.ts) && seen.add(r.ts))
-        .map((r) => ({ ts: r.ts as string, v: Number(r.net_gex) }));
+      return ((data ?? []) as any[]).filter((r) => r.net_gex_1pct != null && !seen.has(r.ts) && seen.add(r.ts))
+        .map((r) => ({ ts: r.ts as string, v: Number(r.net_gex_1pct) }));
     },
   });
 }
@@ -366,8 +366,8 @@ export function useGammaRiver(s: Symbol) {
     queryKey: ["board", "river", s], staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
     queryFn: async () => {
       const gate = await getGate();
-      const { data, error } = await supabase.from("v_gex_net_gamma_river")
-        .select("session_date, net_gex_cr, session_min_net_gex_cr, session_max_net_gex_cr, session_complete, spot, dte")
+      const { data, error } = await supabase.from("v_gex_net_gamma_river_1pct")
+        .select("session_date, net_gex_cr_1pct, session_min_net_gex_cr_1pct, session_max_net_gex_cr_1pct, session_complete, spot, dte")
         .eq("symbol", s).order("session_date", { ascending: true }).limit(2000);
       if (error) throw error;
       const rows = (data ?? []) as any[];
@@ -382,7 +382,7 @@ export function useGammaRiver(s: Symbol) {
       const kept = rows.filter((r) => open.has(r.session_date) && (!gate.session || r.session_date <= gate.session));
       return kept.map((r, i): RiverDay => ({
         gapBefore: i > 0 && openSorted.some((d) => d > kept[i - 1].session_date && d < r.session_date),
-        date: r.session_date, net: Number(r.net_gex_cr), lo: Number(r.session_min_net_gex_cr), hi: Number(r.session_max_net_gex_cr),
+        date: r.session_date, net: Number(r.net_gex_cr_1pct), lo: Number(r.session_min_net_gex_cr_1pct), hi: Number(r.session_max_net_gex_cr_1pct),
         complete: r.session_complete !== false, spot: r.spot != null ? Number(r.spot) : null, dte: r.dte != null ? Number(r.dte) : null,
       }));
     },
@@ -466,11 +466,11 @@ export function useGreeksNet(s: Symbol) {
     queryKey: ["board", "l78net", s], ...opts,
     queryFn: async () => {
       const gate = await getGate();
-      const { data: top, error: e1 } = await applyGate(supabase.from("v_gex_greeks_l2_net").select("ts")
+      const { data: top, error: e1 } = await applyGate(supabase.from("v_gex_greeks_l2_net_1pct").select("ts")
         .eq("symbol", s), gate.end).order("ts", { ascending: false }).limit(1).maybeSingle();
       if (e1) throw e1;
-      if (!top) return (await awaitingOrNull("v_gex_greeks_l2_net", s, gate.end)) ? AWAIT as any : [];
-      const { data, error } = await supabase.from("v_gex_greeks_l2_net").select("*")
+      if (!top) return (await awaitingOrNull("v_gex_greeks_l2_net_1pct", s, gate.end)) ? AWAIT as any : [];
+      const { data, error } = await supabase.from("v_gex_greeks_l2_net_1pct").select("*")
         .eq("symbol", s).eq("ts", (top as any).ts).order("expiry_date", { ascending: true });
       if (error) throw error;
       return (data ?? []) as any[];
@@ -483,8 +483,8 @@ export function useGreeksStrike(s: Symbol, ts: string | null, expiry: string | n
   return useQuery({
     queryKey: ["board", "l78strike", s, ts, expiry], ...opts, enabled: !!ts && !!expiry,
     queryFn: async () => {
-      const { data, error } = await supabase.from("v_gex_greeks_l2_strike")
-        .select("strike, n_legs, delta_drift_iv_cr_per_volpt, delta_drift_time_cr_per_day, gex_drift_iv_cr_per_volpt, gex_drift_time_cr_per_day, status")
+      const { data, error } = await supabase.from("v_gex_greeks_l2_strike_1pct")
+        .select("strike, n_legs, delta_drift_iv_cr_per_volpt, delta_drift_time_cr_per_day, gex_drift_iv_cr_per_volpt_1pct, gex_drift_time_cr_per_day_1pct, status")
         .eq("symbol", s).eq("ts", ts as string).eq("expiry_date", expiry as string)
         .not("strike", "is", null).order("strike", { ascending: true }).limit(1000);
       if (error) throw error;
@@ -492,8 +492,8 @@ export function useGreeksStrike(s: Symbol, ts: string | null, expiry: string | n
         strike: Number(r.strike), nLegs: r.n_legs != null ? Number(r.n_legs) : null,
         d_div: r.delta_drift_iv_cr_per_volpt != null ? Number(r.delta_drift_iv_cr_per_volpt) : null,
         d_dt: r.delta_drift_time_cr_per_day != null ? Number(r.delta_drift_time_cr_per_day) : null,
-        g_div: r.gex_drift_iv_cr_per_volpt != null ? Number(r.gex_drift_iv_cr_per_volpt) : null,
-        g_dt: r.gex_drift_time_cr_per_day != null ? Number(r.gex_drift_time_cr_per_day) : null,
+        g_div: r.gex_drift_iv_cr_per_volpt_1pct != null ? Number(r.gex_drift_iv_cr_per_volpt_1pct) : null,
+        g_dt: r.gex_drift_time_cr_per_day_1pct != null ? Number(r.gex_drift_time_cr_per_day_1pct) : null,
       }));
     },
   });

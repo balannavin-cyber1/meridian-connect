@@ -19,8 +19,8 @@ export function useStrikeHistory(s: Symbol) {
     queryFn: async (): Promise<TerrainSession[]> => {
       const all: any[] = [];
       for (let from = 0; ; from += 1000) {
-        const { data, error } = await supabase.from("v_gex_strike_terrain")
-          .select("symbol, session_date, session_rank, session_complete, run_id, ts, spot, expiry_date, dte, strike, gex_cr, oi_call, oi_put, writer_pain, max_pain_strike, is_max_pain")
+        const { data, error } = await supabase.from("v_gex_strike_terrain_1pct")
+          .select("symbol, session_date, session_rank, session_complete, run_id, ts, spot, expiry_date, dte, strike, gex_cr_1pct, oi_call, oi_put, writer_pain, max_pain_strike, is_max_pain")
           .eq("symbol", s).order("session_date", { ascending: true }).order("strike", { ascending: true })
           .range(from, from + 999);
         if (error) throw error;
@@ -36,7 +36,7 @@ export function useStrikeHistory(s: Symbol) {
             spot: nn(r.spot), expiry: r.expiry_date ?? null, dte: nn(r.dte), maxPainStrike: nn(r.max_pain_strike), rows: [] };
           by.set(r.session_date, ses);
         }
-        ses.rows.push({ strike: Number(r.strike), gex: nn(r.gex_cr), oiCall: nn(r.oi_call), oiPut: nn(r.oi_put), pain: nn(r.writer_pain), isMaxPain: r.is_max_pain === true });
+        ses.rows.push({ strike: Number(r.strike), gex: nn(r.gex_cr_1pct), oiCall: nn(r.oi_call), oiPut: nn(r.oi_put), pain: nn(r.writer_pain), isMaxPain: r.is_max_pain === true });
       }
       return [...by.values()];
     },
