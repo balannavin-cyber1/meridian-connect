@@ -22,7 +22,7 @@ export function useBoardRead(symbol: Symbol): string | null {
   const fFlip = n(flip?.flip);
   const fPct = fStatus === "OK" && fFlip != null ? ((fFlip - spot) / spot) * 100 : null;
   const strad = n(g?.straddle_atm);
-  const net = n(abs?.net_gex_cr), gross = n(abs?.abs_gex_cr);
+  const net = n(abs?.net_gex_cr_1pct), gross = n(abs?.abs_gex_cr_1pct);
   const ratio = net != null && gross ? net / gross : null;
 
   let out = pocket

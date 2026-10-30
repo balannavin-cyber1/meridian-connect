@@ -144,7 +144,7 @@ function GammaTerrain({ hist, pal, step }: { hist: TerrainSession[]; pal: Pal; s
       ))}
       {spotPath.length > 1 && <Line points={spotPath} color={pal.ink1} lineWidth={1.4} dashed dashSize={0.12} gapSize={0.08} />}
       {spotPath.map((p, j) => <mesh key={j} position={p}><sphereGeometry args={[0.05, 10, 10]} /><meshBasicMaterial color={pal.ink1} /></mesh>)}
-      <Tag p={[W / 2 + 0.2, H + 0.2, -D / 2]} align="right">peak |γ| {num(max / 1e5, 1)}L · unit pending</Tag>
+      <Tag p={[W / 2 + 0.2, H + 0.2, -D / 2]} align="right">peak |γ| ₹ {num(max)} Cr per 1 % move</Tag>
     </group>
   );
 }
@@ -248,7 +248,7 @@ function IvFence({ surface, pal, mWin }: { surface: any[]; pal: Pal; mWin: numbe
 
 // ---------- page ----------
 const NOTES: Record<View, string> = {
-  gamma: "Height = |net γ| per strike at each session's settled run (≤ 15:15 IST, v_gex_strike_terrain); hue = sign (cool dampening · warm amplifying). Dashed white = spot. Holes are missing strikes, never zero. Front expiry rolls between rows.",
+  gamma: "Height = |net γ| per strike (₹ Cr per 1 % move) at each session's settled run (≤ 15:15 IST, v_gex_strike_terrain_1pct); hue = sign (cool dampening · warm amplifying). Dashed white = spot. Holes are missing strikes, never zero. Front expiry rolls between rows.",
   iv: "Two legs only (W1 + W2) — a two-rail fence, not a surface. Zero-OI strikes excluded; ±9 % moneyness. Rings = server ATM; dashed rungs join equal moneyness so the front→back smile rotation shows. Grey: IV is unsigned.",
   pain: "Writer pain per strike from v_gex_strike_terrain at each session's settled run. Each row on its own scale; white path = the view's max-pain strike. Grey: positional.",
 };

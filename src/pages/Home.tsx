@@ -126,7 +126,7 @@ export default function Home() {
   const flipWord: Record<string, string> = { NO_CROSSING: "no flip in grid", SKIPPED_EXPIRY: "skipped · expiry day", UNMEASURABLE_R: "carry unmeasurable" };
   const r1 = rank.find((r) => r.strike_rank === 1), r2 = rank.find((r) => r.strike_rank === 2);
   const sh1 = n(r1?.share_of_abs), sh2 = n(r2?.share_of_abs), pin = n(r1?.strike);
-  const net = n(abs?.net_gex_cr), gross = n(abs?.abs_gex_cr);
+  const net = n(abs?.net_gex_cr_1pct), gross = n(abs?.abs_gex_cr_1pct);
   const mps = n(mp?.max_pain_strike);
   const f1 = flows.find((r) => Math.abs(Number(r.spot_pct) + 0.01) < 1e-6), f2 = flows.find((r) => Math.abs(Number(r.spot_pct) - 0.01) < 1e-6);
   const front = term.find((t) => t.leg === 1), back = term.find((t) => t.leg === 2);
