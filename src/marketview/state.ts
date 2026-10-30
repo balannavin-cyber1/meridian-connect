@@ -80,6 +80,14 @@ export function useMvData(symbol: MSymbol) {
   const skewRow = frontLeg != null ? (ivSurf.find((r) => Number(r.leg) === frontLeg) ?? null) : null;
   const ivSkew98 = skewRow?.leg_skew_98 != null ? Number(skewRow.leg_skew_98) : null;
   const ivK98 = skewRow?.leg_k98 != null ? Number(skewRow.leg_k98) : null;
+  // S103-C: on a 0-DTE front leg the view sets leg_status = 'SKIPPED_EXPIRY' and leg_skew_98 = NULL by design
+  // (skew is not comparable across expiries), so the card says so and shows the NEXT leg's skew, tagged.
+  const ivSkewStatus = (skewRow?.leg_status as string | undefined) ?? null;
+  const nextLegNo = frontLeg != null ? Math.min(...ivSurf.map((r) => Number(r.leg)).filter((l) => l > (frontLeg as number)), Infinity) : Infinity;
+  const nextLegRow = Number.isFinite(nextLegNo) ? (ivSurf.find((r) => Number(r.leg) === nextLegNo) ?? null) : null;
+  const ivNextSkew98 = nextLegRow?.leg_skew_98 != null ? Number(nextLegRow.leg_skew_98) : null;
+  const ivNextK98 = nextLegRow?.leg_k98 != null ? Number(nextLegRow.leg_k98) : null;
+  const ivNextExpiry = (nextLegRow?.expiry_date as string | undefined) ?? null;
 
   // Latest activity ts (drives staleness ticker in shell)
   const latestActivityTs = (signal.data?.ts ?? g.ts ?? null) as string | null;
@@ -110,7 +118,7 @@ export function useMvData(symbol: MSymbol) {
     regime, gammaZone, netDealerGamma, sigmaPct, flipLevel,
     pinRiskScore, expansionProb, pinProbability, atmStraddle, vix,
     maxGammaStrike, peakGammaCr, strongestAmplifyStrike, dampenTotal, amplifyTotal,
-    ivSmile, ivSkew98, ivK98, zonesNearSpot, maxPainStrike, painSpotDistPct, gammaPainGap,
+    ivSmile, ivSkew98, ivK98, ivSkewStatus, ivNextSkew98, ivNextK98, ivNextExpiry, zonesNearSpot, maxPainStrike, painSpotDistPct, gammaPainGap,
     latestActivityTs, signalTs,
     // raw queries
     marker, gamma, gammaToday, signal, signals, strikes, pin, accel, zones,
