@@ -356,8 +356,10 @@ export default function Health() {
     tokenStatus = "unknown";
   } else if ((tokenFailures.data ?? 0) > 0) {
     tokenStatus = "red";
-  } else if (tokenProbeHttp === 200 && tokenProbeAge != null && tokenProbeAge <= 30) {
-    tokenStatus = "green";
+  } else if (tokenProbeHttp === 200 && tokenProbeAge != null) {
+    // S103-A: the probe is written once a day (08:20 IST refresh), so it is scored on the daily
+    // writers' scale (statusFor with a 1440-min cadence: green <= 2 d, amber <= 4 d), not on 30 min.
+    tokenStatus = statusFor(tokenProbeAge, 1440);
   } else if (tokenProbeHttp === 200) {
     tokenStatus = "amber";
   } else {

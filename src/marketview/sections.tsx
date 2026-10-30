@@ -378,10 +378,14 @@ export function BreadthVolSection({ s }: { s: MvState }) {
           <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>IV Skew</div>
           {s.ivSkew98 != null || s.ivSmile.data ? (<>
             <div className="mt-1 text-[26px] font-bold leading-none" style={{ fontFamily: MV.mono, color: s.ivSkew98 == null || s.ivSkew98 === 0 ? MV.mid : s.ivSkew98 > 0 ? MV.red : MV.green }}>
-              {s.ivSkew98 == null ? "—" : `${s.ivSkew98 > 0 ? "+" : ""}${s.ivSkew98.toFixed(1)} vol pts`}
+              {s.ivSkew98 == null ? (s.ivSkewStatus === "SKIPPED_EXPIRY" ? "SKIPPED_EXPIRY" : "—") : `${s.ivSkew98 > 0 ? "+" : ""}${s.ivSkew98.toFixed(1)} vol pts`}
             </div>
             <div className="mt-1 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
-              {s.ivSkew98 == null ? "—" : `@ K98 ${s.ivK98 != null ? fmtNum(s.ivK98, { maximumFractionDigits: 0 }) : "—"} · front leg · from view`}
+              {s.ivSkew98 != null
+                ? `@ K98 ${s.ivK98 != null ? fmtNum(s.ivK98, { maximumFractionDigits: 0 }) : "—"} · front leg · from view`
+                : s.ivSkewStatus === "SKIPPED_EXPIRY"
+                  ? `front leg expires today · next leg ${s.ivNextExpiry ?? "—"}: ${s.ivNextSkew98 == null ? "—" : `${s.ivNextSkew98 > 0 ? "+" : ""}${s.ivNextSkew98.toFixed(1)} vol pts @ K98 ${s.ivNextK98 != null ? fmtNum(s.ivNextK98, { maximumFractionDigits: 0 }) : "—"}`}`
+                  : "—"}
             </div>
             {s.ivSmile.data ? <div className="mt-2"><IVSmile points={s.ivSmile.data.points} atm={s.ivSmile.data.atm} /></div> : null}
           </>) : <Unavailable label="iv not populated" />}
