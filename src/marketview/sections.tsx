@@ -30,7 +30,7 @@ export function SnapshotStrip({ s }: { s: MvState }) {
   const cells: Array<{ label: string; value: React.ReactNode; sub?: React.ReactNode; color?: string }> = [
     { label: "SPOT", value: s.headSpot ? fmtNum(s.headSpot) : "—",  // S100-N
       sub: <span style={{ color: s.changePct >= 0 ? MV.green : MV.red }}>{fmtSigned(s.changeAbs)} ({fmtPct(s.changePct)})</span> },
-    { label: "NET γ", value: s.netDealerGamma != null ? `${fmtSigned(s.netDealerGamma)} Cr` : "—",
+    { label: "NET γ", value: s.netDealerGamma != null ? `${fmtSigned(s.netDealerGamma)} Cr` : "—", sub: "₹ Cr per 1 % move",
       color: (s.netDealerGamma ?? 0) >= 0 ? MV.green : MV.red },
     { label: "MAX γ", value: s.maxGammaStrike != null ? fmtNum(s.maxGammaStrike, { maximumFractionDigits: 0 }) : "—",
       sub: s.maxGammaStrike && s.spot ? `${fmtPct(((s.maxGammaStrike - s.spot) / s.spot) * 100, 1)}` : undefined },
@@ -76,7 +76,7 @@ export function KeyParametersSection({ s }: { s: MvState }) {
           valueColor={(s.netDealerGamma ?? 0) >= 0 ? MV.green : MV.red}
           badge={<LiveTag />}
           sub={s.dampenTotal != null || s.amplifyTotal != null
-            ? `Σdmp ${fmtNum(s.dampenTotal)}k · Σamp ${fmtNum(s.amplifyTotal)}` : "no flow breakdown"} />
+            ? `Σdmp ${fmtNum(s.dampenTotal)} · Σamp ${fmtNum(s.amplifyTotal)} Cr per 1 %` : "no flow breakdown"} />
         <Tile label="Spot Context"
           value={s.sigmaPct != null ? `±${s.sigmaPct.toFixed(2)}%` : "—"}
           sub={s.sigmaPct != null && s.spot ? `σ ${fmtNum(s.spot * (1 - s.sigmaPct / 100), { maximumFractionDigits: 0 })}–${fmtNum(s.spot * (1 + s.sigmaPct / 100), { maximumFractionDigits: 0 })} · ${s.dte}` : s.dte} />
@@ -105,7 +105,7 @@ export function PositioningSection({ s }: { s: MvState }) {
     <div>
       <SectionLabel>Positioning Landscape — Dealer γ by Strike</SectionLabel>
       <Card title="Dealer γ by Strike"
-        subtitle={`dampening (long γ) vs amplifying (short γ) · σ-band to expiry · ${s.strikes.data?.length ?? 0} strikes`}>
+        subtitle={`dampening (long γ) vs amplifying (short γ) · ₹ Cr per 1 % move · σ-band to expiry · ${s.strikes.data?.length ?? 0} strikes`}>
         <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-[11px]" style={{ fontFamily: MV.mono }}>
           <Scalar label="net γ in window" value={s.netDealerGamma != null ? `${fmtSigned(s.netDealerGamma)} Cr` : "—"} color={(s.netDealerGamma ?? 0) >= 0 ? MV.green : MV.red} />
           <Scalar label="Σ dampen" value={s.dampenTotal != null ? `${fmtSigned(s.dampenTotal)} Cr` : "—"} color={MV.green} />
@@ -135,7 +135,7 @@ export function NetDealerGammaSection({ s }: { s: MvState }) {
   const dirIcon = dir === "Rising" ? "↑" : dir === "Falling" ? "↓" : "→";
   return (
     <Card title="Net Dealer γ · Intraday"
-      subtitle={`Cr · positive = dampening flows · negative = amplifying flows`}>
+      subtitle={`₹ Cr per 1 % move · positive = dampening flows · negative = amplifying flows`}>
       <div className="mb-3 flex flex-wrap items-baseline gap-x-6 gap-y-1" style={{ fontFamily: MV.mono }}>
         <div className="flex flex-col">
           <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>current</span>

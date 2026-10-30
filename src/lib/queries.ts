@@ -32,14 +32,15 @@ export function useGammaLatest(symbol: Symbol) {
     staleTime: MV_STALE,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("gamma_metrics")
+        .from("v_gamma_metrics_1pct")
         .select("*")
         .eq("symbol", symbol)
         .order("ts", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      // S102 ADR-032 D1: net_gex carries the per-1 % value (net_gex_1pct) on the legacy pages.
+      return data ? { ...(data as any), net_gex: (data as any).net_gex_1pct } : data;
     },
   });
 }
@@ -179,7 +180,7 @@ export function useGexStrikes(symbol: Symbol, expiry: string | null | undefined)
       let latest: { run_id: string } | null = null;
       if (expiry) {
         const { data } = await supabase
-          .from("gex_strike_snapshots")
+          .from("v_gex_strike_snapshots_1pct")
           .select("run_id, ts")
           .eq("symbol", symbol)
           .eq("expiry_date", expiry)
@@ -190,7 +191,7 @@ export function useGexStrikes(symbol: Symbol, expiry: string | null | undefined)
       }
       if (!latest) {
         const { data } = await supabase
-          .from("gex_strike_snapshots")
+          .from("v_gex_strike_snapshots_1pct")
           .select("run_id, ts")
           .eq("symbol", symbol)
           .order("ts", { ascending: false })
@@ -200,12 +201,13 @@ export function useGexStrikes(symbol: Symbol, expiry: string | null | undefined)
       }
       if (!latest) return [];
       const { data, error } = await supabase
-        .from("gex_strike_snapshots")
-        .select("strike, gex_cr, oi_call, oi_put, spot")
+        .from("v_gex_strike_snapshots_1pct")
+        .select("strike, gex_cr_1pct, oi_call, oi_put, spot")
         .eq("run_id", latest.run_id)
         .order("strike", { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      // S102 ADR-032 D1: gex_cr carries the per-1 % value (gex_cr_1pct) on the legacy pages.
+      return (data ?? []).map((r: any) => ({ ...r, gex_cr: r.gex_cr_1pct }));
     },
   });
 }
@@ -380,13 +382,14 @@ export function useGammaToday(symbol: Symbol) {
       const startIst = new Date();
       startIst.setUTCHours(3, 45, 0, 0); // 09:15 IST = 03:45 UTC
       const { data, error } = await supabase
-        .from("gamma_metrics")
-        .select("ts, spot, pin_risk_score, straddle_atm, expansion_probability, net_gex")
+        .from("v_gamma_metrics_1pct")
+        .select("ts, spot, pin_risk_score, straddle_atm, expansion_probability, net_gex_1pct")
         .eq("symbol", symbol)
         .gte("ts", startIst.toISOString())
         .order("ts", { ascending: true });
       if (error) return [];
-      return data ?? [];
+      // S102 ADR-032 D1: net_gex carries the per-1 % value (net_gex_1pct) on the legacy pages.
+      return (data ?? []).map((r: any) => ({ ...r, net_gex: r.net_gex_1pct }));
     },
   });
 }
