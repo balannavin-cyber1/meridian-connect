@@ -183,9 +183,11 @@ export function useOpenGap(s: Symbol, session: string | null, prev: string | nul
         .order("ts", { ascending: true }).limit(1).maybeSingle();
       let prevClose: number | null = null;
       if (prev) {
-        const { data: pc } = await mss().eq("source_table", "dhan_idx_i")
-          .gte("ts", istAt(prev, "16:00")).lt("ts", istAt(prev, "16:10"))
-          .order("ts", { ascending: true }).limit(1).maybeSingle();
+        // S103-J: v_close_print ranks the 16:00 dhan_idx_i print (1) above the 08:50 reconciler's 15:29 close (2), so a failed
+        // 16:00 capture (10-21) no longer reads "prev close missing"; the 16:00 print still wins whenever it exists.
+        const { data: pc } = await supabase.from("v_close_print").select("spot").eq("symbol", s)
+          .gte("ts", istAt(prev, "15:00")).lt("ts", istAt(prev, "16:10"))
+          .order("close_rank", { ascending: true }).order("ts", { ascending: true }).limit(1).maybeSingle();
         prevClose = (pc as any)?.spot != null ? Number((pc as any).spot) : null;
       }
       const openRaw = (bar as any)?.raw?.ohlc_open;
