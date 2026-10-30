@@ -129,7 +129,7 @@ export default function Board() {
   const sparkPts = series.map((p) => p.spot);
 
   // S3
-  const net = n(abs?.net_gex_cr), gross = n(abs?.abs_gex_cr);
+  const net = n(abs?.net_gex_cr_1pct), gross = n(abs?.abs_gex_cr_1pct);
   const ratio = net != null && gross ? net / gross : null;
 
   // S4
@@ -262,7 +262,7 @@ export default function Board() {
             </div>
           ))}
         </div>) : undefined },
-    { id: "g_gross", label: "Gross |Γ|", sub: "₹ Cr · unit pending (E-D1)", value: gross != null ? crLakh(gross).replace(/^\+/, "") : <Absent word="no run" />, levelIds: [],
+    { id: "g_gross", label: "Gross |Γ|", sub: "₹ Cr per 1 % move", value: gross != null ? crLakh(gross).replace(/^\+/, "") : <Absent word="no run" />, levelIds: [],
       caption: gross != null ? `Gross absolute gamma is ${crLakh(gross).replace(/^\+/, "")}${ratio != null ? `; net is ${ratio.toFixed(2)} of it` : ""}.` : "No exposure run." },
     { id: "g_net", label: "Net Γ", sub: net != null ? `${net >= 0 ? "dampening" : "amplifying"}${crossings ? ` · Σ crosses zero ${crossings}×` : ""}` : "",
       value: net != null ? <span style={{ color: hue(net) }}>{crLakh(net)}</span> : <Absent word="no run" />, levelIds: [],
@@ -534,11 +534,11 @@ export default function Board() {
       value: pairVal(fl("net_delta_drift_iv_cr_per_volpt"), fl("gross_strike_delta_drift_iv")), levelIds: [],
       caption: (fl("net_delta_drift_iv_cr_per_volpt") != null ? `A +1 IV point moves delta-notional ${fmtCr(fl("net_delta_drift_iv_cr_per_volpt"))} (gross ${fmtCr(fl("gross_strike_delta_drift_iv")).replace(/^\+/, "")}); dealer side regime-dependent (P2); bars per strike.` : "No ∂Δ/∂σ for this leg.") + ddCap("iv", fl("net_delta_drift_iv_cr_per_volpt")), sub2: ddSub2("iv", fl("net_delta_drift_iv_cr_per_volpt")), brick: ddBrick("iv", fl("net_delta_drift_iv_cr_per_volpt")) },
     { id: "f_gdt", ratio: fl("net_over_gross_gex_drift_time"), label: "∂Γ/∂t · per day", sub: fl("net_over_gross_gex_drift_time") != null ? `net / gross · ratio ${fl("net_over_gross_gex_drift_time")?.toFixed(2).replace(/^-/, "−")} — read together` : "net / gross — read together",
-      value: pairVal(fl("net_gex_drift_time_cr_per_day"), fl("gross_strike_gex_drift_time")), levelIds: [],
-      caption: fl("net_gex_drift_time_cr_per_day") != null ? `∂Γ/∂t net ${fmtCr(fl("net_gex_drift_time_cr_per_day"))} against gross ${fmtCr(fl("gross_strike_gex_drift_time")).replace(/^\+/, "")} — a residue of opposing strikes; read the bars.` : "No ∂Γ/∂t for this leg." },
+      value: pairVal(fl("net_gex_drift_time_cr_per_day_1pct"), fl("gross_strike_gex_drift_time_1pct")), levelIds: [],
+      caption: fl("net_gex_drift_time_cr_per_day_1pct") != null ? `∂Γ/∂t net ${fmtCr(fl("net_gex_drift_time_cr_per_day_1pct"))} against gross ${fmtCr(fl("gross_strike_gex_drift_time_1pct")).replace(/^\+/, "")} — a residue of opposing strikes; read the bars.` : "No ∂Γ/∂t for this leg." },
     { id: "f_gdiv", ratio: fl("net_over_gross_gex_drift_iv"), label: "∂Γ/∂σ · per vol pt", sub: fl("net_over_gross_gex_drift_iv") != null ? `net / gross · ratio ${fl("net_over_gross_gex_drift_iv")?.toFixed(2).replace(/^-/, "−")} — read together` : "net / gross — read together",
-      value: pairVal(fl("net_gex_drift_iv_cr_per_volpt"), fl("gross_strike_gex_drift_iv")), levelIds: [],
-      caption: fl("net_gex_drift_iv_cr_per_volpt") != null ? `∂Γ/∂σ net ${fmtCr(fl("net_gex_drift_iv_cr_per_volpt"))} against gross ${fmtCr(fl("gross_strike_gex_drift_iv")).replace(/^\+/, "")}; read the bars.` : "No ∂Γ/∂σ for this leg." },
+      value: pairVal(fl("net_gex_drift_iv_cr_per_volpt_1pct"), fl("gross_strike_gex_drift_iv_1pct")), levelIds: [],
+      caption: fl("net_gex_drift_iv_cr_per_volpt_1pct") != null ? `∂Γ/∂σ net ${fmtCr(fl("net_gex_drift_iv_cr_per_volpt_1pct"))} against gross ${fmtCr(fl("gross_strike_gex_drift_iv_1pct")).replace(/^\+/, "")}; read the bars.` : "No ∂Γ/∂σ for this leg." },
     { id: "f_leg", label: "Expiry leg", sub: l78Leg ? `${l78FrontSkipped ? "front skipped · expiry day · " : ""}chain ${istTime(l78Leg.ts)}` : "",
       value: l78Leg ? expShort(l78Leg.expiry_date) ?? "—" : isAwaiting(l78raw) ? <Absent word={closedWord} /> : <Absent word="no chain" />, levelIds: [],
       caption: l78Leg ? `Showing ${legLine(l78Leg)}.` : "No L7/L8 rows.",
@@ -584,7 +584,7 @@ export default function Board() {
 
         <Cell id="net" label="Net Γ" {...C}
           value={net != null ? crLakh(net) : <Absent word="no run" />} color={hue(net)}
-          sub={net != null ? `${net >= 0 ? "long γ" : "short γ"}${ratio != null ? ` · ${ratio.toFixed(2)} of gross` : ""} · unit definition pending` : undefined}
+          sub={net != null ? `${net >= 0 ? "long γ" : "short γ"}${ratio != null ? ` · ${ratio.toFixed(2)} of gross` : ""} · ₹ Cr per 1 % move` : undefined}
           viz={net != null && gross ? (
             <SplitBar net={net} gross={gross} />
           ) : undefined} />
