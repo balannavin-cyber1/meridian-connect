@@ -87,48 +87,68 @@ function checkResponse(res: { data: unknown; error: { message?: string; code?: s
   }
 }
 
+// A non-JSON (HTML) body makes supabase-js throw a SyntaxError before we see a
+// response — that means the proxy isn't serving us, so treat it as denied.
+function asTapeError(e: unknown): TapeError {
+  if (e instanceof TapeError) return e;
+  if (e instanceof SyntaxError) return new TapeError("Operator only", null, true);
+  return new TapeError(e instanceof Error ? e.message : "request failed", null, false);
+}
+
 async function fetchAll<T>(table: string, columns: string, symbol: MSymbol, day: string): Promise<T[]> {
   const out: T[] = [];
   let from = 0;
   for (;;) {
-    const res = await tapeClient
-      .from(table)
-      .select(columns)
-      .eq("symbol", symbol)
-      .eq("trading_day", day)
-      .order("ts_ist", { ascending: true })
-      .range(from, from + PAGE - 1);
-    checkResponse(res);
-    const rows = (res.data ?? []) as T[];
-    out.push(...rows);
-    if (rows.length < PAGE) break;
-    from += PAGE;
+    try {
+      const res = await tapeClient
+        .from(table)
+        .select(columns)
+        .eq("symbol", symbol)
+        .eq("trading_day", day)
+        .order("ts_ist", { ascending: true })
+        .range(from, from + PAGE - 1);
+      checkResponse(res);
+      const rows = (res.data ?? []) as T[];
+      out.push(...rows);
+      if (rows.length < PAGE) break;
+      from += PAGE;
+    } catch (e) {
+      throw asTapeError(e);
+    }
   }
   return out;
 }
 
 async function fetchDays(symbol: MSymbol): Promise<string[]> {
-  const res = await tapeClient
-    .from("tape_daily_report")
-    .select("trading_day")
-    .eq("symbol", symbol)
-    .order("trading_day", { ascending: false })
-    .range(0, 999);
-  checkResponse(res);
-  const rows = (res.data ?? []) as { trading_day: string }[];
-  return [...new Set(rows.map((r) => r.trading_day))];
+  try {
+    const res = await tapeClient
+      .from("tape_daily_report")
+      .select("trading_day")
+      .eq("symbol", symbol)
+      .order("trading_day", { ascending: false })
+      .range(0, 999);
+    checkResponse(res);
+    const rows = (res.data ?? []) as { trading_day: string }[];
+    return [...new Set(rows.map((r) => r.trading_day))];
+  } catch (e) {
+    throw asTapeError(e);
+  }
 }
 
 async function fetchReport(symbol: MSymbol, day: string): Promise<DailyReport | null> {
-  const res = await tapeClient
-    .from("tape_daily_report")
-    .select(REPORT_COLS)
-    .eq("symbol", symbol)
-    .eq("trading_day", day)
-    .range(0, 0);
-  checkResponse(res);
-  const rows = (res.data ?? []) as DailyReport[];
-  return rows[0] ?? null;
+  try {
+    const res = await tapeClient
+      .from("tape_daily_report")
+      .select(REPORT_COLS)
+      .eq("symbol", symbol)
+      .eq("trading_day", day)
+      .range(0, 0);
+    checkResponse(res);
+    const rows = (res.data ?? []) as DailyReport[];
+    return rows[0] ?? null;
+  } catch (e) {
+    throw asTapeError(e);
+  }
 }
 
 // ---------- shared bits ----------
