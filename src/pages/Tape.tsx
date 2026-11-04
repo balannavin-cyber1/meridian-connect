@@ -78,8 +78,11 @@ function checkResponse(res: { data: unknown; error: { message?: string; code?: s
   }
   if (res.error) {
     const code = res.error.code ?? "";
+    const msg = res.error.message ?? "request failed";
     if (code === "401" || code === "403") throw new TapeError("Operator only", Number(code), true);
-    throw new TapeError(res.error.message ?? "request failed", status, false);
+    // HTML body (proxy absent / SPA fallback) surfaces as a JSON parse failure.
+    if (/SyntaxError|not valid JSON|Unexpected token/i.test(msg)) throw new TapeError("Operator only", status, true);
+    throw new TapeError(msg, status, false);
   }
   if (typeof res.data === "string") {
     // HTML or unexpected body — treat as the proxy refusing us.
