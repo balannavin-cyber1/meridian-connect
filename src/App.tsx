@@ -17,6 +17,7 @@ import NotFound from "./pages/NotFound";
 
 const Lab3D = lazy(() => import("./pages/Lab3D"));
 const Help = lazy(() => import("./pages/Help"));
+const Tape = lazy(() => import("./pages/Tape"));
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/manual" element={<Suspense fallback={null}><Help /></Suspense>} />
           <Route path="/journal" element={<Journal />} />
+          <Route path="/tape" element={<Suspense fallback={null}><Tape /></Suspense>} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
