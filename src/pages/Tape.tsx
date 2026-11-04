@@ -91,8 +91,12 @@ function checkResponse(res: { data: unknown; error: { message?: string; code?: s
 // response — that means the proxy isn't serving us, so treat it as denied.
 function asTapeError(e: unknown): TapeError {
   if (e instanceof TapeError) return e;
-  if (e instanceof SyntaxError) return new TapeError("Operator only", null, true);
-  return new TapeError(e instanceof Error ? e.message : "request failed", null, false);
+  const msg = e instanceof Error ? e.message : String(e);
+  // HTML body (SPA fallback) surfaces as a JSON parse failure, sometimes wrapped.
+  if (e instanceof SyntaxError || /SyntaxError|not valid JSON|Unexpected token/i.test(msg)) {
+    return new TapeError("Operator only", null, true);
+  }
+  return new TapeError(msg || "request failed", null, false);
 }
 
 async function fetchAll<T>(table: string, columns: string, symbol: MSymbol, day: string): Promise<T[]> {
