@@ -247,8 +247,8 @@ function DayHealth({ report }: { report: DailyReport | null }) {
         <Tile label="disconnects" value={num(r.disconnects)} />
         <Tile label="watchdog trips" value={num(r.watchdog_trips)} />
         <Tile label="frame errors" value={num(r.frame_errors)} />
-        <Tile label="classified early" value={r.classified_share_early == null ? "owed" : `${num(r.classified_share_early * 100, 1)} %`} />
-        <Tile label="classified late" value={r.classified_share_late == null ? "owed" : `${num(r.classified_share_late * 100, 1)} %`} />
+        <Tile label="classified early" value={r.classified_share_early == null ? "owed" : `${num(r.classified_share_early, 1)} %`} />
+        <Tile label="classified late" value={r.classified_share_late == null ? "owed" : `${num(r.classified_share_late, 1)} %`} />
         <div className="rounded-md px-3 py-2" style={{ background: "var(--s1)", border: "1px solid var(--line)" }}>
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>g3 verdict</div>
           <div className="mt-1"><VerdictBadge v={r.g3_verdict} /></div>
