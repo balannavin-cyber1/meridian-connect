@@ -563,12 +563,14 @@ export default function FlowVsBook({ symbol, day, now }: { symbol: string; day: 
         errs.some(([, s]) => s.err) ? null : <div className="h-40 w-full rounded-md" style={{ background: "var(--s1)", border: "1px solid var(--line)" }} />
       ) : (
         <>
-          <div className="mb-3 grid gap-2 sm:grid-cols-2">
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {(["CALL", "PUT"] as const).map((s) => { const c = cardFor(s); return <WallCard key={s} side={s} cell={c.cell} prevK={c.prevK} cycles={model!.cycles} />; })}
+            <PinCard cell={pinCardCell} cycles={model!.cycles} resolved={pinResolved} />
           </div>
           <div className="rounded-md p-2" style={{ background: "var(--s1)", border: "1px solid var(--line)" }}>
             <Strip side="CALL" cells={model!.CALL} stored={stored.CALL} hasStored={hasStored} />
             <Strip side="PUT" cells={model!.PUT} stored={stored.PUT} hasStored={hasStored} />
+            <PinStrip cells={model!.PIN} resolved={pinResolved} />
             <div className="flex flex-wrap gap-3 text-[10px]" style={{ color: "var(--ink-3)" }}>
               {(["HIT", "ABSORBED", "THINNING", "QUIET", "NO_READ"] as const).map((l) => (
                 <span key={l} className="flex items-center gap-1">
