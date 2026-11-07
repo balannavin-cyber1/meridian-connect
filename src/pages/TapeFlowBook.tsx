@@ -183,7 +183,7 @@ const signWord = (s: 1 | -1 | 0 | null) => (s === 1 ? "dampening" : s === -1 ? "
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 function WallCard({ side, cell, prevK, cycles }: { side: WallSide; cell: Cell | null; prevK: number | null; cycles: Row[] }) {
-  if (!cell) return <Card side={side}><div className="text-[12px]" style={{ color: "var(--ink-3)" }}>no cycle yet</div></Card>;
+  if (!cell) return <Card title={`${side} wall`}><div className="text-[12px]" style={{ color: "var(--ink-3)" }}>no cycle yet</div></Card>;
   const leg = side === "CALL" ? "CE" : "PE";
   const at = cycles.filter((r) => r.strike === cell.K && r.leg === leg);
   const row = at.find((r) => ms(String(r.ts_ist)) === cell.T) ?? null;
@@ -199,7 +199,7 @@ function WallCard({ side, cell, prevK, cycles }: { side: WallSide; cell: Cell | 
     <div className="flex justify-between gap-2 text-[12px]"><span style={{ color: "var(--ink-3)" }}>{k}</span><span style={{ ...mono, color: "var(--ink-1)" }}>{v}</span></div>
   );
   return (
-    <Card side={side}>
+    <Card title={`${side} wall`}>
       <div className="flex flex-wrap items-center gap-2">
         <Chip label={cell.out.label} />
         <span className="text-[15px] font-semibold" style={{ ...mono, color: "var(--ink-1)" }}>{cell.K == null ? "no wall" : n(cell.K)}</span>
