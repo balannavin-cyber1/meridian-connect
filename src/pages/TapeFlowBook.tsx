@@ -167,6 +167,21 @@ const n = (v: unknown, d = 0, unit = ""): string => {
 
 type Cell = { T: number; K: number | null; flags: Flags; out: LabelOut };
 
+type PinLeg = { leg: "CE" | "PE"; flags: Flags; out: LabelOut };
+type PinCell = {
+  T: number;
+  pin: Row | null;
+  expiryDiffers: boolean;
+  tapeDiffers: number | null;
+  gate: PinGateOut | null;
+  sign: 1 | -1 | 0 | null;
+  legs: PinLeg[];
+  movedFrom: number | null;
+};
+const GATED_HATCH = "repeating-linear-gradient(-45deg, var(--line-2) 0 3px, transparent 3px 6px)";
+const signWord = (s: 1 | -1 | 0 | null) => (s === 1 ? "dampening" : s === -1 ? "amplifying" : "sign n/a");
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
 function WallCard({ side, cell, prevK, cycles }: { side: WallSide; cell: Cell | null; prevK: number | null; cycles: Row[] }) {
   if (!cell) return <Card side={side}><div className="text-[12px]" style={{ color: "var(--ink-3)" }}>no cycle yet</div></Card>;
   const leg = side === "CALL" ? "CE" : "PE";
@@ -209,10 +224,10 @@ function WallCard({ side, cell, prevK, cycles }: { side: WallSide; cell: Cell | 
   );
 }
 
-function Card({ side, children }: { side: WallSide; children: React.ReactNode }) {
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-md px-3 py-2" style={{ background: "var(--s1)", border: "1px solid var(--line)" }}>
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>{side} wall</div>
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>{title}</div>
       {children}
     </div>
   );
