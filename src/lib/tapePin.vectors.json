@@ -1,0 +1,27 @@
+{"note":"PIN anchor gate and read-out vectors, v0.3 (MR-OFL5). step 50 = NIFTY, 100 = SENSEX, illustrative.","schema":"tape_pin_vectors_v1","gate":[
+{"id":1,"in":{"K":null,"dte":3,"pin_state":"STABLE","call_wall":25000,"put_wall":24500,"spot":24700,"step":50},"expected":{"mode":"NO_PIN","legs":[],"primary":null}},
+{"id":2,"in":{"K":24800,"dte":0,"pin_state":"LOCKED","call_wall":25000,"put_wall":24500,"spot":24700,"step":50},"expected":{"mode":"SUPPRESSED_DTE0","legs":[],"primary":null}},
+{"id":3,"in":{"K":25000,"dte":0,"pin_state":"STABLE","call_wall":25000,"put_wall":24500,"spot":24700,"step":50},"expected":{"mode":"SUPPRESSED_DTE0","legs":[],"primary":null}},
+{"id":4,"in":{"K":24800,"dte":2,"pin_state":"SHIFTING","call_wall":25000,"put_wall":24500,"spot":24700,"step":50},"expected":{"mode":"CONTESTED","legs":[],"primary":null}},
+{"id":5,"in":{"K":24800,"dte":2,"pin_state":null,"call_wall":25000,"put_wall":24500,"spot":24700,"step":50},"expected":{"mode":"CONTESTED","legs":[],"primary":null}},
+{"id":6,"in":{"K":24800,"dte":2,"pin_state":"STABLE","call_wall":24800,"put_wall":24800,"spot":24700,"step":50},"expected":{"mode":"OWNED_BOTH","legs":[],"primary":null}},
+{"id":7,"in":{"K":25000,"dte":2,"pin_state":"STABLE","call_wall":25000,"put_wall":24500,"spot":24700,"step":50},"expected":{"mode":"OWNED_BY_CALL","legs":["PE"],"primary":"PE"}},
+{"id":8,"in":{"K":24500,"dte":2,"pin_state":"LOCKED","call_wall":25000,"put_wall":24500,"spot":24700,"step":50},"expected":{"mode":"OWNED_BY_PUT","legs":["CE"],"primary":"CE"}},
+{"id":9,"in":{"K":24800,"dte":2,"pin_state":"STABLE","call_wall":25000,"put_wall":24500,"spot":24700,"step":50},"expected":{"mode":"LABEL","legs":["CE","PE"],"primary":"CE"}},
+{"id":10,"in":{"K":24800,"dte":2,"pin_state":"STABLE","call_wall":25000,"put_wall":24500,"spot":24900,"step":50},"expected":{"mode":"LABEL","legs":["CE","PE"],"primary":"PE"}},
+{"id":11,"in":{"K":24800,"dte":2,"pin_state":"LOCKED","call_wall":25000,"put_wall":24500,"spot":24820,"step":50},"expected":{"mode":"LABEL","legs":["CE","PE"],"primary":"BOTH"}},
+{"id":12,"in":{"K":24800,"dte":2,"pin_state":"STABLE","call_wall":25000,"put_wall":24500,"spot":null,"step":50},"expected":{"mode":"LABEL","legs":["CE","PE"],"primary":"UNKNOWN"}},
+{"id":13,"in":{"K":78000,"dte":1,"pin_state":"STABLE","call_wall":79000,"put_wall":77000,"spot":77949,"step":100},"expected":{"mode":"LABEL","legs":["CE","PE"],"primary":"CE"}},
+{"id":14,"in":{"K":78000,"dte":1,"pin_state":"STABLE","call_wall":79000,"put_wall":77000,"spot":77950,"step":100},"expected":{"mode":"LABEL","legs":["CE","PE"],"primary":"BOTH"}}
+],"readout":[
+{"id":1,"in":{"sign":1,"label":"ABSORBED","partial":false},"expected":"flow hit, book held — with the Board's sign"},
+{"id":2,"in":{"sign":1,"label":"HIT","partial":false},"expected":"book gave way — against the Board's sign"},
+{"id":3,"in":{"sign":-1,"label":"HIT","partial":false},"expected":"flow hit, book gave way — with the Board's sign"},
+{"id":4,"in":{"sign":-1,"label":"ABSORBED","partial":false},"expected":"book held — against the Board's sign"},
+{"id":5,"in":{"sign":1,"label":"THINNING","partial":false},"expected":"offers thinning, no concentrated flow"},
+{"id":6,"in":{"sign":-1,"label":"THINNING","partial":true},"expected":"offers thinning, no concentrated flow · flow n/a"},
+{"id":7,"in":{"sign":1,"label":"QUIET","partial":false},"expected":"both measured, nothing at the pin"},
+{"id":8,"in":{"sign":-1,"label":"NO_READ","partial":false},"expected":""},
+{"id":9,"in":{"sign":0,"label":"HIT","partial":false},"expected":"sign unavailable"},
+{"id":10,"in":{"sign":null,"label":"ABSORBED","partial":false},"expected":"sign unavailable"}
+]}
