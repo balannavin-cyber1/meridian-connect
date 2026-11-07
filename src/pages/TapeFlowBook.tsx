@@ -420,8 +420,9 @@ export default function FlowVsBook({ symbol, day, now }: { symbol: string; day: 
 
   const cyc = useSource(live ? "tape_live_cycle" : "tape_strike_cycle", symbol, day, CYCLE_NEED, tick);
   const evs = useSource(live ? "tape_live_events" : "tape_events", symbol, day, EVENT_NEED, tick);
-  const wls = useSource(live ? "tape_live_wall" : "tape_chain_runs", symbol, day, WALL_NEED, tick);
+  const wls = useSource(live ? "tape_live_wall" : "tape_chain_runs", symbol, day, live ? WALL_NEED : WALL_NEED_REPLAY, tick);
   const lbl = useSource("tape_live_label", symbol, day, LABEL_NEED, tick);
+  const pin = usePinSource(symbol, day, tick);
 
   const ready = cyc.rows && evs.rows && wls.rows;
 
@@ -439,8 +440,53 @@ export default function FlowVsBook({ symbol, day, now }: { symbol: string; day: 
       const f = deriveFlags({ cycles, events, walls }, side, T);
       return { T, K: f.K, flags: f, out: labelWall(f) };
     });
-    return { cycles: cycles as unknown as Row[], walls, lastCycle, CALL: build("CALL"), PUT: build("PUT") };
-  }, [cyc.rows, evs.rows, wls.rows, day, live, now]);
+    // step = smallest positive difference between distinct strikes (front expiry)
+    const strikes = [...new Set(cycles.map((r) => r.strike).filter((x): x is number => typeof x === "number"))].sort((a, b) => a - b);
+    let step: number | null = null;
+    for (let i = 1; i < strikes.length; i++) {
+      const d = strikes[i] - strikes[i - 1];
+      if (d > 0 && (step == null || d < step)) step = d;
+    }
+    const pinRows = pin.rows ?? [];
+    const pinCells: PinCell[] = g.map((T, i) => {
+      const p = pinAt(pinRows, T);
+      const expiryDiffers = p != null && front != null && String(p.expiry_date ?? "") !== front;
+      const usable = p != null && !expiryDiffers;
+      let tapeDiffers: number | null = null;
+      if (usable && !live) {
+        const run = wls.rows!.find((r) => r.chain_run_id != null && r.chain_run_id === p!.run_id);
+        const ls = num(run?.leader_strike);
+        if (ls != null && ls !== p!.pin_leader_strike) tapeDiffers = ls;
+      }
+      const gate = usable
+        ? pinGate({
+            K: num(p!.pin_leader_strike),
+            dte: num(p!.dte),
+            pin_state: p!.pin_state == null ? null : String(p!.pin_state),
+            call_wall: num(p!.call_wall_strike),
+            put_wall: num(p!.put_wall_strike),
+            spot: num(p!.spot),
+            step,
+          })
+        : null;
+      const sign = usable ? pinSign(num(p!.gamma_at_pin)) : null;
+      const K = usable ? num(p!.pin_leader_strike) : null;
+      const legs: PinLeg[] =
+        gate && K != null
+          ? gate.legs.map((leg) => {
+              const f = flagsAt({ cycles, events, walls }, K, leg, T);
+              return { leg, flags: f, out: labelWall(f) };
+            })
+          : [];
+      const prev = i > 0 ? pinAt(pinRows, g[i - 1]) : null;
+      const movedFrom =
+        usable && prev && num(prev.pin_leader_strike) != null && prev.pin_leader_strike !== p!.pin_leader_strike
+          ? num(prev.pin_leader_strike)
+          : null;
+      return { T, pin: usable ? p : null, expiryDiffers, tapeDiffers, gate, sign, legs, movedFrom };
+    });
+    return { cycles: cycles as unknown as Row[], walls, lastCycle, CALL: build("CALL"), PUT: build("PUT"), PIN: pinCells };
+  }, [cyc.rows, evs.rows, wls.rows, pin.rows, day, live, now]);
 
   const stored = useMemo(() => {
     const m: Record<WallSide, Map<number, string>> = { CALL: new Map(), PUT: new Map() };
