@@ -530,7 +530,8 @@ export default function FlowVsBook({ symbol, day, now }: { symbol: string; day: 
     [live ? "tape_live_events" : "tape_events", evs],
     [live ? "tape_live_wall" : "tape_chain_runs", wls],
   ] as const;
-  const missing = [...cyc.missing, ...evs.missing, ...wls.missing, ...lbl.missing, ...(asOfMissing ? ["as_of"] : [])];
+  const missing = [...cyc.missing, ...evs.missing, ...wls.missing, ...lbl.missing, ...pin.missing, ...(asOfMissing ? ["as_of"] : [])];
+  const pinResolved = pin.rows != null || pin.err != null;
 
   return (
     <div>
@@ -547,6 +548,8 @@ export default function FlowVsBook({ symbol, day, now }: { symbol: string; day: 
         {missing.map((c) => <MissingChip key={c} col={c} />)}
         {!hasStored && lbl.rows && <span style={{ color: "var(--ink-3)" }}>no as-seen record for this day</span>}
         {lbl.err && <span style={{ color: "var(--ink-3)" }}>tape_live_label unavailable · {lbl.err}</span>}
+        {pin.err && <span className="rounded px-2 py-0.5" style={{ border: "1px solid var(--line-2)", color: "var(--ink-2)" }}>pin source unavailable · {pin.err}</span>}
+        {!pin.err && pin.rows && pin.rows.length === 0 && <span style={{ color: "var(--ink-3)" }}>no pin rows for this day</span>}
       </div>
       {errs.filter(([, s]) => s.err).map(([t, s]) => (
         <div key={t} className="mb-2 rounded-md px-3 py-2 text-[12px]" style={{ background: "var(--alert-bg)", color: "var(--alert-fg)" }}>
