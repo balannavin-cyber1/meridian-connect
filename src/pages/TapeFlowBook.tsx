@@ -524,6 +524,11 @@ export default function FlowVsBook({ symbol, day, now }: { symbol: string; day: 
     const prev = wallAt(model.walls, side, cells[i].T - 5 * MIN);
     return { cell: cells[i], prevK: prev?.strike ?? null };
   };
+  const pinCardCell = (() => {
+    if (!model) return null;
+    const i = Math.max(lastIdx(model.CALL), lastIdx(model.PUT));
+    return i < 0 ? null : (model.PIN[i] ?? null);
+  })();
 
   const errs = [
     [live ? "tape_live_cycle" : "tape_strike_cycle", cyc],
@@ -579,6 +584,7 @@ export default function FlowVsBook({ symbol, day, now }: { symbol: string; day: 
                 </span>
               ))}
               {hasStored && <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "var(--sel)" }} />stored differs from recomputed</span>}
+              <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-3" style={{ background: GATED_HATCH }} />pin gated (no label)</span>
             </div>
           </div>
         </>
