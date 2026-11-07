@@ -266,6 +266,149 @@ function Strip({ side, cells, stored, hasStored }: { side: WallSide; cells: Cell
   );
 }
 
+function PinChip({ text }: { text: string }) {
+  return <span className="rounded px-1.5 py-0.5 text-[10px]" style={{ border: "1px solid var(--line-2)", color: "var(--ink-2)" }}>{text}</span>;
+}
+
+function LegDetail({ cycles, K, leg, T, flags, out, readout }: {
+  cycles: Row[]; K: number; leg: "CE" | "PE"; T: number; flags: Flags; out: LabelOut; readout: string;
+}) {
+  const at = cycles.filter((r) => r.strike === K && r.leg === leg);
+  const row = at.find((r) => ms(String(r.ts_ist)) === T) ?? null;
+  const win = at.filter((r) => { const t = ms(String(r.ts_ist)); return t > T - 15 * MIN && t <= T; });
+  const build = win.length ? win.reduce((s, r) => s + (typeof r.oi_delta_5 === "number" ? r.oi_delta_5 : 0), 0) : null;
+  const share = typeof row?.classified_share_5 === "number" ? row.classified_share_5 * 100 : null;
+  const flag = (on: boolean, txt: string) => (
+    <span className="rounded px-1.5 py-0.5 text-[10px]" style={{ border: "1px solid var(--line-2)", color: on ? "var(--ink-1)" : "var(--ink-3)" }}>
+      {txt} · {on ? "present" : "absent"}
+    </span>
+  );
+  const val = (k: string, v: string) => (
+    <div className="flex justify-between gap-2 text-[12px]"><span style={{ color: "var(--ink-3)" }}>{k}</span><span style={{ ...mono, color: "var(--ink-1)" }}>{v}</span></div>
+  );
+  return (
+    <div className="mt-2 rounded px-2 py-1.5" style={{ border: "1px solid var(--line)" }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Chip label={out.label} />
+        <span className="text-[11px]" style={{ color: "var(--ink-2)" }}>{leg}</span>
+      </div>
+      {out.reason && <div className="mt-1 text-[11px]" style={{ color: "var(--ink-3)" }}>{out.partial ? "partial · " : ""}{out.reason}</div>}
+      <div className="mt-2 flex flex-wrap gap-1.5">{flag(flags.C, "T1 flow burst")}{flag(flags.N, "T3 offers thinning")}</div>
+      <div className="mt-2 grid gap-0.5">
+        {val("oi_last", n(row?.oi_last, 0, " contracts"))}
+        {val("OI build (15 min)", build == null ? "no value" : n(build, 0, " contracts"))}
+        {val("resting_imb", n(row?.resting_imb, 2))}
+        {val("balance_5", n(row?.balance_5, 0, " contracts"))}
+        {val("classified_share_5", share == null ? "no value" : n(share, 1, " %"))}
+        {val("buy_5", n(row?.buy_5, 0, " contracts"))}
+        {val("sell_5", n(row?.sell_5, 0, " contracts"))}
+      </div>
+      {readout ? <div className="mt-1.5 text-[11px]" style={{ color: "var(--ink-2)" }}>{readout}</div> : null}
+    </div>
+  );
+}
+
+function PinCard({ cell, cycles, resolved }: { cell: PinCell | null; cycles: Row[]; resolved: boolean }) {
+  if (!cell || !resolved)
+    return <Card title="PIN"><div className="text-[12px]" style={{ color: "var(--ink-3)" }}>no cycle yet</div></Card>;
+  const p = cell.pin;
+  if (!p || !cell.gate) {
+    return (
+      <Card title="PIN">
+        <div className="text-[12px]" style={{ color: "var(--ink-3)" }}>{cell.expiryDiffers ? "pin expiry differs" : "no pin on this run"}</div>
+        {cell.tapeDiffers != null && <div className="mt-1"><PinChip text={`pin differs from tape record (${n(cell.tapeDiffers)})`} /></div>}
+      </Card>
+    );
+  }
+  const g = cell.gate;
+  const K = num(p.pin_leader_strike);
+  const held = num(p.held_for_cycles);
+  const dte = num(p.dte);
+  const reconciled = p.reconciled_at != null;
+  const approach = g.primary === "CE" ? "CE faces price" : g.primary === "PE" ? "PE faces price" : g.primary === "BOTH" ? "at the pin" : "approach unknown";
+  const gatedText =
+    g.mode === "NO_PIN" ? "no pin on this run"
+    : g.mode === "SUPPRESSED_DTE0" ? "pin label suppressed at 0 DTE"
+    : g.mode === "CONTESTED" ? `pin contested · ${p.pin_state == null ? "state n/a" : String(p.pin_state)} · held ${held ?? "n/a"} cycles`
+    : null;
+  return (
+    <Card title="PIN">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[15px] font-semibold" style={{ ...mono, color: "var(--ink-1)" }}>{K == null ? "no pin" : n(K)}</span>
+        <span className="text-[11px]" style={{ color: "var(--ink-2)" }}>{signWord(cell.sign)}</span>
+        <span className="text-[11px]" style={{ ...mono, color: "var(--ink-3)" }}>{hhmm(cell.T)} IST</span>
+      </div>
+      <div className="mt-1 text-[11px]" style={{ color: "var(--ink-2)" }}>
+        {p.pin_state == null ? "state n/a" : String(p.pin_state)} · held {held ?? "n/a"} cycles · {reconciled ? "reconciled" : "live"} · DTE {dte ?? "n/a"}
+      </div>
+      {cell.movedFrom != null && K != null && (
+        <div className="mt-1 text-[11px]" style={{ color: "var(--ink-2)" }}>pin moved from {n(cell.movedFrom)}</div>
+      )}
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {cell.tapeDiffers != null && <PinChip text={`pin differs from tape record (${n(cell.tapeDiffers)})`} />}
+        {(g.mode === "OWNED_BY_CALL" || g.mode === "OWNED_BOTH") && <PinChip text="≡ CALL OI WALL" />}
+        {(g.mode === "OWNED_BY_PUT" || g.mode === "OWNED_BOTH") && <PinChip text="≡ PUT OI WALL" />}
+      </div>
+      {gatedText
+        ? <div className="mt-2 text-[12px]" style={{ color: "var(--ink-2)" }}>{gatedText}</div>
+        : (
+          <>
+            <div className="mt-1 text-[11px]" style={{ color: "var(--ink-2)" }}>{approach}</div>
+            {cell.legs.map((l) => (
+              <LegDetail key={l.leg} cycles={cycles} K={K!} leg={l.leg} T={cell.T} flags={l.flags} out={l.out}
+                readout={pinReadout(cell.sign, l.out.label, l.out.partial)} />
+            ))}
+          </>
+        )}
+    </Card>
+  );
+}
+
+function PinStrip({ cells, resolved }: { cells: PinCell[]; resolved: boolean }) {
+  const [hover, setHover] = useState<PinCell | null>(null);
+  const tone = (l: Label) => (l === "NO_READ" ? "transparent" : TONE[l as Exclude<Label, "NO_READ">]);
+  const tickStyle = (c: PinCell): React.CSSProperties => {
+    if (!resolved) return { background: "transparent" };
+    const g = c.gate;
+    if (!c.pin || !g) return { background: GATED_HATCH };
+    if (g.mode === "NO_PIN" || g.mode === "SUPPRESSED_DTE0" || g.mode === "CONTESTED" || g.mode === "OWNED_BOTH")
+      return { background: GATED_HATCH };
+    const lab = (leg: "CE" | "PE"): Label => c.legs.find((l) => l.leg === leg)?.out.label ?? "NO_READ";
+    if (g.primary === "BOTH")
+      return { background: `linear-gradient(to bottom, ${tone(lab("CE"))} 0 50%, ${tone(lab("PE"))} 50% 100%)` };
+    const prim = g.primary === "CE" || g.primary === "PE" ? g.primary : c.legs[0]?.leg;
+    return { background: prim ? tone(lab(prim)) : "transparent" };
+  };
+  const hoverText = (c: PinCell): string => {
+    if (!resolved) return `${hhmm(c.T)} IST · pin source not yet loaded`;
+    const p = c.pin;
+    if (!p || !c.gate) return `${hhmm(c.T)} IST · ${c.expiryDiffers ? "pin expiry differs" : "no pin on this run"}`;
+    const g = c.gate;
+    const K = num(p.pin_leader_strike);
+    const legTxt = c.legs.map((l) => `${l.leg} ${l.out.label}${l.out.partial ? " (partial)" : ""}`).join(" · ");
+    const prim = c.legs.find((l) => l.leg === g.primary) ?? c.legs[0];
+    const ro = prim ? pinReadout(c.sign, prim.out.label, prim.out.partial) : "";
+    return `${hhmm(c.T)} IST · pin ${K ?? "none"} · ${g.mode} · ${signWord(c.sign)} · ${p.pin_state == null ? "state n/a" : String(p.pin_state)}${legTxt ? ` · ${legTxt}` : ""}${ro ? ` · ${ro}` : ""}${c.tapeDiffers != null ? ` · pin differs from tape record (${n(c.tapeDiffers)})` : ""}`;
+  };
+  return (
+    <div className="mb-2">
+      <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>
+        <span>PIN</span>
+        <span className="normal-case tracking-normal" style={mono}>09:20 – 15:30 IST · 5 min</span>
+      </div>
+      <div className="flex h-6 gap-px">
+        {cells.map((c) => (
+          <div key={c.T} className="relative flex-1" onMouseEnter={() => setHover(c)} onMouseLeave={() => setHover(null)}
+            style={tickStyle(c)} title={hoverText(c)} />
+        ))}
+      </div>
+      <div className="mt-1 min-h-[16px] text-[11px]" style={{ ...mono, color: "var(--ink-2)" }}>
+        {hover && hoverText(hover)}
+      </div>
+    </div>
+  );
+}
+
 export default function FlowVsBook({ symbol, day, now }: { symbol: string; day: string; now: number }) {
   const live = day === istToday(now);
   const [tick, setTick] = useState(0);
