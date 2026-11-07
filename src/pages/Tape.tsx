@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { tapeClient } from "@/lib/tapeClient";
+import FlowVsBook, { istToday } from "@/pages/TapeFlowBook";
+import { runLabelVectors } from "@/lib/tapeLabels.selfcheck";
+
+if (import.meta.env.DEV) runLabelVectors(true);
 
 type MSymbol = "NIFTY" | "SENSEX";
 
@@ -609,13 +613,20 @@ export default function Tape() {
   const [report, setReport] = useState<DailyReport | null>(null);
   const [events, setEvents] = useState<TapeEvent[] | null>(null);
   const [cycles, setCycles] = useState<StrikeCycle[] | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(id); }, []);
   const [secErr, setSecErr] = useState<{ report?: TapeError; events?: TapeError; cycles?: TapeError }>({});
 
   useEffect(() => {
     let dead = false;
     setDays(null); setDay(null); setDaysErr(null);
     fetchDays(symbol)
-      .then((d) => { if (!dead) { setDays(d); setDay(d[0] ?? null); } })
+      .then((d) => {
+        if (dead) return;
+        const today = istToday(Date.now());
+        const all = d.includes(today) ? d : [today, ...d];
+        setDays(all); setDay(all[0] ?? null);
+      })
       .catch((e: TapeError) => { if (!dead) { if (e.denied) setDenied(true); else setDaysErr(e); } });
     return () => { dead = true; };
   }, [symbol]);
@@ -676,6 +687,13 @@ export default function Tape() {
       </div>
 
       {daysErr && <div className="mb-4"><InlineError err={daysErr} /></div>}
+
+      {day && (
+        <section className="mb-6">
+          <SectionTitle>Flow vs book</SectionTitle>
+          <FlowVsBook symbol={symbol} day={day} now={now} />
+        </section>
+      )}
 
       <section className="mb-6">
         <SectionTitle>Day health</SectionTitle>
