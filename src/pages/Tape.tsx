@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { tapeClient } from "@/lib/tapeClient";
 import FlowVsBook, { istToday } from "@/pages/TapeFlowBook";
-import { runLabelVectors } from "@/lib/tapeLabels.selfcheck";
+import { runLabelVectors, runPinVectors } from "@/lib/tapeLabels.selfcheck";
 
-if (import.meta.env.DEV) runLabelVectors(true);
+if (import.meta.env.DEV) {
+  runLabelVectors(true);
+  runPinVectors(true);
+}
 
 type MSymbol = "NIFTY" | "SENSEX";
 
