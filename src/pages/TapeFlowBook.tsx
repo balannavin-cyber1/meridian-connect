@@ -4,6 +4,7 @@ import {
   deriveFlags, labelWall, wallAt, floor5, ms,
   type CycleRow, type EventRow, type WallRow, type WallSide, type Label, type Flags, type LabelOut,
 } from "@/lib/tapeLabels";
+import { pinGate, pinSign, pinReadout, type PinGateOut } from "@/lib/tapePin";
 
 type Row = Record<string, unknown>;
 type Src = { rows: Row[] | null; err: string | null; missing: string[] };
@@ -15,7 +16,9 @@ const mono: React.CSSProperties = { fontVariantNumeric: "tabular-nums" };
 const CYCLE_NEED = ["symbol", "trading_day", "expiry", "strike", "leg", "ts_ist", "buy_5", "sell_5", "balance_5", "resting_imb", "classified_share_5", "oi_last", "oi_delta_5", "minutes_present_5", "trades_5"];
 const EVENT_NEED = ["strike", "leg", "kind", "ts_ist", "side"];
 const WALL_NEED = ["ts_ist", "call_wall", "put_wall"];
+const WALL_NEED_REPLAY = [...WALL_NEED, "chain_run_id", "leader_strike"];
 const LABEL_NEED = ["ts_ist", "wall", "label"];
+const PIN_NEED = ["run_id", "ts", "expiry_date", "dte", "spot", "pin_leader_strike", "gamma_at_pin", "pin_state", "held_for_cycles", "call_wall_strike", "put_wall_strike", "max_pain_strike", "is_fresh", "reconciled_at"];
 
 export function istToday(now: number): string {
   return new Date(now + 330 * MIN).toISOString().slice(0, 10);
