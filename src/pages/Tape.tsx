@@ -625,7 +625,7 @@ export default function Tape() {
         if (dead) return;
         const today = istToday(Date.now());
         const all = d.includes(today) ? d : [today, ...d];
-        setDays(all); setDay(all[0] ?? null);
+        setDays(all); setDay(d.find((x) => x !== today) ?? today);
       })
       .catch((e: TapeError) => { if (!dead) { if (e.denied) setDenied(true); else setDaysErr(e); } });
     return () => { dead = true; };
