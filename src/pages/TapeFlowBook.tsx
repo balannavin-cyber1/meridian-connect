@@ -47,6 +47,73 @@ function missingCols(rows: Row[], need: string[]): string[] {
   return need.filter((c) => !(c in rows[0]));
 }
 
+// gex_cycle_history has ts (not ts_ist) and no trading_day: filter by IST day bounds.
+async function getAllTs(table: string, symbol: string, day: string): Promise<Row[]> {
+  const lo = `${day}T00:00:00+05:30`;
+  const next = new Date(Date.parse(`${day}T00:00:00Z`) + 24 * 60 * MIN).toISOString().slice(0, 10);
+  const hi = `${next}T00:00:00+05:30`;
+  const out: Row[] = [];
+  for (let from = 0; ; from += PAGE) {
+    let res;
+    try {
+      res = await tapeClient.from(table).select("*").eq("symbol", symbol)
+        .gte("ts", lo).lt("ts", hi).order("ts", { ascending: true }).range(from, from + PAGE - 1);
+    } catch (e) {
+      throw new Error(e instanceof Error ? e.message : String(e));
+    }
+    if (res.error) throw new Error(`${res.error.message ?? "request failed"}${res.status ? ` · HTTP ${res.status}` : ""}`);
+    if (typeof res.data === "string") throw new Error("unexpected response body");
+    const rows = (res.data ?? []) as Row[];
+    out.push(...rows);
+    if (rows.length < PAGE) return out;
+  }
+}
+
+function usePinSource(symbol: string, day: string, tick: number): Src {
+  const [s, set] = useState<Src>({ rows: null, err: null, missing: [] });
+  useEffect(() => { set({ rows: null, err: null, missing: [] }); }, [symbol, day]);
+  useEffect(() => {
+    let dead = false;
+    getAllTs("gex_cycle_history", symbol, day)
+      .then((rows) => !dead && set({ rows, err: null, missing: missingCols(rows, PIN_NEED) }))
+      .catch((e: Error) => !dead && set((p) => ({ rows: p.rows, err: e.message, missing: p.missing })));
+    return () => { dead = true; };
+  }, [symbol, day, tick]);
+  return s;
+}
+
+/** Latest pin row whose ts floored to the 5-minute grid is at or before T (same rule as walls). */
+function pinAt(pins: Row[], T: number): Row | null {
+  let best: Row | null = null;
+  let bestT = -1;
+  for (const r of pins) {
+    if (typeof r.ts !== "string") continue;
+    const t = floor5(ms(r.ts));
+    if (t > T) continue;
+    if (t >= bestT) { best = r; bestT = t; }
+  }
+  return best;
+}
+
+/**
+ * Flags for an arbitrary (K, leg) — the pin strike in place of the wall's strike-leg.
+ * Reuses deriveFlags by feeding it synthetic wall rows that pin the wall at K; the
+ * label rules themselves are not reimplemented.
+ */
+function flagsAt(
+  rows: { cycles: CycleRow[]; events: EventRow[]; walls: WallRow[] },
+  K: number,
+  leg: "CE" | "PE",
+  T: number,
+) {
+  const walls = rows.walls.map((r) => ({
+    ts_ist: r.ts_ist,
+    call_wall: leg === "CE" ? K : null,
+    put_wall: leg === "PE" ? K : null,
+  }));
+  return deriveFlags({ cycles: rows.cycles, events: rows.events, walls }, leg === "CE" ? "CALL" : "PUT", T);
+}
+
 function useSource(table: string, symbol: string, day: string, need: string[], tick: number): Src {
   const [s, set] = useState<Src>({ rows: null, err: null, missing: [] });
   useEffect(() => { set({ rows: null, err: null, missing: [] }); }, [table, symbol, day]);
