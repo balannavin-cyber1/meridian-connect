@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSymbol } from "@/contexts/SymbolContext";
 import {
-  useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useWalls, useStrikeRank,
+  useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useGrossPin, useWalls, useStrikeRank,
   useIvFront, useOpenGap, useMaxPain, useFlowSim, useIvTerm, useDailyContext, isAwaiting, useNextOpen,
   useLiveSpot, istTime,
 } from "@/lib/board";
@@ -94,6 +94,7 @@ export default function Home() {
   const flip = useRepricedFlip(symbol).data as any;
   const walls = useWalls(symbol).data as any;
   const rank = (useStrikeRank(symbol).data ?? []) as any[];
+  const gp = useGrossPin(symbol).data as any;
   const iv = useIvFront(symbol).data as any;
   const og = useOpenGap(symbol, session, prev).data;
   const mp = useMaxPain(symbol).data as any;
@@ -124,8 +125,8 @@ export default function Home() {
   const flipAwait = isAwaiting(flip);
   const closedWord = `market closed${nextOpen ? ` · next ${dShort(nextOpen)}` : ""}`;
   const flipWord: Record<string, string> = { NO_CROSSING: "no flip in grid", SKIPPED_EXPIRY: "skipped · expiry day", UNMEASURABLE_R: "carry unmeasurable" };
-  const r1 = rank.find((r) => r.strike_rank === 1), r2 = rank.find((r) => r.strike_rank === 2);
-  const sh1 = n(r1?.share_of_abs), sh2 = n(r2?.share_of_abs), pin = n(r1?.strike);
+  const netTop = n(rank.find((r) => r.strike_rank === 1)?.share_of_abs);
+  const sh1 = n(gp?.pin_share), sh2 = n(gp?.runnerup_share), pin = n(gp?.pin_strike), lead = n(gp?.lead_share_pts);
   const net = n(abs?.net_gex_cr_1pct), gross = n(abs?.abs_gex_cr_1pct);
   const mps = n(mp?.max_pain_strike);
   const f1 = flows.find((r) => Math.abs(Number(r.spot_pct) + 0.01) < 1e-6), f2 = flows.find((r) => Math.abs(Number(r.spot_pct) - 0.01) < 1e-6);
@@ -142,15 +143,15 @@ export default function Home() {
       ]} /> : null },
     { key: 2, tab: "Pin", sel: "s6", q: "How settled is the centre?",
       answer: sh1 == null ? <Absent word="no run" /> :
-        <>{num(pin!)} holds {(sh1 * 100).toFixed(1)} % of gross{sh2 != null ? ` · lead ${((sh1 - sh2) * 100).toFixed(1)} pts` : ""}</>,
+        <>{num(pin!)} holds {(sh1 * 100).toFixed(1)} % of band gross{lead != null ? ` · lead ${lead.toFixed(1)} pts` : ""}</>,
       pic: sh1 != null ? <BarsPic a={sh1} b={sh2} /> : null },
     { key: 3, tab: "Gamma", sel: "s3", q: "Can I trust single strikes?",
       answer: net == null || !gross ? <Absent word="no run" /> :
-        <>net/gross {(net / gross).toFixed(2)}{sh1 != null ? ` · top strike ${(sh1 * 100).toFixed(1)} %` : ""}</>,
+        <>net/gross {(net / gross).toFixed(2)}{netTop != null ? ` · top strike ${(netTop * 100).toFixed(1)} % of |net γ|` : ""}</>,
       pic: net != null && gross ? <div className="flex h-14 w-[220px] max-w-full items-center"><SplitBar net={net} gross={gross} className="h-3" /></div> : null },
     { key: 4, tab: "OI", sel: "s6", q: "What does open interest show?",
       answer: mps == null ? <Absent word="no max pain" /> :
-        <>max pain {num(mps)}{pin != null ? ` · pin ${num(pin)} · ${sgn(mps - pin, 0)}` : ""}</>,
+        <>max pain {num(mps)}{pin != null ? ` · pin ${num(pin)} (gross) · ${sgn(mps - pin, 0)}` : ""}</>,
       pic: spot != null && mps != null ? <TrackPic spot={spot} ticks={[{ at: mps, color: "var(--put)" }, ...(pin != null ? [{ at: pin, color: "var(--rule)" }] : [])]} /> : null },
     { key: 5, tab: "Flows", sel: "s3", q: "What would dealers trade if spot moves?",
       answer: !f1 || !f2 ? <Absent word="no flow sim" /> :

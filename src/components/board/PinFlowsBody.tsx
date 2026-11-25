@@ -45,15 +45,31 @@ export function PinBody({ items, sel, setSel, stretches }: Sel & { items: Overvi
     <div className="space-y-2">
       {/* Pin-state block */}
       <div className="rounded-md p-1.5" style={{ background: "var(--s2)", border: "1px solid var(--line-2)" }}>
+        <Tile it={by("p_pin")} sel={sel} setSel={setSel} big className="w-full" />
         <div className="grid grid-cols-2 gap-1">
-          <Tile it={by("p_pin")} sel={sel} setSel={setSel} big />
-          <Tile it={by("p_state")} sel={sel} setSel={setSel} big />
-        </div>
-        <div className="grid grid-cols-3 gap-1">
-          <Tile it={by("p_conv")} sel={sel} setSel={setSel} />
           <Tile it={by("p_runner")} sel={sel} setSel={setSel} />
           <Tile it={by("p_lead")} sel={sel} setSel={setSel} />
         </div>
+      </div>
+
+      <Group title="Band & distance">
+        <div className="grid grid-cols-2 gap-1">
+          <Tile it={by("p_band")} sel={sel} setSel={setSel} />
+          <Tile it={by("p_dist")} sel={sel} setSel={setSel} />
+        </div>
+      </Group>
+
+      {/* Net peak group */}
+      <div className="px-1 pt-2">
+        <div className="text-[13px] font-semibold" style={{ ...cond, color: "var(--ink-1)" }}>Net peak</div>
+        <div className="text-[11px] leading-snug" style={{ color: "var(--ink-3)" }}>The strike with the largest net gamma. Pin state and conviction are computed on it, not on the Pin above.</div>
+      </div>
+      <div className="rounded-md p-1.5" style={{ background: "var(--s2)", border: "1px solid var(--line-2)" }}>
+        <div className="grid grid-cols-2 gap-1">
+          <Tile it={by("p_netpeak")} sel={sel} setSel={setSel} big />
+          <Tile it={by("p_state")} sel={sel} setSel={setSel} big />
+        </div>
+        <Tile it={by("p_conv")} sel={sel} setSel={setSel} className="w-full" />
       </div>
 
       {/* Leader timeline */}
@@ -83,13 +99,7 @@ export function PinBody({ items, sel, setSel, stretches }: Sel & { items: Overvi
         </button>
       )}
 
-      <Group title="Concentration"><Tile it={by("p_hhi")} sel={sel} setSel={setSel} className="w-full" /></Group>
-      <Group title="Band & distance">
-        <div className="grid grid-cols-2 gap-1">
-          <Tile it={by("p_band")} sel={sel} setSel={setSel} />
-          <Tile it={by("p_dist")} sel={sel} setSel={setSel} />
-        </div>
-      </Group>
+      <Group title="Net concentration"><Tile it={by("p_hhi")} sel={sel} setSel={setSel} className="w-full" /></Group>
       <Tile it={by("p_legacy")} sel={sel} setSel={setSel} quiet className="w-full" />
     </div>
   );

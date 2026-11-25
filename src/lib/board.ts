@@ -81,6 +81,8 @@ export const useAbsExposure = (s: Symbol) =>
   useQuery({ queryKey: ["board", "abs", s], ...opts, queryFn: latestBySymbol("v_gex_abs_exposure_1pct", s) });
 export const useRepricedFlip = (s: Symbol) =>
   useQuery({ queryKey: ["board", "flip", s], ...opts, queryFn: latestBySymbol("v_gex_repriced_flip", s) });
+export const useGrossPin = (s: Symbol) =>
+  useQuery({ queryKey: ["board", "grosspin", s], ...opts, queryFn: latestBySymbol("v_gex_pin_gross", s) });
 export const useWalls = (s: Symbol) =>
   useQuery({ queryKey: ["board", "walls", s], ...opts, queryFn: latestBySymbol("v_gex_strike_walls", s) });
 export const useIvFront = (s: Symbol) =>

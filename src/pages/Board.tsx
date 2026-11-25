@@ -4,7 +4,7 @@ import { useBoardRead } from "@/lib/read";
 import { SplitBar } from "@/components/board/SplitBar";
 import { useSymbol } from "@/contexts/SymbolContext";
 import {
-  useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useWalls, useStrikeRank,
+  useSessions, useGammaNow, useAbsExposure, useRepricedFlip, useGrossPin, useWalls, useStrikeRank,
   useIvFront, useFutures, useSpotPocket, useGammaSession, useOpenGap, usePrevBasis,
   istTime, istDateOf, isAwaiting, useNextOpen, useLadderStrikes, useOiRotation, usePinBand,
   useConcentration, useNetGammaToday, useGammaRiver,
@@ -104,6 +104,7 @@ export default function Board() {
   const flip = useRepricedFlip(symbol).data as any;
   const walls = useWalls(symbol).data as any;
   const rank = (useStrikeRank(symbol).data ?? []) as any[];
+  const gp = useGrossPin(symbol).data as any;
   const iv = useIvFront(symbol).data as any;
   const fut = useFutures(symbol).data as any;
   const pocket = useSpotPocket(symbol).data;
@@ -149,10 +150,16 @@ export default function Board() {
   const widthPct = pw != null && cw != null && wSpot ? ((cw - pw) / wSpot) * 100 : null;
 
   // S6
-  const r1 = rank.find((r) => r.strike_rank === 1), r2 = rank.find((r) => r.strike_rank === 2);
-  const pin = n(r1?.strike), sh1 = n(r1?.share_of_abs), sh2 = n(r2?.share_of_abs);
-  const lead = sh1 != null && sh2 != null ? (sh1 - sh2) * 100 : null;
+  // Pin = gross pin (v_gex_pin_gross). Never falls back to the net ranking.
+  const pin = n(gp?.pin_strike), sh1 = n(gp?.pin_share), sh2 = n(gp?.runnerup_share);
+  const lead = n(gp?.lead_share_pts), pinRunner = n(gp?.runnerup_strike);
+  const pinTs: string | null = gp?.ts ?? null;
+  const pinLegs: string | null = gp?.pin_gamma_legs ?? null;
+  // Net peak (legacy net-gamma ranking, v_gex_strike_rank).
+  const netRank1 = rank.find((r) => r.strike_rank === 1);
+  const netTopShare = n(netRank1?.share_of_abs);
   const pinWall = pin != null ? (pin === cw ? "≡ call OI wall" : pin === pw ? "≡ put OI wall" : null) : null;
+  const pinSub = [sh1 != null ? `${(sh1 * 100).toFixed(1)} % of band gross` : null, lead != null ? `lead ${lead.toFixed(1)} pts` : null, pinWall, pinTs ? istTime(pinTs) : null].filter(Boolean).join(" · ");
 
   // S7
   const atmIv = n(iv?.atm_iv), vix = n(g?.vix), strad = n(g?.straddle_atm);
@@ -201,7 +208,7 @@ export default function Board() {
     ...(fVal != null ? [{ id: "flip", name: "FLIP", at: fVal, style: "dashed" as const }] : []),
     ...(cw != null && cState !== "UNDEFINED" ? [{ id: "callwall", name: "CALL OI WALL", at: cw, style: "solid" as const }] : []),
     ...(pw != null && cState !== "UNDEFINED" ? [{ id: "putwall", name: "PUT OI WALL", at: pw, style: "solid" as const }] : []),
-    ...(pin != null ? [{ id: "gconc", name: "γ-CONC", at: pin, style: "dotted" as const }] : []),
+    ...(pin != null ? [{ id: "gconc", name: "PIN", at: pin, style: "dotted" as const }] : []),
   ];
   const items: OverviewItem[] = [
     { id: "net", label: "Net Γ", sub: net != null ? `${net >= 0 ? "long γ" : "short γ"}${ratio != null ? ` · ${ratio.toFixed(2)} of gross` : ""}` : "",
@@ -213,9 +220,9 @@ export default function Board() {
     { id: "corridor", label: "Corridor", sub: cState ? stateWord[cState] ?? cState.toLowerCase() : "",
       value: pw != null && cw != null && cState !== "UNDEFINED" ? `${num(pw)}–${num(cw)}` : <Absent word="corridor undefined" />,
       levelIds: ["callwall", "putwall"], caption: pw != null && cw != null ? `Put OI wall ${num(pw)} to call OI wall ${num(cw)}${widthPct != null ? `, ${widthPct.toFixed(2)}% wide` : ""}; spot is ${stateWord[cState ?? ""] ?? "—"}.` : "Corridor undefined." },
-    { id: "pin", label: "Pin (γ-conc)", sub: [sh1 != null ? `${(sh1 * 100).toFixed(1)} % of gross` : null, lead != null ? `lead ${lead.toFixed(1)} pts` : null].filter(Boolean).join(" · "),
+    { id: "pin", label: "Pin (gross γ)", sub: pinSub,
       value: pin != null ? num(pin) : <Absent word="no run" />, levelIds: ["gconc"],
-      caption: pin != null ? `${num(pin)} carries the largest gamma share${sh1 != null ? `, ${(sh1 * 100).toFixed(1)}% of gross` : ""} (dotted rule).` : "No ranked strike." },
+      caption: pin != null ? `${num(pin)} carries the largest gross gamma within 5 % of spot${sh1 != null ? `, ${(sh1 * 100).toFixed(1)}% of that band` : ""} (dotted rule).` : "No gross pin for this run." },
     { id: "priced", label: "Priced move", sub: strad != null && spot ? `±${((strad / spot) * 100).toFixed(2)} % to expiry` : "",
       value: strad != null ? `±${num(strad)}` : <Absent word="no run" />, levelIds: [], priced: true,
       caption: strad != null ? `The straddle prices ±${num(strad)} to expiry; the left gutter marks strikes inside it.` : "No straddle." },
@@ -333,6 +340,7 @@ export default function Board() {
   const pinHist = (usePinBoard(symbol).data ?? []) as any[];
   const rankAll = (useStrikeRankAll(symbol).data ?? []) as { strike: number; rank: number; share: number; cum: number | null; gex: number; side: string | null; ts: string }[];
   const pinLatest = pinHist.find((r) => r.is_latest) ?? pinHist[pinHist.length - 1] ?? null;
+  const netPeak = n(pinLatest?.pin_leader_strike);
   const pinSession: string | null = pinLatest?.session_date_ist ?? null;
   const pinPrevSession = pinSession != null && session != null && pinSession !== session;
   const pinState: string | null = pinLatest?.pin_state ?? null;
@@ -340,7 +348,6 @@ export default function Board() {
   const conviction = n(pinLatest?.conviction);
   const r2r1 = n(pinLatest?.runnerup_share_ratio);
   const hhiTrue = n(pinLatest?.conc_hhi), top5 = n(pinLatest?.top5_share);
-  const pinRunner = n(r2?.strike);
   const pinBandLo = n(pinBandRow?.pin_lower), pinBandHi = n(pinBandRow?.pin_upper);
   const pinDist = pin != null && spot ? ((pin - spot) / spot) * 100 : null;
   const legacyPinRisk = n(g?.pin_risk_score);
@@ -357,33 +364,37 @@ export default function Board() {
   const pinRows = rankAll.length ? (ladder?.rows ?? []).map((lr) => {
     const rk = rankAll.find((x) => x.strike === lr.strike);
     return rk ? { strike: lr.strike, value: rk.share, tint: rk.gex, faint: rk.rank > 10,
-      readout: `#${rk.rank} · ${(rk.share * 100).toFixed(1)}%`, full: `#${rk.rank} · ${(rk.share * 100).toFixed(1)}% of gross · ${rk.side?.toLowerCase() ?? "—"}` }
+      readout: `#${rk.rank} · ${(rk.share * 100).toFixed(1)}%`, full: `#${rk.rank} · ${(rk.share * 100).toFixed(1)}% of |net γ| · ${rk.side?.toLowerCase() ?? "—"}` }
       : { strike: lr.strike, value: null, tint: null, readout: "·", full: "unranked" };
   }) : [];
   const pinLevels: Level[] = [
     ...(spot != null ? [{ id: "spot", name: "SPOT", at: spot, style: "spot" as const }] : []),
-    ...(pin != null ? [{ id: "gconc", name: "γ-CONC #1", at: pin, style: "dotted" as const }] : []),
+    ...(pin != null ? [{ id: "gconc", name: "PIN #1", at: pin, style: "dotted" as const }] : []),
+    ...(netPeak != null && netPeak !== pin ? [{ id: "netpeak", name: "NET PEAK", at: netPeak, style: "dotted" as const }] : []),
     ...(pinRunner != null && pinRunner !== pin ? [{ id: "runner", name: "#2", at: pinRunner, style: "dotted" as const }] : []),
   ];
   const minsHeld = heldCycles != null ? heldCycles * 5 : null;
   const pinStateWord: Record<string, string> = { "NO PIN": "no pin", SHIFTING: "shifting", STABLE: "stable", LOCKED: "locked" };
   const pinItems: OverviewItem[] = [
-    { id: "p_pin", label: "Pin (γ-conc)", sub: [sh1 != null ? `${(sh1 * 100).toFixed(1)} % of gross` : null, r1?.strike != null ? (rankAll.find((x) => x.rank === 1)?.side?.toLowerCase() ?? null) : null, pinWall].filter(Boolean).join(" · "),
+    { id: "p_pin", label: "Pin (gross γ)", sub: [sh1 != null ? `${(sh1 * 100).toFixed(1)} % of band gross` : null, pinLegs === "call" ? "call γ only" : pinLegs === "put" ? "put γ only" : pinLegs && pinLegs !== "both" ? pinLegs : null, pinWall, pinTs ? istTime(pinTs) : null].filter(Boolean).join(" · "),
       value: pin != null ? num(pin) : <Absent word="no run" />, levelIds: ["gconc"],
-      caption: pin != null ? `${num(pin)} holds the largest share of gross |γ|${sh1 != null ? `, ${(sh1 * 100).toFixed(1)}%` : ""}; bars show every ranked strike's share.` : "No ranked strike." },
-    { id: "p_state", label: "Pin state", sub: pinLatest ? [minsHeld != null ? `held ${heldCycles} cycles · ${minsHeld} min` : null, pinPrevSession ? `session ${pinSession}` : null, pinLatest.reconciled_at ? "reconciled" : "live · unreconciled"].filter(Boolean).join(" · ") : "",
-      value: pinState ? pinState : pinLatest ? <Absent word={pinLatest.pin_state_reason ? "state n/a" : "no state"} /> : <Absent word="no history" />, levelIds: ["gconc"],
-      caption: pinState ? `Pin ${pinStateWord[pinState] ?? pinState.toLowerCase()} at ${num(n(pinLatest.pin_leader_strike))}${heldCycles != null ? `, leader held ${heldCycles} OPEN cycles (${minsHeld} min)` : ""}.` : pinLatest?.pin_state_reason ? `Pin state unavailable: ${pinLatest.pin_state_reason}.` : "No pin history for this session yet." },
-    { id: "p_conv", label: "Conviction", sub: "stage 1 · no band (D-6)",
-      value: conviction != null ? conviction.toFixed(2) : pinLatest?.conviction_reason ? <Absent word="n/a" /> : <Absent word="no history" />, levelIds: ["gconc", "runner"],
-      caption: conviction != null ? `Conviction ${conviction.toFixed(2)} = (1 − #2/#1${r2r1 != null ? ` = ${r2r1.toFixed(2)}` : ""}) × time boost. A number, not a grade.` : pinLatest?.conviction_reason ? `Conviction unavailable: ${pinLatest.conviction_reason}.` : "No conviction yet." },
-    { id: "p_runner", label: "Runner-up", sub: r2r1 != null ? `#2/#1 = ${r2r1.toFixed(2)}` : sh2 != null ? `${(sh2 * 100).toFixed(1)} % of gross` : "",
+      caption: pin != null ? `${num(pin)} holds the largest share of gross γ within 5 % of spot${sh1 != null ? `, ${(sh1 * 100).toFixed(1)}%` : ""}.` : "No gross pin for this run." },
+    { id: "p_runner", label: "Runner-up", sub: sh2 != null ? `${(sh2 * 100).toFixed(1)} % of band gross` : "",
       value: pinRunner != null ? num(pinRunner) : <Absent word="no #2" />, levelIds: ["runner"],
-      caption: pinRunner != null ? `${num(pinRunner)} is second${sh2 != null ? ` with ${(sh2 * 100).toFixed(1)}% of gross` : ""}.` : "Fewer than two ranked strikes." },
-    { id: "p_lead", label: "Lead", sub: "#1 − #2, share points",
+      caption: pinRunner != null ? `${num(pinRunner)} is second${sh2 != null ? ` with ${(sh2 * 100).toFixed(1)}% of band gross` : ""}.` : "Fewer than two ranked strikes." },
+    { id: "p_lead", label: "Lead", sub: "#1 − #2, band-gross share points",
       value: lead != null ? `${lead.toFixed(1)} pts` : <Absent word="no #2" />, levelIds: ["gconc", "runner"],
       caption: lead != null ? `#1 leads #2 by ${lead.toFixed(1)} share points (both outlined).` : "No lead without a runner-up." },
-    { id: "p_hhi", label: "Concentration (HHI)", sub: top5 != null ? `top-5 share ${(top5 * 100).toFixed(1)} %` : "",
+    { id: "p_netpeak", label: "Net peak", sub: pinLatest ? [netTopShare != null ? `${(netTopShare * 100).toFixed(1)} % of |net γ|` : null, pinLatest.ts ? istTime(pinLatest.ts) : null, netPeak != null && pin != null ? (netPeak === pin ? "= Pin" : "≠ Pin") : null].filter(Boolean).join(" · ") : "",
+      value: pinLatest ? (netPeak != null ? num(netPeak) : <Absent word="no history" />) : <Absent word="no history" />, levelIds: ["netpeak"],
+      caption: netPeak != null ? `The net-gamma top strike is ${num(netPeak)}.` : "No net peak history yet." },
+    { id: "p_state", label: "Net peak state", sub: pinLatest ? [minsHeld != null ? `held ${heldCycles} cycles · ${minsHeld} min` : null, pinPrevSession ? `session ${pinSession}` : null, pinLatest.reconciled_at ? "reconciled" : "live · unreconciled"].filter(Boolean).join(" · ") : "",
+      value: pinState ? pinState : pinLatest ? <Absent word={pinLatest.pin_state_reason ? "state n/a" : "no state"} /> : <Absent word="no history" />, levelIds: ["gconc"],
+      caption: pinState ? `Net peak ${pinStateWord[pinState] ?? pinState.toLowerCase()} at ${num(n(pinLatest.pin_leader_strike))}${heldCycles != null ? `, leader held ${heldCycles} OPEN cycles (${minsHeld} min)` : ""}.` : pinLatest?.pin_state_reason ? `Pin state unavailable: ${pinLatest.pin_state_reason}.` : "No pin history for this session yet." },
+    { id: "p_conv", label: "Net peak conviction", sub: "stage 1 · no band (D-6)",
+      value: conviction != null ? conviction.toFixed(2) : pinLatest?.conviction_reason ? <Absent word="n/a" /> : <Absent word="no history" />, levelIds: ["gconc", "runner"],
+      caption: conviction != null ? `Conviction ${conviction.toFixed(2)} = (1 − net #2/#1${r2r1 != null ? ` = ${r2r1.toFixed(2)}` : ""}) × time boost. A number, not a grade.` : pinLatest?.conviction_reason ? `Conviction unavailable: ${pinLatest.conviction_reason}.` : "No conviction yet." },
+    { id: "p_hhi", label: "Net concentration (HHI)", sub: top5 != null ? `top-5 share ${(top5 * 100).toFixed(1)} %` : "",
       value: hhiTrue != null ? hhiTrue.toFixed(3) : <Absent word="no history" />, levelIds: [],
       caption: hhiTrue != null ? `Herfindahl Σshare² = ${hhiTrue.toFixed(3)}${top5 != null ? `; the top 5 strikes hold ${(top5 * 100).toFixed(1)}%` : ""}.` : "No concentration history yet." },
     { id: "p_band", label: "Pin band", sub: "τ-weighted zone (ENH-81)",
@@ -392,12 +403,12 @@ export default function Board() {
     { id: "p_dist", label: "Pin distance", sub: pinDist == null ? "" : pinDist > 0 ? "above spot" : pinDist < 0 ? "below spot" : "at spot",
       value: pinDist != null ? `${sgn(pinDist, 2)} %` : <Absent word="no run" />, levelIds: ["gconc", "spot"],
       caption: pinDist != null ? `The pin is ${Math.abs(pinDist).toFixed(2)}% ${pinDist > 0 ? "above" : pinDist < 0 ? "below" : "at"} spot.` : "Distance unavailable." },
-    { id: "p_today", label: "Leader today", sub: pinHist.length ? `${pinHist.length} cycles · ${istTime(pinHist[0].ts)}–${istTime(pinHist[pinHist.length - 1].ts)}` : "",
+    { id: "p_today", label: "Net peak today", sub: pinHist.length ? `${pinHist.length} cycles · ${istTime(pinHist[0].ts)}–${istTime(pinHist[pinHist.length - 1].ts)}` : "",
       value: pinHist.length ? `${leaderChanges} change${leaderChanges === 1 ? "" : "s"}` : <Absent word="no history" />, levelIds: [],
       caption: pinHist.length ? `The leader changed ${leaderChanges} time${leaderChanges === 1 ? "" : "s"} over ${pinHist.length} OPEN cycles.` : "No pin history yet.",
       extra: stretches.length ? (
         <div>
-          <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Leader stretches</div>
+          <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Net peak stretches</div>
           <div className="mt-1 grid max-w-[420px] grid-cols-[auto_1fr_auto] gap-x-4 gap-y-0.5 text-[12px]">
             {stretches.slice(-12).map((st, i) => (
               <div key={i} className="contents">
@@ -412,7 +423,7 @@ export default function Board() {
     ...(legacyPinRisk != null ? [{ id: "p_legacy", label: "Legacy pin-risk score", sub: "number only · no band (E-D4)", value: `${num(legacyPinRisk)}/100`, levelIds: [],
       caption: `The pre-parity pin-risk score reads ${num(legacyPinRisk)}/100; its 25/50/75 words were never measured.` }] : []),
   ];
-  const pinNote = pinHist.length ? `pin state · ${pinPrevSession ? `previous session ${pinSession}` : "this session"} · front leg` : "pin state · no history";
+  const pinNote = pinHist.length ? `net peak state · ${pinPrevSession ? `previous session ${pinSession}` : "this session"} · front leg` : "net peak state · no history";
 
   // ---------- Flows tab (S92: L7/L8 — rulings S92-C, S92-E) ----------
   const flowSim = (useFlowSim(symbol).data ?? []) as any[];
@@ -603,9 +614,9 @@ export default function Board() {
             return <Track lo={lo - pad} hi={hi + pad} spot={wSpot} ticks={[{ at: pw, color: "var(--put)" }, { at: cw, color: "var(--call)" }]} />;
           })() : undefined} />
 
-        <Cell id="pin" label="Pin (γ-conc)" {...C}
+        <Cell id="pin" label="Pin (gross γ)" {...C}
           value={pin != null ? num(pin) : <Absent word="no run" />}
-          sub={pin != null ? [sh1 != null ? `${(sh1 * 100).toFixed(1)} % of gross` : null, lead != null ? `lead ${lead.toFixed(1)} pts` : null, pinWall].filter(Boolean).join(" · ") : undefined}
+          sub={pin != null ? pinSub : undefined}
           viz={sh1 != null ? (
             <div className="mt-2 space-y-0.5">
               <div className="h-1 w-full rounded-sm" style={{ background: "var(--rule)" }} />

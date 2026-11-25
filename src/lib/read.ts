@@ -1,5 +1,5 @@
 // The read (D.4) — one factual sentence from bound values. Shared by Board and Home.
-import { useSpotPocket, useWalls, useStrikeRank, useRepricedFlip, useGammaNow, useAbsExposure } from "./board";
+import { useSpotPocket, useWalls, useRepricedFlip, useGrossPin, useGammaNow, useAbsExposure } from "./board";
 import type { Symbol } from "./queries";
 
 const num = (v: number, d = 0) => v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -10,13 +10,13 @@ export function useBoardRead(symbol: Symbol): string | null {
   const abs = useAbsExposure(symbol).data as any;
   const flip = useRepricedFlip(symbol).data as any;
   const walls = useWalls(symbol).data as any;
-  const rank = (useStrikeRank(symbol).data ?? []) as any[];
+  const gp = useGrossPin(symbol).data as any;
   const pocket = useSpotPocket(symbol).data;
 
   const spot = n(g?.spot);
   if (spot == null) return null;
   const pw = n(walls?.put_wall), cw = n(walls?.call_wall), cState: string | null = walls?.corridor_state ?? null;
-  const pin = n(rank.find((r) => r.strike_rank === 1)?.strike);
+  const pin = n(gp?.pin_strike);
   const fStatus: string | null = flip?.status ?? null;
   // S90 MV-2: distance from the displayed spot, not the L3 row's own spot.
   const fFlip = n(flip?.flip);
@@ -35,7 +35,7 @@ export function useBoardRead(symbol: Symbol): string | null {
     out += wallDistancePct < 0.05
       ? `, at the ${useCall ? "call" : "put"} OI wall at ${num(wall)}`
       : `, ${wallDistancePct.toFixed(1)}% ${spot < wall ? "under" : "above"} the ${useCall ? "call" : "put"} OI wall at ${num(wall)}`;
-    if (pin != null && pin === wall) out += ", which is also the largest gamma strike";
+    if (pin != null && pin === wall) out += ", which is also the gross-gamma pin";
   }
   if (fPct != null && fFlip != null) {
     out += `. Flip is ${fPct >= 0 ? "+" : "−"}${Math.abs(fPct).toFixed(2)}% away`;
