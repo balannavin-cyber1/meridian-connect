@@ -257,7 +257,7 @@ export default function Board() {
   const gammaItems: OverviewItem[] = [
     { id: "g_top", label: "Top-strike share", sub: bucket ? `${bucket === "0" ? "0" : bucket} DTE bucket${n(conc?.top_strike_net) != null ? ` · at ${num(n(conc.top_strike_net))}` : ""}` : "",
       value: hN != null ? pct(hN) : <Absent word="no run" />, levelIds: [],
-      caption: hN != null ? `The largest strike carries ${pct(hN)} of gross |γ| (calls ${pct(hC)}, puts ${pct(hP)}); ${bucket ?? "—"} DTE bucket.` : "No concentration run.",
+      caption: hN != null ? `The largest strike carries ${pct(hN)} of |net γ| (calls ${pct(hC)}, puts ${pct(hP)}); ${bucket ?? "—"} DTE bucket.` : "No concentration run.",
       extra: hN != null ? (
         <div>
           <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>Call / put split</div>
@@ -376,7 +376,7 @@ export default function Board() {
   const minsHeld = heldCycles != null ? heldCycles * 5 : null;
   const pinStateWord: Record<string, string> = { "NO PIN": "no pin", SHIFTING: "shifting", STABLE: "stable", LOCKED: "locked" };
   const pinItems: OverviewItem[] = [
-    { id: "p_pin", label: "Pin (gross γ)", sub: [sh1 != null ? `${(sh1 * 100).toFixed(1)} % of band gross` : null, pinLegs === "call" ? "call γ only" : pinLegs === "put" ? "put γ only" : pinLegs && pinLegs !== "both" ? pinLegs : null, pinWall, pinTs ? istTime(pinTs) : null].filter(Boolean).join(" · "),
+    { id: "p_pin", label: "Pin (gross γ)", sub: [sh1 != null ? `${(sh1 * 100).toFixed(1)} % of band gross` : null, pinLegs === "call_only" ? "call γ only" : pinLegs === "put_only" ? "put γ only" : null, pinWall, pinTs ? istTime(pinTs) : null].filter(Boolean).join(" · "),
       value: pin != null ? num(pin) : <Absent word="no run" />, levelIds: ["gconc"],
       caption: pin != null ? `${num(pin)} holds the largest share of gross γ within 5 % of spot${sh1 != null ? `, ${(sh1 * 100).toFixed(1)}%` : ""}.` : "No gross pin for this run." },
     { id: "p_runner", label: "Runner-up", sub: sh2 != null ? `${(sh2 * 100).toFixed(1)} % of band gross` : "",
@@ -385,14 +385,14 @@ export default function Board() {
     { id: "p_lead", label: "Lead", sub: "#1 − #2, band-gross share points",
       value: lead != null ? `${lead.toFixed(1)} pts` : <Absent word="no #2" />, levelIds: ["gconc", "runner"],
       caption: lead != null ? `#1 leads #2 by ${lead.toFixed(1)} share points (both outlined).` : "No lead without a runner-up." },
-    { id: "p_netpeak", label: "Net peak", sub: pinLatest ? [netTopShare != null ? `${(netTopShare * 100).toFixed(1)} % of |net γ|` : null, pinLatest.ts ? istTime(pinLatest.ts) : null, netPeak != null && pin != null ? (netPeak === pin ? "= Pin" : "≠ Pin") : null].filter(Boolean).join(" · ") : "",
+    { id: "p_netpeak", label: "Net peak", sub: pinLatest ? [netRank1 != null && netPeak != null && Number(netRank1.strike) === netPeak && !pinPrevSession && netTopShare != null ? `${(netTopShare * 100).toFixed(1)} % of |net γ|` : null, pinLatest.ts ? istTime(pinLatest.ts) : null, netPeak != null && pin != null ? (netPeak === pin ? "= Pin" : "≠ Pin") : null].filter(Boolean).join(" · ") : "",
       value: pinLatest ? (netPeak != null ? num(netPeak) : <Absent word="no history" />) : <Absent word="no history" />, levelIds: ["netpeak"],
       caption: netPeak != null ? `The net-gamma top strike is ${num(netPeak)}.` : "No net peak history yet." },
     { id: "p_state", label: "Net peak state", sub: pinLatest ? [minsHeld != null ? `held ${heldCycles} cycles · ${minsHeld} min` : null, pinPrevSession ? `session ${pinSession}` : null, pinLatest.reconciled_at ? "reconciled" : "live · unreconciled"].filter(Boolean).join(" · ") : "",
-      value: pinState ? pinState : pinLatest ? <Absent word={pinLatest.pin_state_reason ? "state n/a" : "no state"} /> : <Absent word="no history" />, levelIds: ["gconc"],
-      caption: pinState ? `Net peak ${pinStateWord[pinState] ?? pinState.toLowerCase()} at ${num(n(pinLatest.pin_leader_strike))}${heldCycles != null ? `, leader held ${heldCycles} OPEN cycles (${minsHeld} min)` : ""}.` : pinLatest?.pin_state_reason ? `Pin state unavailable: ${pinLatest.pin_state_reason}.` : "No pin history for this session yet." },
+      value: pinState ? pinState : pinLatest ? <Absent word={pinLatest.pin_state_reason ? "state n/a" : "no state"} /> : <Absent word="no history" />, levelIds: netPeak != null && netPeak !== pin ? ["netpeak"] : ["gconc"],
+      caption: pinState ? `Net peak ${pinStateWord[pinState] ?? pinState.toLowerCase()} at ${num(n(pinLatest.pin_leader_strike))}${heldCycles != null ? `, leader held ${heldCycles} OPEN cycles (${minsHeld} min)` : ""}.` : pinLatest?.pin_state_reason ? `Net peak state unavailable: ${pinLatest.pin_state_reason}.` : "No net peak history for this session yet." },
     { id: "p_conv", label: "Net peak conviction", sub: "stage 1 · no band (D-6)",
-      value: conviction != null ? conviction.toFixed(2) : pinLatest?.conviction_reason ? <Absent word="n/a" /> : <Absent word="no history" />, levelIds: ["gconc", "runner"],
+      value: conviction != null ? conviction.toFixed(2) : pinLatest?.conviction_reason ? <Absent word="n/a" /> : <Absent word="no history" />, levelIds: netPeak != null && netPeak !== pin ? ["netpeak"] : ["gconc"],
       caption: conviction != null ? `Conviction ${conviction.toFixed(2)} = (1 − net #2/#1${r2r1 != null ? ` = ${r2r1.toFixed(2)}` : ""}) × time boost. A number, not a grade.` : pinLatest?.conviction_reason ? `Conviction unavailable: ${pinLatest.conviction_reason}.` : "No conviction yet." },
     { id: "p_hhi", label: "Net concentration (HHI)", sub: top5 != null ? `top-5 share ${(top5 * 100).toFixed(1)} %` : "",
       value: hhiTrue != null ? hhiTrue.toFixed(3) : <Absent word="no history" />, levelIds: [],
