@@ -214,7 +214,7 @@ export default function Board() {
     { id: "net", label: "Net Γ", sub: net != null ? `${net >= 0 ? "long γ" : "short γ"}${ratio != null ? ` · ${ratio.toFixed(2)} of gross` : ""}` : "",
       value: net != null ? <span style={{ color: hue(net) }}>{crLakh(net)}</span> : <Absent word="no run" />, levelIds: [],
       caption: net != null ? `Net gamma is ${crLakh(net)}${ratio != null ? `, ${ratio.toFixed(2)} of gross` : ""}; bars show signed γ per strike.` : "Net gamma has no run." },
-    { id: "flip", label: "Flip", sub: fPct != null ? `${fPct >= 0 ? "+" : "−"}${Math.abs(fPct).toFixed(2)} % from spot` : "",
+    { id: "flip", label: "Flip", sub: fPct != null ? `${fPct >= 0 ? "+" : "−"}${Math.abs(fPct).toFixed(2)} % from spot · experimental` : "experimental",
       value: fVal != null ? num(fVal) : isAwaiting(flip) ? <Absent word={closedWord} /> : fStatus && flipAbsent[fStatus] ? <Absent word={flipAbsent[fStatus]} /> : <Absent word="no run" />,
       levelIds: ["flip"], caption: fVal != null ? `Flip at ${num(fVal)}, ${fPct! >= 0 ? "+" : "−"}${Math.abs(fPct!).toFixed(2)}% from spot (dashed rule).` : isAwaiting(flip) ? `Flip: ${closedWord}.` : `Flip: ${fStatus && flipAbsent[fStatus] ? flipAbsent[fStatus] : "no run"}.` },
     { id: "corridor", label: "Corridor", sub: cState ? stateWord[cState] ?? cState.toLowerCase() : "",
@@ -420,7 +420,7 @@ export default function Board() {
           </div>
           {stretches.length > 12 && <div className="mt-1 text-[11px]" style={{ color: "var(--ink-3)" }}>latest 12 of {stretches.length}</div>}
         </div>) : undefined },
-    ...(legacyPinRisk != null ? [{ id: "p_legacy", label: "Legacy pin-risk score", sub: "number only · no band (E-D4)", value: `${num(legacyPinRisk)}/100`, levelIds: [],
+    ...(legacyPinRisk != null ? [{ id: "p_legacy", label: "Legacy pin-risk score (unvalidated)", sub: "number only · no band (E-D4)", value: `${num(legacyPinRisk)}/100`, levelIds: [],
       caption: `The pre-parity pin-risk score reads ${num(legacyPinRisk)}/100; its 25/50/75 words were never measured.` }] : []),
   ];
   const pinNote = pinHist.length ? `net peak state · ${pinPrevSession ? `previous session ${pinSession}` : "this session"} · front leg` : "net peak state · no history";
@@ -535,7 +535,7 @@ export default function Board() {
   })() : undefined;
   const legLine = (r: any) => `${expShort(r.expiry_date)} · ${r.dte} d · ${String(r.status).toLowerCase().replace(/_/g, " ")}`;
   const flowItems: OverviewItem[] = [
-    { id: "f_hedge", label: "Hedge per 1 %", sub: fm1 != null ? `−1 %: ${flowWord(fm1)} · +1 %: ${flowWord(fp1)}` : "",
+    { id: "f_hedge", label: "Hedge per 1 %", sub: fm1 != null ? `−1 %: ${flowWord(fm1)} · +1 %: ${flowWord(fp1)} · legacy, unvalidated` : "legacy, unvalidated",
       value: fp1 != null ? <span style={{ color: hue(fp1) }}>{flowWord(fp1)}</span> : <Absent word="no run" />, levelIds: [],
       caption: fp1 != null ? `Under the house sign, for a +1% move dealers would ${fp1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fp1))} Cr; for −1%, ${fm1 != null && fm1 >= 0 ? "buy" : "sell"} about ₹${num(Math.abs(fm1 ?? 0))} Cr. Bars show ∂Δ/∂t per strike.` : "No flow simulation." },
     { id: "f_ddt", ratio: fl("net_over_gross_delta_drift_time"), label: "∂Δ/∂t · per day", sub: fl("net_over_gross_delta_drift_time") != null ? `net/gross ${fl("net_over_gross_delta_drift_time")?.toFixed(2).replace(/^-/, "−")} · Cr Δ-notional` : "Cr Δ-notional",
@@ -602,7 +602,7 @@ export default function Board() {
 
         <Cell id="flip" label="Flip" {...C}
           value={fVal != null ? num(fVal, 0) : isAwaiting(flip) ? <Absent word={closedWord} /> : fStatus && flipAbsent[fStatus] ? <Absent word={flipAbsent[fStatus]} /> : <Absent word="no run" />}
-          sub={fPct != null ? `${fPct >= 0 ? "+" : "−"}${Math.abs(fPct).toFixed(2)} % from spot` : undefined}
+          sub={fPct != null ? `${fPct >= 0 ? "+" : "−"}${Math.abs(fPct).toFixed(2)} % from spot · experimental` : "experimental"}
           viz={fSpot != null ? <Track lo={fSpot * 0.97} hi={fSpot * 1.03} spot={fSpot}
             ticks={fVal != null ? [{ at: fVal, color: "var(--rule)", dashed: true }] : []} /> : undefined} />
 

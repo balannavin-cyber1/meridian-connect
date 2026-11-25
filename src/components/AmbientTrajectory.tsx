@@ -286,7 +286,7 @@ export function AmbientTrajectory({
   }
 
   const laneLabel = (key: LaneKey): string =>
-    key === "PRICE" ? "PRICE" : key === "CYCLE" ? "CLOCK 2 · CYCLE" : "CLOCK 1 · REGIME";
+    key === "PRICE" ? "PRICE" : key === "CYCLE" ? "CLOCK 2 · CYCLE" : "CLOCK 1 · REGIME (legacy, unvalidated)";
 
   // Helper: place a reference-line label so it never sits inside the lane
   // header band. Default above the line; if that lands in the header, drop
@@ -550,7 +550,7 @@ export function AmbientTrajectory({
               {liveN ?? "—"}
             </div>
             <div style={{ color: MV.weak }}>
-              {live.dte != null ? `${live.dte}d · ` : ""}pin {live.pinRiskScore != null ? Math.round(live.pinRiskScore) : "—"}
+              {live.dte != null ? `${live.dte}d · ` : ""}pin {live.pinRiskScore != null ? Math.round(live.pinRiskScore) : "—"}{" · legacy, unvalidated"}
             </div>
           </div>
         )}
@@ -560,7 +560,7 @@ export function AmbientTrajectory({
       {tf === "WEEK" && intradayDrift && (
         <div className="mt-3 rounded-md px-3 py-2 text-[12px] font-medium leading-snug"
           style={{ background: MV.amber + "1f", border: `1px solid ${MV.amber}55`, color: MV.amber, fontFamily: MV.mono }}>
-          ⚠ INTRADAY DRIFT — the regime flipped to {liveN} since the open; the settled verdict ({settledN}) is stale until tonight's recompile.
+          ⚠ INTRADAY DRIFT — the regime flipped to {liveN} since the open; the settled verdict ({settledN}) is stale until tonight's recompile. · legacy, unvalidated
         </div>
       )}
 

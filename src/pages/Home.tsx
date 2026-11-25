@@ -136,7 +136,7 @@ export default function Home() {
   const cards: CardDef[] = [
     { key: 1, tab: "Overview", sel: "s5", q: "What kind of day, and where are the edges?",
       answer: cState === "UNDEFINED" || pw == null || cw == null ? <Absent word="corridor undefined" /> :
-        <>corridor {num(pw)}–{num(cw)} · {fPct != null ? `flip ${pctS(fPct)}` : flipAwait ? <Absent word={closedWord} /> : flipWord[flip?.status] ?? "no flip run"}</>,
+        <>corridor {num(pw)}–{num(cw)} · {fPct != null ? `flip ${pctS(fPct)}` : flipAwait ? <Absent word={closedWord} /> : flipWord[flip?.status] ?? "no flip run"} (experimental)</>,
       pic: spot != null ? <TrackPic spot={spot} ticks={[
         ...(pw != null && cw != null && cState !== "UNDEFINED" ? [{ at: 0, color: "", span: [pw, cw] as [number, number] }, { at: pw, color: "var(--put)" }, { at: cw, color: "var(--call)" }] : []),
         ...(fv != null ? [{ at: fv, color: "var(--rule)", dashed: true }] : []),
@@ -155,7 +155,7 @@ export default function Home() {
       pic: spot != null && mps != null ? <TrackPic spot={spot} ticks={[{ at: mps, color: "var(--put)" }, ...(pin != null ? [{ at: pin, color: "var(--rule)" }] : [])]} /> : null },
     { key: 5, tab: "Flows", sel: "s3", q: "What would dealers trade if spot moves?",
       answer: !f1 || !f2 ? <Absent word="no flow sim" /> :
-        <>−1 %: {f1.direction} {num(Math.abs(Number(f1.flow_cr)))} Cr · +1 %: {f2.direction} {num(Math.abs(Number(f2.flow_cr)))} Cr</>,
+        <>−1 %: {f1.direction} {num(Math.abs(Number(f1.flow_cr)))} Cr · +1 %: {f2.direction} {num(Math.abs(Number(f2.flow_cr)))} Cr · legacy, unvalidated</>,
       pic: f1 && f2 ? <FlowPic dn={Number(f1.flow_cr)} up={Number(f2.flow_cr)} /> : null },
     { key: 6, tab: "IV", sel: "s7", q: "What do time and cover cost?",
       answer: ivAwait ? <Absent word={closedWord} /> : n(front?.atm_iv) == null ? <Absent word="no chain" /> :

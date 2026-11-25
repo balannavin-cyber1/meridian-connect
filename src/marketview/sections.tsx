@@ -36,7 +36,7 @@ export function SnapshotStrip({ s }: { s: MvState }) {
       sub: s.maxGammaStrike && s.spot ? `${fmtPct(((s.maxGammaStrike - s.spot) / s.spot) * 100, 1)}` : undefined },
     { label: "MAX PAIN", value: s.maxPainStrike != null ? fmtNum(s.maxPainStrike, { maximumFractionDigits: 0 }) : "—",
       sub: s.painSpotDistPct != null ? fmtPct(s.painSpotDistPct, 1) : undefined },
-    { label: "PIN SCORE", value: s.pinRiskScore != null ? `${Math.round(s.pinRiskScore)}/100` : "—",
+    { label: "PIN SCORE (legacy, unvalidated)", value: s.pinRiskScore != null ? `${Math.round(s.pinRiskScore)}/100` : "—",
       color: (s.pinRiskScore ?? 0) >= 75 ? MV.purple : MV.mid },
     { label: "VIX", value: s.vix != null ? s.vix.toFixed(2) : "—" },
     { label: "EXPIRY", value: s.expiry ? new Date(s.expiry).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—",
@@ -63,8 +63,8 @@ export function SnapshotStrip({ s }: { s: MvState }) {
 export function KeyParametersSection({ s }: { s: MvState }) {
   const regimeMapped = s.regime ? REGIME_DISPLAY[s.regime] : null;
   const regimePill = regimeMapped
-    ? { text: regimeMapped.label, bg: regimeMapped.bg, fg: regimeMapped.fg, sub: s.gammaZone ? `${regimeMapped.desc} · ${s.gammaZone}` : regimeMapped.desc }
-    : s.regime ? { text: s.regime, bg: MV.blueBg, fg: MV.blue, sub: s.gammaZone ?? "" } : null;
+    ? { text: regimeMapped.label, bg: regimeMapped.bg, fg: regimeMapped.fg, sub: s.gammaZone ? `${regimeMapped.desc} · ${s.gammaZone} · legacy, unvalidated` : `${regimeMapped.desc} · legacy, unvalidated` }
+    : s.regime ? { text: s.regime, bg: MV.blueBg, fg: MV.blue, sub: s.gammaZone ? `${s.gammaZone} · legacy, unvalidated` : "legacy, unvalidated" } : null;
 
   return (
     <div>
@@ -210,15 +210,15 @@ export function PinRiskRowSection({ s }: { s: MvState }) {
       <SectionLabel>Pin Risk & ATM</SectionLabel>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Pin Risk Score</div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Pin Risk Score (legacy, unvalidated)</div>
           <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: MV.purple, fontFamily: MV.mono }}>
             {s.pinRiskScore != null ? Math.round(s.pinRiskScore) : "—"}
             <span className="text-[14px]" style={{ color: MV.weak }}>{s.pinRiskScore != null ? " /100" : ""}</span>
           </div>
           <div className="mt-2 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
             {s.pinRiskScore != null
-              ? s.pinRiskScore >= 75 ? "strong pin · 75 threshold exceeded"
-                : s.pinRiskScore >= 50 ? "moderate pin" : "weak pin"
+              ? s.pinRiskScore >= 75 ? "strong pin · 75 threshold exceeded · legacy, unvalidated"
+                : s.pinRiskScore >= 50 ? "moderate pin · legacy, unvalidated" : "weak pin · legacy, unvalidated"
               : "no pin-risk data"}
           </div>
           <div className="mt-3"><Gauge value={s.pinRiskScore ?? 0} color={MV.purple} /></div>
@@ -227,7 +227,7 @@ export function PinRiskRowSection({ s }: { s: MvState }) {
           </div>
         </Card>
         <Card>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Pin Probability</div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: MV.weak }}>Pin Probability (legacy, unvalidated)</div>
           {s.pinProbability != null ? (<>
             <div className="mt-1 text-[30px] font-bold leading-none" style={{ color: MV.purple, fontFamily: MV.mono }}>
               {s.pinProbability.toFixed(1)}%
@@ -235,6 +235,7 @@ export function PinRiskRowSection({ s }: { s: MvState }) {
             <div className="mt-2 text-[11px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
               complement of expansion ({s.expansionProb != null ? s.expansionProb.toFixed(1) + "%" : "—"})
               {s.maxGammaStrike != null ? ` · near ${fmtNum(s.maxGammaStrike, { maximumFractionDigits: 0 })}` : ""}
+              {" · legacy, unvalidated"}
             </div>
             <div className="mt-3"><Gauge value={s.pinProbability} color={MV.purple} /></div>
           </>) : <Unavailable label="expansion_probability not exposed" />}
@@ -277,12 +278,12 @@ export function PinRiskRowSection({ s }: { s: MvState }) {
 export function PinRiskTimelineSection({ s }: { s: MvState }) {
   return (
     <div>
-      <SectionLabel>Pin Risk Timeline</SectionLabel>
-      <Card title="Pin Risk Timeline"
-        subtitle="intraday pin-score (purple, L axis) vs spot (blue, R axis) · today's session">
+      <SectionLabel>Pin Risk Timeline (legacy, unvalidated)</SectionLabel>
+      <Card title="Pin Risk Timeline (legacy, unvalidated)"
+        subtitle="intraday pin-score (purple, L axis) vs spot (blue, R axis) · today's session · legacy, unvalidated">
         <PinRiskTimeline rows={(s.gammaToday.data ?? []) as any} />
         <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[10px]" style={{ color: MV.weak, fontFamily: MV.mono }}>
-          <span><span style={{ color: MV.purple }}>●</span> pin score {s.pinRiskScore != null ? Math.round(s.pinRiskScore) : "—"} / 100</span>
+          <span><span style={{ color: MV.purple }}>●</span> pin score {s.pinRiskScore != null ? Math.round(s.pinRiskScore) : "—"} / 100 · legacy, unvalidated</span>
           <span><span style={{ color: MV.blueLine }}>—</span> spot {fmtNum(s.spot, { maximumFractionDigits: 0 })}</span>
           <span>{(s.gammaToday.data ?? []).length} samples</span>
         </div>

@@ -20,11 +20,11 @@ const fmt = (v: any, suffix = "") =>
 
 function headline(s: Props["state"]) {
   if (s.regime === "POSITIVE_γ" || s.regime === "LONG_GAMMA") {
-    if ((s.pinScore ?? 0) >= 75) return "Gamma pinning, theta harvest setup";
-    return "Long-gamma regime, mean-reverting tape";
+    if ((s.pinScore ?? 0) >= 75) return "Gamma pinning, theta harvest setup (legacy, unvalidated)";
+    return "Long-gamma regime, mean-reverting tape (legacy, unvalidated)";
   }
-  if (s.regime === "NEGATIVE_γ" || s.regime === "SHORT_GAMMA") return "Short-gamma regime, amplified moves";
-  return "Mixed regime, range trading";
+  if (s.regime === "NEGATIVE_γ" || s.regime === "SHORT_GAMMA") return "Short-gamma regime, amplified moves (legacy, unvalidated)";
+  return "Mixed regime, range trading (legacy, unvalidated)";
 }
 
 export function NarrativeModal({ open, onClose, symbol, expiry, state }: Props) {
@@ -38,11 +38,11 @@ export function NarrativeModal({ open, onClose, symbol, expiry, state }: Props) 
   if (!open) return null;
 
   const rows: Array<[string, string]> = [
-    ["Regime", fmt(state.regime)],
+    ["Regime (legacy, unvalidated)", fmt(state.regime)],
     ["Net dealer γ", fmt(state.netDealerGamma, " Cr")],
     ["Max γ strike", fmt(state.maxGammaStrike)],
     ["Max pain strike", fmt(state.maxPainStrike)],
-    ["Pin risk score", state.pinScore != null ? `${Math.round(state.pinScore)} / 100` : "—"],
+    ["Pin risk score (legacy, unvalidated)", state.pinScore != null ? `${Math.round(state.pinScore)} / 100` : "—"],
     ["India VIX", fmt(state.vix)],
   ];
 
@@ -93,8 +93,8 @@ export function NarrativeModal({ open, onClose, symbol, expiry, state }: Props) 
           <p>
             {state.regime === "POSITIVE_γ" || state.regime === "LONG_GAMMA"
               ? "If dealers are long γ, they buy dips and sell rips, compressing realized vol."
-              : "If dealers are short γ, they chase price, amplifying directional moves."}
-            Pin risk score of {state.pinScore != null ? Math.round(state.pinScore) : "—"} suggests {(state.pinScore ?? 0) >= 75 ? "strong magnetism near max γ" : "limited pin pressure"}.
+              : "If dealers are short γ, they chase price, amplifying directional moves."}{" (legacy, unvalidated) "}
+            Pin risk score of {state.pinScore != null ? Math.round(state.pinScore) : "—"} suggests {(state.pinScore ?? 0) >= 75 ? "strong magnetism near max γ" : "limited pin pressure"} (legacy, unvalidated).
           </p>
           <p className="text-[11px] text-gray-400">
             Generated from live parameter state · {new Date().toLocaleString("en-IN")}
